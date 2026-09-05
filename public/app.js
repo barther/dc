@@ -1,11 +1,7 @@
 /* Countdown to departure day. */
 
 (function () {
-  // Departure day: Saturday Nov 28, 2026, Anniston AL (Central Time).
-  // Defaults; planner.js overrides these via window.DCTrip when the trip changes.
-  const DEFAULT_DEPART = new Date("2026-11-28T00:00:00-06:00");
-  const DEFAULT_ARRIVE = new Date("2026-11-29T14:12:00-05:00");
-  const DEFAULT_HOME = new Date("2026-12-07T10:30:00-06:00");
+  // Dates come from planner.js via window.DCTrip; this file owns no dates of its own.
 
   const el = document.getElementById("countdown");
   const label = document.getElementById("countdown-label");
@@ -20,8 +16,9 @@
 
   function render() {
     const now = new Date();
-    const trip = window.DCTrip || {};
-    const DEPART = trip.depart || DEFAULT_DEPART, ARRIVE_DC = trip.arrive || DEFAULT_ARRIVE, HOME = trip.home || DEFAULT_HOME;
+    const trip = window.DCTrip;
+    if (!trip) return;
+    const DEPART = trip.depart, ARRIVE_DC = trip.arrive, HOME = trip.home;
     let target = DEPART;
     let text = "until we board the train";
 

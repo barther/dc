@@ -127,11 +127,11 @@
       title: "Christmas Washington.",
       body: [
         "Sleep in. Wander the holiday market and the downtown decorations, poke around the shops, get lunch and something warm to drink, and possibly the Washington Monument if tickets and weather cooperate. Then back to the hotel for an afternoon reset.",
-        "After dark: the White House, the Ellipse, and the National Christmas Tree if the 2026 lighting has happened by then, with the state and territory trees around it. This night isn't for learning anything. It's for lights, cocoa, and seasonal nonsense.",
+        "After dark: the White House, the Ellipse, and the National Christmas Tree if this year's lighting has happened by then, with the state and territory trees around it. This night isn't for learning anything. It's for lights, cocoa, and seasonal nonsense.",
       ],
       photo: ["day-1205-national-christmas-tree.webp", "The National Christmas Tree on the Ellipse"],
       // When compressed, the night rides on another day and this paragraph is appended there.
-      compressed: "Then, after dark, Christmas Washington: the White House, the Ellipse, and the National Christmas Tree if the 2026 lighting has happened by then. Call the afternoon early, reset at the hotel, bundle up. The holiday market becomes a quick stop on the way rather than its own day. Lights, cocoa, seasonal nonsense.",
+      compressed: "Then, after dark, Christmas Washington: the White House, the Ellipse, and the National Christmas Tree if this year's lighting has happened by then. Call the afternoon early, reset at the hotel, bundle up. The holiday market becomes a quick stop on the way rather than its own day. Lights, cocoa, seasonal nonsense.",
     },
     americanhistory: {
       id: "americanhistory", name: "American History", rank: 6, headlines: ["americanhistory"],
@@ -154,6 +154,9 @@
   const PROTECTED_FULL = ["capitolhill", "archivesmem"];
 
   const DEFAULT = { start: "2026-11-29", nights: 7 };
+  // Crescent facts. Train 20 reaches Washington early afternoon on the weekend schedule;
+  // on weekdays it's earlier, so we point at the timetable rather than guess.
+  const TRAIN = { boardLabel: "evening", arriveWeekend: "~2:12 PM", arriveWeekday: "afternoon, per the timetable", departLabel: "6:30 PM", homeLabel: "~10:30 AM CT" };
   // Bart works until 2 PM Saturday Nov 28, 2026 (evening boarding is fine) and is back at work
   // Thursday Dec 10, 2026 at 2 PM. The Crescent gets into Anniston ~10:30 AM.
   const WORK = { date: "2026-12-10", label: "Thu Dec 10, 2 PM", off: "2026-11-28", offLabel: "Sat Nov 28, 2 PM" };
@@ -479,7 +482,6 @@
 
     // Verdict line + controls.
     $("cfg-nights").textContent = String(r.nights);
-    $("cfg-start").value = iso(r.start);
     $("cfg-minus").disabled = r.nights <= MIN_NIGHTS;
     $("cfg-plus").disabled = r.nights >= MAX_NIGHTS;
     const isDefault = cfg.start === DEFAULT.start && cfg.nights === DEFAULT.nights;
@@ -497,10 +499,12 @@
 
     // Departure board.
     const weekend = r.start.getDay() === 0 || r.start.getDay() === 6;
-    $("b-out-from").textContent = `${fmtDMD(r.trainOut)} · evening`;
-    $("b-out-to").textContent = `${fmtDMD(r.start)} · ${weekend ? "~2:12 PM" : "afternoon, per the timetable"}`;
-    $("b-back-from").textContent = `${fmtDMD(r.depart)} · 6:30 PM`;
-    $("b-back-to").textContent = `${fmtDMD(r.home)} · ~10:30 AM CT`;
+    $("b-out-from").textContent = `${fmtDMD(r.trainOut)} · ${TRAIN.boardLabel}`;
+    $("b-out-to").textContent = `${fmtDMD(r.start)} · ${weekend ? TRAIN.arriveWeekend : TRAIN.arriveWeekday}`;
+    $("b-back-from").textContent = `${fmtDMD(r.depart)} · ${TRAIN.departLabel}`;
+    $("b-back-to").textContent = `${fmtDMD(r.home)} · ${TRAIN.homeLabel}`;
+    $("fixed-fact").innerHTML = `Bart works until <b>${esc(WORK.offLabel)}</b> and is back at work <b>${esc(WORK.label)}</b>. The train gets home around ${esc(TRAIN.homeLabel.replace(" CT", ""))}.`;
+    renderStrip(r);
 
     // The week.
     const WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
@@ -518,18 +522,85 @@
     $("foot-dates").textContent = `${fmtMD(r.trainOut)} – ${fmtMD(r.home)}, ${r.home.getFullYear()}`;
   }
 
+
+  /* ───────────── Calendar strip ─────────────
+     One cell per day. Days Bart is at work are shaded. The trip is a block
+     spanning train day → home day; drag it to move the arrival date. */
+
+  const strip = $("strip");
+  let stripRange = null; // { from: Date, n: number }
+  let drag = null;
+
+  function renderStrip(r) {
+    const workOff = parseISO(WORK.off), workBack = parseISO(WORK.date);
+    let from = addDays(workOff, -2), to = addDays(workBack, 2);
+    if (r.trainOut < from) from = r.trainOut;
+    if (r.home > to) to = r.home;
+    const n = Math.round((to - from) / 86400000) + 1;
+    stripRange = { from, n };
+    const col = (d) => Math.round((d - from) / 86400000) + 1;
+
+    let cells = "";
+    for (let i = 0; i < n; i++) {
+      const d = addDays(from, i);
+      const hard = d < workOff || d > workBack;
+      const half = iso(d) === WORK.off ? " half-am" : iso(d) === WORK.date ? " half-pm" : "";
+      const first = i === 0 || d.getDate() === 1;
+      cells += `<div class="cell${hard ? " work" : half}${first ? " month" : ""}" style="grid-column:${i + 1}" data-month="${MON[d.getMonth()]}"><i>${DOW[d.getDay()][0]}</i><b>${d.getDate()}</b></div>`;
+    }
+    const a = col(r.trainOut), b = col(r.home);
+    const late = r.trainOut < workOff || r.home > workBack;
+    const block = `<div class="block${late ? " late" : ""}" id="block" style="grid-column:${a} / ${b + 1}" tabindex="0" role="slider"
+        aria-label="Trip dates" aria-valuetext="${esc(fmtDMD(r.trainOut))} to ${esc(fmtDMD(r.home))}">
+        <span class="seg train" title="Train"></span>${r.nights >= 1 ? `<span class="seg nights">${r.nights} ${r.nights === 1 ? "night" : "nights"}</span>` : ""}<span class="seg train" title="Train"></span>
+      </div>`;
+    strip.style.setProperty("--n", n);
+    strip.innerHTML = cells + block;
+    bindBlock();
+  }
+
+  function bindBlock() {
+    const block = $("block");
+    block.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      drag = { x: e.clientX, start: parseISO(cfg.start), cell: strip.getBoundingClientRect().width / stripRange.n, applied: 0 };
+      block.setPointerCapture(e.pointerId);
+      block.classList.add("dragging");
+      e.preventDefault();
+    });
+    block.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const delta = Math.round((e.clientX - drag.x) / drag.cell);
+      if (delta === drag.applied) return;
+      drag.applied = delta;
+      const next = addDays(drag.start, delta);
+      // keep the block on the strip while dragging; the strip regrows on release
+      const minStart = addDays(stripRange.from, 1), maxStart = addDays(stripRange.from, stripRange.n - 1 - cfg.nights - 1);
+      const clamped = next < minStart ? minStart : next > maxStart ? maxStart : next;
+      update({ start: iso(clamped) }, true);
+      // renderStrip replaced the block; keep the capture alive on the new one
+      const nb = $("block"); nb.classList.add("dragging"); try { nb.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    const end = () => { if (!drag) return; drag = null; update({}); };
+    block.addEventListener("pointerup", end);
+    block.addEventListener("pointercancel", end);
+    block.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowDown") { update({ start: iso(addDays(parseISO(cfg.start), -1)) }); e.preventDefault(); $("block").focus(); }
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") { update({ start: iso(addDays(parseISO(cfg.start), 1)) }); e.preventDefault(); $("block").focus(); }
+    });
+  }
+
   let cfg = readHash();
-  function update(next) {
+  function update(next, live) {
     cfg = { ...cfg, ...next };
     cfg.nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights));
-    writeHash(cfg);
+    if (!live) writeHash(cfg);
     render(cfg);
   }
 
   render(cfg);
   $("cfg-minus").addEventListener("click", () => update({ nights: cfg.nights - 1 }));
   $("cfg-plus").addEventListener("click", () => update({ nights: cfg.nights + 1 }));
-  $("cfg-start").addEventListener("change", (e) => { if (parseISO(e.target.value)) update({ start: e.target.value }); });
   $("cfg-reset").addEventListener("click", () => update({ ...DEFAULT }));
   if (cfg.start !== DEFAULT.start || cfg.nights !== DEFAULT.nights) $("change").open = true;
 })(typeof window !== "undefined" ? window : globalThis);
