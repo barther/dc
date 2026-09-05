@@ -206,3 +206,29 @@ becomes a chronology of federal building hours.
 
 The night-count ladder is a regression signal, not an input: if the roster or a seed changes
 and a rung moves, that is the engine doing its job.
+
+
+## Shared trip (version one, step one)
+
+**The planner remains authoritative about whether a proposed state is valid; D1 is authoritative
+about which valid state the family actually accepted.** The browser never persists itinerary
+JSON. It sends intent: "Jess punted Arlington", "Sam marked Natural History a must do", "Bart set
+the trip to six nights". The Worker applies the intent to the canonical state, runs the same
+planner the browser runs, and if the change is consequential answers with a preview instead of
+persisting. Confirmed changes write the new state and a decision record: who, when, what, and the
+planner's one-line consequence.
+
+**Anyone can operate the vacation. Bart administers the vacation.** Any signed-in traveler can
+punt, add, mark must-do, bring back, and later accept swaps, move things, and mark things
+complete. Dates, nights, reset, and overriding another person's stated preference are the Trip
+Administrator's. There is no proposal-and-approval workflow for normal changes.
+
+**Personal preferences are the normal interaction.** Must do, Sounds good, Meh, Punt are opinions
+per traveler, not mutations. The group reading: any must-do pins it; everyone who spoke says punt
+removes it; sounds good with no objection asks the planner to find room; a split vote leaves it
+to seed and capacity; silence is neutral. An administrator's explicit shared state wins over the
+vote. A must-do still goes through the preview when honoring it costs something.
+
+**Identity is Cloudflare Access with Entra ID.** The Worker trusts only a verified Access
+identity and maps the tenant address to an internal traveler id, so a changed email never
+rewrites trip history. The pitch is public; the family layer is behind sign-in.

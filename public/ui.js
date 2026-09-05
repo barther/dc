@@ -1,10 +1,13 @@
 /*
  * DC Trip Planner — renderer and controls.
  *
- * Takes a plan from DCPlanner and turns it into the page. Owns the user's
- * trip-design state (dates, nights, punts, pins) and keeps it in the URL hash
- * so a configured trip can be sent around. Live-trip state (completed,
- * weather) is deliberately not part of that.
+ * Takes a plan from DCPlanner and turns it into the page. Two modes:
+ *
+ *   shared  — the family's canonical trip from the Worker. Signed-in travelers
+ *             send intents; the Worker re-runs the planner and persists the
+ *             result. Anonymous visitors see the shared trip and can explore
+ *             what-ifs locally without changing it.
+ *   local   — no Worker (a static preview). Everything lives in the URL hash.
  */
 (function () {
   "use strict";
@@ -65,6 +68,11 @@
   let user = { punted: [], pinned: [], requested: [] };
   let pending = null; // an action awaiting confirmation, or a request awaiting a trade
   let prevPlan = null;
+  let shared = null;   // { trip, decisions } from the Worker, or null in local mode
+  let me = null;       // signed-in traveler, or null
+  let whatIf = false;  // anonymous visitor exploring locally on top of the shared trip
+  const signedIn = () => !!me;
+  const isAdmin = () => !!(me && me.is_admin);
 
   function readHash() {
     const h = location.hash.replace(/^#/, "");
@@ -212,9 +220,14 @@
     window.dispatchEvent(new CustomEvent("trip:change"));
 
     $("cfg-nights").textContent = String(p.nights);
-    $("cfg-minus").disabled = p.nights <= MIN_NIGHTS;
-    $("cfg-plus").disabled = p.nights >= MAX_NIGHTS;
-    $("cfg-reset").hidden = isDefault();
+    const structural = shared && signedIn() && !isAdmin();
+    $("cfg-minus").disabled = p.nights <= MIN_NIGHTS || structural;
+    $("cfg-plus").disabled = p.nights >= MAX_NIGHTS || structural;
+    $("cfg-reset").hidden = isDefault() || structural;
+    $("admin-note").hidden = !structural;
+    document.body.classList.toggle("structural-locked", !!structural);
+    renderIdentity();
+    renderDecisions();
     const warn = s.label === "A different kind of trip" || s.label === "These dates don't work" || s.label === "Runs into work";
     $("verdict").innerHTML = [`<b>${p.nights} ${p.nights === 1 ? "night" : "nights"}</b>`, `<span class="verdict-label${warn ? " warn" : ""}">${esc(s.label)}</span>`, `<span>${esc(s.count)}</span>`].join('<span class="sep">·</span>');
     $("verdict-why").innerHTML = [s.cuts ? `<b>${esc(s.cuts)}</b>` : "", esc(s.why)].filter(Boolean).join(" ");
@@ -253,11 +266,86 @@
   }
 
   function update(next, live) {
+    if (shared && signedIn() && !live) {
+      // Structural changes are intents; the Worker decides. Local render only while dragging.
+      if (next.cfg) {
+        if (!isAdmin()) { toast("Bart administers the vacation. Dates and nights are his."); render(); return; }
+        const c = { ...cfg, ...next.cfg };
+        let intent = null;
+        if (next.cfg.start && next.cfg.start !== shared.trip.start) intent = { type: "set_dates", start: c.start };
+        else if (next.cfg.nights != null && next.cfg.nights !== shared.trip.nights) intent = { type: "set_nights", nights: Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, c.nights)) };
+        else if (next.user && next.user.reset) intent = { type: "reset", start: DEFAULT.start, nights: DEFAULT.nights };
+        if (!intent) { render(); return; }
+        send(intent, false).then((r) => {
+          if (r.ok && r.preview) {
+            pending = { kind: "confirm", intent, messages: [...r.preview.messages, ...r.preview.notes],
+              title: intent.type === "set_nights" ? `${intent.nights} nights: ${r.preview.label}.` : intent.type === "set_dates" ? `Arriving ${fmtDMD(parseISO(intent.start))}: ${r.preview.label}.` : "Back to the recommended trip.",
+              go: "Make the change" };
+            renderPanel();
+          }
+          if (!r.ok || r.preview) { adoptShared(); render(); }
+        });
+        return;
+      }
+    }
     if (next.cfg) cfg = { ...cfg, ...next.cfg };
     if (next.user) user = { punted: [...(next.user.punted || [])], pinned: [...(next.user.pinned || [])], requested: [...(next.user.requested || [])] };
     cfg.nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights));
-    if (!live) writeHash();
+    if (shared && !signedIn() && !live) whatIf = !(cfg.start === shared.trip.start && cfg.nights === shared.trip.nights && JSON.stringify(user) === JSON.stringify({ punted: shared.trip.planner.punted, pinned: shared.trip.planner.pinned, requested: shared.trip.planner.requested }));
+    if (!live && !shared) writeHash();
     render();
+  }
+
+  /* ───────────── Who's here, what's been decided ───────────── */
+
+  function renderIdentity() {
+    const el = $("identity");
+    if (!shared) { el.hidden = true; return; }
+    el.hidden = false;
+    if (me) el.innerHTML = `<span class="who">Signed in as <b>${esc(me.name)}</b> · ${esc(me.role)}</span>${whatIf ? "" : ""}`;
+    else el.innerHTML = `<span class="who">This is the family's shared trip.${whatIf ? " You're exploring a what-if; nothing here changes it." : ""}</span> <a href="/family" class="signin">Sign in</a>`;
+  }
+
+  function renderDecisions() {
+    const wrap = $("decisions-wrap");
+    if (!shared || !shared.decisions || !shared.decisions.length) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    const fmt = (iso) => { const d = new Date(iso); return `${MON[d.getMonth()]} ${d.getDate()}, ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`; };
+    $("decisions").innerHTML = shared.decisions.map((d) => `<li><span class="when">${esc(fmt(d.at))}</span> ${esc(d.summary)}${d.admin ? "" : ' <em class="quip">Bart has filed no objection.</em>'}</li>`).join("");
+  }
+
+  /* ───────────── Talking to the Worker ───────────── */
+
+  async function fetchShared() {
+    try {
+      const [t, m] = await Promise.all([fetch("/api/trip", { headers: { accept: "application/json" } }), fetch("/api/me", { headers: { accept: "application/json" }, redirect: "manual" })]);
+      if (!t.ok) return false;
+      shared = await t.json();
+      try { const mj = m.ok ? await m.json() : null; me = mj && mj.traveler ? mj.traveler : null; } catch (_) { me = null; }
+      return true;
+    } catch (_) { return false; }
+  }
+
+  function adoptShared() {
+    cfg = { start: shared.trip.start, nights: shared.trip.nights };
+    user = { punted: [...shared.trip.planner.punted], pinned: [...shared.trip.planner.pinned], requested: [...shared.trip.planner.requested] };
+  }
+
+  // Send intent. Returns { ok, preview } — a preview means the Worker wants a confirmation.
+  async function send(intent, confirmed) {
+    const res = await fetch("/api/intent", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ version: shared.trip.version, intent, confirmed: !!confirmed }) });
+    let body = null; try { body = await res.json(); } catch (_) {}
+    if (res.status === 401) { location.href = (body && body.signin) || "/family"; return { ok: false }; }
+    if (res.status === 409 && body && body.trip) { shared = body; adoptShared(); render(); toast("Somebody else changed the trip first. Here's the latest."); return { ok: false }; }
+    if (!res.ok) { toast((body && body.error) || "That didn't take."); return { ok: false }; }
+    if (body.preview) return { ok: true, preview: body };
+    shared = { trip: body.trip, decisions: body.decisions }; adoptShared(); render();
+    return { ok: true };
+  }
+
+  function toast(text) {
+    const el = $("toast"); el.textContent = text; el.hidden = false;
+    clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, 4000);
   }
 
   /* ───────────── Calendar strip ───────────── */
@@ -318,11 +406,20 @@
 
   /* ───────────── Wire up ───────────── */
 
-  readHash();
-  render();
+  (async () => {
+    if (await fetchShared()) { adoptShared(); if (location.hash === "#signed-in") history.replaceState(null, "", location.pathname); }
+    else readHash();
+    render();
+    document.addEventListener("visibilitychange", async () => { if (!document.hidden && shared && !whatIf && !pending && await fetchShared()) { adoptShared(); render(); } });
+  })();
   $("cfg-minus").addEventListener("click", () => update({ cfg: { nights: cfg.nights - 1 } }));
   $("cfg-plus").addEventListener("click", () => update({ cfg: { nights: cfg.nights + 1 } }));
-  $("cfg-reset").addEventListener("click", () => { pending = null; renderPanel(); update({ cfg: { ...DEFAULT }, user: { punted: [], pinned: [], requested: [] } }); });
+  $("cfg-reset").addEventListener("click", () => {
+    pending = null; renderPanel();
+    if (shared && signedIn()) { update({ cfg: { ...DEFAULT }, user: { reset: true, punted: [], pinned: [], requested: [] } }); return; }
+    if (shared) { adoptShared(); whatIf = false; render(); return; }
+    update({ cfg: { ...DEFAULT }, user: { punted: [], pinned: [], requested: [] } });
+  });
 
   /* ───────────── Actions: preview first, then apply or ask ───────────── */
 
@@ -354,8 +451,42 @@
     el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  const INTENT_OF = { punt: "punt", unpunt: "unpunt", pin: "pin", unpin: "unpin", ask: "ask", unask: "unask" };
+
+  function nameOf(ids) {
+    const unit = Object.values(prevPlan.units).find((x) => x.members.some((m) => ids.includes(m)));
+    if (unit) return unit.name;
+    const bundle = Object.entries(C.bundles).find(([, b]) => b.core.includes(ids[0]));
+    return bundle ? bundle[1].name : (C.venues.find((v) => v.id === ids[0]) || {}).name || "this";
+  }
+
+  async function actShared(action, ids) {
+    const unit = Object.values(prevPlan.units).find((x) => x.members.some((m) => ids.includes(m)));
+    const name = nameOf(ids);
+    const intent = { type: INTENT_OF[action], venue: ids[0], members: ids };
+    if (action === "unpin" && ids.some((id) => user.requested.includes(id))) intent.backTo = "requested";
+    if (action === "ask" && unit) {
+      // Would it land? Ask the planner locally first so the options panel can offer the trades.
+      const after = P.plan(cfg, nextUser("ask", ids), prevPlan);
+      if (!after.placements[unit.id]) { pending = { kind: "options", name: unit.name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
+    }
+    const r = await send(intent, false);
+    if (r.ok && r.preview) {
+      const f = r.preview.flags || {};
+      const cutsCore = (f.cutHeadlines && f.cutHeadlines.length) || (f.cutProtected && f.cutProtected.length);
+      const title = f.identityChanged ? "This changes the kind of trip."
+        : cutsCore ? `To keep ${name}, something has to give.`
+        : f.newAvoid && f.newAvoid.length ? "This makes a day harder."
+        : "This changes more than one day.";
+      pending = { kind: "confirm", intent, messages: [...r.preview.messages, ...r.preview.notes], title,
+        go: cutsCore ? `Keep ${name}, drop ${(f.cutProtected && f.cutProtected[0]) || f.cutHeadlines[0]}` : "Continue anyway" };
+      renderPanel();
+    } else if (r.ok) $("week").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function act(action, ids) {
     pending = null;
+    if (shared && signedIn()) { actShared(action, ids); return; }
     const before = prevPlan;
     const u = nextUser(action, ids);
     if (action === "punt" || action === "unpunt" || action === "unask" || action === "unpin") {
@@ -387,14 +518,29 @@
     const pb = e.target.closest("button[data-panel]");
     if (pb) {
       const k = pb.dataset.panel;
-      if (k === "go" && pending) { const u = pending.user; pending = null; renderPanel(); update({ user: u }); }
+      if (k === "go" && pending) {
+        const pd = pending; pending = null; renderPanel();
+        if (pd.intent) send(pd.intent, true); else update({ user: pd.user });
+      }
       else if (k === "opt" && pending) {
         const o = pending.options[+pb.dataset.i]; const id = pending.id; pending = null; renderPanel();
+        if (shared && signedIn()) {
+          (async () => {
+            if (o.kind === "night") { if (!isAdmin()) { toast("Adding a night is Bart's call. Ask him."); return; } await send({ type: "set_nights", nights: cfg.nights + 1 }, true); }
+            else await send({ type: "punt", venue: o.members[0], members: o.members }, true);
+            await send({ type: "ask", venue: id, members: [id] }, true);
+            $("week").scrollIntoView({ behavior: "smooth", block: "start" });
+          })();
+          return;
+        }
         if (o.kind === "night") update({ cfg: { nights: cfg.nights + 1 }, user: nextUser("ask", [id]) });
         else update({ user: { ...nextUser("ask", [id]), punted: [...user.punted.filter((x) => !o.members.includes(x)), ...o.members] } });
         $("week").scrollIntoView({ behavior: "smooth", block: "start" });
       }
-      else if (k === "board" && pending) { const id = pending.id; pending = null; renderPanel(); update({ user: nextUser("ask", [id]) }); }
+      else if (k === "board" && pending) {
+        const id = pending.id; pending = null; renderPanel();
+        if (shared && signedIn()) send({ type: "ask", venue: id, members: [id] }, true); else update({ user: nextUser("ask", [id]) });
+      }
       else { pending = null; renderPanel(); }
       return;
     }

@@ -6,8 +6,37 @@ Jess, Sam, and Nanny excited. Content comes from the trip docs in this repo
 
 ## Architecture
 
-A single Cloudflare Worker (`src/index.js`) that serves the static site in `public/` through
-Workers Static Assets (`ASSETS` binding) and adds security headers. It knows no trip dates.
+Static data describes Washington; the planner decides what should happen; shared state
+records what the family decided; identity says who did it.
+
+- `public/` is the site: the pitch, the recommended itinerary, and the planner UI.
+- `src/index.js` is the Worker. It serves the site, reads the shared trip from D1, and accepts
+  **intents** from signed-in travelers (`POST /api/intent`). The planner is authoritative about
+  whether a state is valid; D1 is authoritative about which valid state the family accepted.
+  The Worker applies the intent, re-runs the same planner the browser runs, and persists the
+  canonical state plus a decision record. The client never sends itinerary JSON.
+- `src/intents.js` is the pure intent reducer and the permission boundary: anyone can operate
+  the vacation, Bart administers it (dates, nights, reset, overriding a preference).
+- `src/access.js` verifies Cloudflare Access identity. No family password table.
+- `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, decisions.
+
+### Setting up the shared trip
+
+```sh
+npx wrangler d1 create dc-christmas          # paste the id into wrangler.jsonc
+npx wrangler d1 migrations apply dc-christmas
+# map the family's tenant addresses to travelers
+npx wrangler d1 execute dc-christmas --command "UPDATE traveler_identities SET email='bart@yourtenant.com' WHERE traveler_id='bart'"
+```
+
+Identity is Cloudflare Access with Entra ID. In Zero Trust, add a self-hosted application for
+`dc.arther.co` covering the paths `/family`, `/api/me`, and `/api/intent`, with Entra ID as the
+login method and a policy allowing the four addresses. Then set `ACCESS_TEAM_DOMAIN` in
+`wrangler.jsonc` and the application's AUD tag as a secret: `npx wrangler secret put ACCESS_AUD`.
+The pitch stays public; "Sign in" goes through `/family`, and the Access cookie covers the API.
+
+Locally, `wrangler dev` uses a local D1 (`npx wrangler d1 migrations apply dc-christmas --local`)
+and `.dev.vars` stands in for a signed-in identity (see `.dev.vars.example`).
 
 No build step. No framework. Fonts come from Google Fonts; everything else is in `public/`.
 
