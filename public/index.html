@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Washington, for Christmas</title>
+  <meta name="description" content="Bart, Jess, Sam, and Nanny take the Crescent to Washington, DC for seven nights, Nov 28 – Dec 7, 2026.">
+  <meta name="theme-color" content="#0f1b33">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f1b33'/%3E%3Cpolygon points='32,8 12,52 52,52' fill='%23e3b04b'/%3E%3Ccircle cx='32' cy='30' r='4' fill='%23c8402f'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<canvas id="snow" aria-hidden="true"></canvas>
+
+<header class="hero">
+  <p class="eyebrow">
+    <span>Sat&nbsp;Nov&nbsp;28 → Mon&nbsp;Dec&nbsp;7, 2026</span>
+    <span class="dot" aria-hidden="true"></span>
+    <span>Anniston&nbsp;⇄&nbsp;Washington via the Crescent</span>
+  </p>
+  <h1>Washington,<br><em>for Christmas.</em></h1>
+  <p class="lede">
+    Seven nights in the capital. Sleeper cars there and back. The Capitol lit up at night,
+    dinosaurs, the Hope Diamond, the actual Declaration of Independence, and a whole city
+    dressed for Christmas. Bart, Jess, Sam, and Nanny. All of us, together, the whole week.
+  </p>
+
+  <div class="countdown" id="countdown" aria-live="polite">
+    <div class="tile"><b data-unit="days">—</b><span>days</span></div>
+    <div class="tile"><b data-unit="hours">—</b><span>hours</span></div>
+    <div class="tile"><b data-unit="minutes">—</b><span>minutes</span></div>
+    <div class="tile"><b data-unit="seconds">—</b><span>seconds</span></div>
+  </div>
+  <p class="countdown-label" id="countdown-label">until we board the train</p>
+
+  <nav class="hero-nav" aria-label="Sections">
+    <a href="#train">The train</a>
+    <a href="#week">The week</a>
+    <a href="#list">The list</a>
+    <a href="#rules">House rules</a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ───────────── THE TRAIN ───────────── -->
+  <section id="train" class="section">
+    <div class="section-head">
+      <p class="kicker">Getting there</p>
+      <h2>The train <em>is</em> the trip.</h2>
+      <p class="intro">
+        No airport. No rental car. We board the Amtrak Crescent in Anniston after Bart gets off work,
+        settle into two sleeper rooms across the hall from each other, sleep through Georgia and the Carolinas,
+        and wake up in Virginia. Sunday afternoon we roll into Union Station, three blocks from the Capitol.
+      </p>
+    </div>
+
+    <div class="board" role="table" aria-label="Departure board">
+      <div class="board-row board-head" role="row">
+        <span role="columnheader">Train</span>
+        <span role="columnheader">From</span>
+        <span role="columnheader">To</span>
+        <span role="columnheader">When</span>
+      </div>
+      <div class="board-row" role="row">
+        <span role="cell"><b>Crescent 20</b><small>Northbound</small></span>
+        <span role="cell"><b>Anniston, AL</b><small>Sat Nov 28 · evening</small></span>
+        <span role="cell"><b>Washington Union Station</b><small>Sun Nov 29 · ~2:12 PM</small></span>
+        <span role="cell"><b>Overnight</b><small>2 sleeper rooms</small></span>
+      </div>
+      <div class="board-row" role="row">
+        <span role="cell"><b>Crescent 19</b><small>Southbound</small></span>
+        <span role="cell"><b>Washington Union Station</b><small>Sun Dec 6 · 6:30 PM</small></span>
+        <span role="cell"><b>Anniston, AL</b><small>Mon Dec 7 · ~10:30 AM CT</small></span>
+        <span role="cell"><b>Overnight</b><small>2 sleeper rooms</small></span>
+      </div>
+    </div>
+
+    <ul class="perks">
+      <li><b>Your own room on a train.</b> Beds fold down, the window is yours, and somebody brings dinner to you.</li>
+      <li><b>Evening boarding.</b> Anniston lets us leave at a civilized hour instead of waiting up past midnight in Atlanta.</li>
+      <li><b>Home base on the Mall.</b> We're aiming for L'Enfant Plaza, a short walk from Air &amp; Space, Natural History, and the Washington Monument, with a one-seat Metro ride to Arlington.</li>
+    </ul>
+  </section>
+
+  <!-- ───────────── THE WEEK ───────────── -->
+  <section id="week" class="section">
+    <div class="section-head">
+      <p class="kicker">Nine days, one big thing a day</p>
+      <h2>The week.</h2>
+      <p class="intro">
+        Every day gets one real adventure, and the day and night are balanced so nobody gets wrecked.
+        Big museum day? Easy night. Easy afternoon? That's when we go out and see the memorials glow.
+        <span class="legend"><i class="ticks" style="--n:1"></i> easy &nbsp;·&nbsp; <i class="ticks" style="--n:4"></i> big day</span>
+      </p>
+    </div>
+
+    <ol class="line">
+
+      <li class="stop">
+        <div class="stop-date"><b>Sat</b><span>Nov 28</span></div>
+        <div class="stop-body">
+          <h3>All aboard.</h3>
+          <p>Bart clocks out at 2:00, we load up, drive to Anniston, eat, and climb onto the Crescent. Nothing to accomplish tonight except finding the bunks and watching Alabama slide by in the dark.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:1"></i><span>Pack and drive</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:1"></i><span>The train is the activity</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop">
+        <div class="stop-date"><b>Sun</b><span>Nov 29</span></div>
+        <div class="stop-body">
+          <h3>Hello, Washington.</h3>
+          <p>Roll into Union Station after lunch, check into the hotel, unpack, eat. Then, after dark, our first real look at the city: the U.S. Capitol dome lit up against the night sky. No tour. No agenda. Just stand there and take it in.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:1"></i><span>Arrive, hotel, food</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:3"></i><span>The Capitol, illuminated</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop">
+        <div class="stop-date"><b>Mon</b><span>Nov 30</span></div>
+        <div class="stop-body">
+          <h3>Air &amp; Space.</h3>
+          <p>A whole day for the National Air and Space Museum. Real spacecraft. Real rockets. The planes that changed everything, hanging right over your head. We go at our own pace and leave when we're full.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:4"></i><span>Air &amp; Space Museum</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:1"></i><span>Dinner, feet up</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop">
+        <div class="stop-date"><b>Tue</b><span>Dec 1</span></div>
+        <div class="stop-body">
+          <h3>Capitol Hill.</h3>
+          <p>Morning tour inside the U.S. Capitol, under the dome. Lunch. Then across the street to the Library of Congress, where the Great Hall of the Jefferson Building is the single most beautiful room in the country. Argue with us after you've seen it.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:4"></i><span>Capitol + Library of Congress</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:1"></i><span>Dinner, nothing scheduled</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop featured">
+        <div class="stop-date"><b>Wed</b><span>Dec 2</span></div>
+        <div class="stop-body">
+          <h3>The founding documents, then the big memorial night.</h3>
+          <p>A short daytime visit to the National Archives to stand in front of the Declaration of Independence, the Constitution, and the Bill of Rights. The real ones. Then back to the hotel to warm up and rest, because tonight is the one we'll talk about for years.</p>
+          <p>Reach the Vietnam Wall at dusk while the names are still easy to read. Then let it get dark: World War II Memorial, up the steps to Lincoln, and finally the Korean War Memorial, where the statues come alive under the lights. Bundle up. Hot chocolate after.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:2"></i><span>National Archives</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:4"></i><span>WWII → Vietnam → Lincoln → Korea</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop">
+        <div class="stop-date"><b>Thu</b><span>Dec 3</span></div>
+        <div class="stop-body">
+          <h3>Natural History.</h3>
+          <p>Dinosaurs. The Hope Diamond. The elephant in the rotunda. The ocean hall, the mammals, the giant squid. Sam, this is your day. We stay until everyone has seen the thing they came for.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:4"></i><span>Natural History Museum</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:1"></i><span>Dinner, nothing scheduled</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop">
+        <div class="stop-date"><b>Fri</b><span>Dec 4</span></div>
+        <div class="stop-body">
+          <h3>Arlington.</h3>
+          <p>One Metro ride across the river to Arlington National Cemetery. The Tomb of the Unknown Soldier and the Changing of the Guard, which we build the whole day around. President Kennedy's gravesite and the eternal flame. Arlington House on the hill, looking back over the whole city. Quiet, cold, and unforgettable.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:4"></i><span>Arlington National Cemetery</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:1"></i><span>Dinner, nothing scheduled</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop featured">
+        <div class="stop-date"><b>Sat</b><span>Dec 5</span></div>
+        <div class="stop-body">
+          <h3>Christmas Washington.</h3>
+          <p>Sleep in. Wander the holiday market and the downtown decorations, poke around the shops, get lunch and something warm to drink, and possibly the Washington Monument if tickets and weather cooperate. Then back to the hotel for an afternoon reset.</p>
+          <p>After dark: the White House, the Ellipse, and the National Christmas Tree with all fifty-six state and territory trees around it. This night isn't for learning anything. It's for lights, cocoa, and seasonal nonsense.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:2"></i><span>Holiday market + downtown</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:3"></i><span>White House + National Christmas Tree</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop">
+        <div class="stop-date"><b>Sun</b><span>Dec 6</span></div>
+        <div class="stop-body">
+          <h3>American History, then home.</h3>
+          <p>Check out, leave the bags with the hotel, and spend the morning at the National Museum of American History. The Star-Spangled Banner, the actual flag from the actual song, plus the presidents, the trains, the inventions, and whatever else pulls us in. Lunch, grab the luggage, Union Station, and the 6:30 Crescent south.</p>
+          <div class="halves">
+            <div class="half"><small>Day</small><i class="ticks" style="--n:3"></i><span>American History Museum</span></div>
+            <div class="half night"><small>Night</small><i class="ticks" style="--n:1"></i><span>Southbound sleeper</span></div>
+          </div>
+        </div>
+      </li>
+
+      <li class="stop last">
+        <div class="stop-date"><b>Mon</b><span>Dec 7</span></div>
+        <div class="stop-body">
+          <h3>Anniston, ~10:30 AM.</h3>
+          <p>Get the car, go home, and do absolutely nothing. Tuesday and Wednesday are recovery days on purpose. Bart doesn't go back to work until Thursday afternoon.</p>
+        </div>
+      </li>
+
+    </ol>
+  </section>
+
+  <!-- ───────────── THE LIST ───────────── -->
+  <section id="list" class="section">
+    <div class="section-head">
+      <p class="kicker">Why this trip</p>
+      <h2>We're doing it properly.</h2>
+      <p class="intro">
+        We're probably only doing this once, so we picked the A-list and gave every one of them the time it deserves.
+        Thirteen things every American should see. All on the schedule.
+      </p>
+    </div>
+
+    <ul class="canon">
+      <li>U.S. Capitol</li>
+      <li>Library of Congress</li>
+      <li>Air and Space Museum</li>
+      <li>Natural History Museum</li>
+      <li>American History Museum</li>
+      <li>Declaration, Constitution &amp; Bill of Rights</li>
+      <li>The White House</li>
+      <li>Lincoln Memorial</li>
+      <li>Vietnam Veterans Memorial</li>
+      <li>Korean War Veterans Memorial</li>
+      <li>World War II Memorial</li>
+      <li>Arlington National Cemetery</li>
+      <li>Christmas in Washington</li>
+    </ul>
+
+    <details class="bonus">
+      <summary>The bonus round <span>if weather, tickets, or energy open a door</span></summary>
+      <p>None of these are obligations. If a slot opens up, we pick from here. If not, we leave DC without regret.</p>
+      <ul>
+        <li>Washington Monument observation deck</li>
+        <li>Jefferson Memorial</li>
+        <li>MLK Memorial</li>
+        <li>FDR Memorial</li>
+        <li>National Gallery of Art</li>
+        <li>African American History &amp; Culture Museum</li>
+        <li>International Spy Museum</li>
+        <li>Ford's Theatre</li>
+        <li>National Cathedral</li>
+        <li>Georgetown</li>
+        <li>ZooLights at the National Zoo</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ───────────── HOUSE RULES ───────────── -->
+  <section id="rules" class="section">
+    <div class="section-head">
+      <p class="kicker">How we keep it fun</p>
+      <h2>House rules.</h2>
+    </div>
+
+    <div class="rules">
+      <article class="rule">
+        <h3>Cold can shorten an outing. It can't ruin the vacation.</h3>
+        <p>If it's 28° and windy at the Korean War Memorial, we call an Uber XL, get warm, and reshuffle. Nobody pushes through misery to check a box.</p>
+      </article>
+      <article class="rule">
+        <h3>This is not a death march.</h3>
+        <p>One big thing a day. Museum closing time is not a challenge to be defeated. When the family is full, we leave, and the day still counts as a win.</p>
+      </article>
+      <article class="rule">
+        <h3>Spend the twenty bucks.</h3>
+        <p>Metro when it's convenient, walking when the walk is nice, and a car the second it saves a thousand cold steps at the end of the day. We're not here to win a transit efficiency contest.</p>
+      </article>
+      <article class="rule">
+        <h3>We stay together.</h3>
+        <p>One family unit, the whole week. Every day has something worth doing, and the difficulty is budgeted across the whole day so all four of us can do all of it.</p>
+      </article>
+    </div>
+
+    <blockquote class="thesis">
+      <p>Leave Washington feeling like we actually saw Washington, without needing a vacation from the vacation.</p>
+    </blockquote>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <p><b>Bart · Jess · Sam · Nanny</b></p>
+  <p>Nov 28 – Dec 7, 2026 · Anniston to Washington and back on the Crescent · Hotel and tour reservations still being locked in.</p>
+</footer>
+
+<script src="/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "dc-christmas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Promo site for the family's Washington, DC Christmas trip (Nov 28 - Dec 7, 2026), served by a Cloudflare Worker.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run --outdir=.wrangler/dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}
