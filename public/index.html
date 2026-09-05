@@ -54,6 +54,8 @@
   </div>
   <p class="countdown-label" id="countdown-label">until we board the train</p>
 
+  <p class="identity" id="identity" hidden></p>
+
   <div class="planner">
     <p class="verdict" id="verdict"></p>
     <p class="verdict-why" id="verdict-why"></p>
@@ -74,6 +76,7 @@
           </div>
         </div>
         <p class="fixed-fact" id="fixed-fact"></p>
+        <p class="fixed-fact admin-note" id="admin-note" hidden>Dates and nights are the Trip Administrator's call. Everything else on the trip is yours to operate.</p>
         <button type="button" class="reset" id="cfg-reset" hidden>Back to the recommended trip</button>
       </div>
     </details>
@@ -152,6 +155,11 @@
     </div>
 
     <div class="panel" id="panel" hidden></div>
+
+    <div class="tradeoffs decisions" id="decisions-wrap" hidden>
+      <p class="kicker-sm">What's been decided</p>
+      <ul id="decisions"></ul>
+    </div>
 
     <div class="tradeoffs" id="tradeoffs-wrap" hidden>
       <p class="kicker-sm">Tradeoffs</p>
@@ -232,6 +240,8 @@
   </section>
 
 </main>
+
+<div class="toast" id="toast" hidden></div>
 
 <footer class="foot">
   <figure class="family">

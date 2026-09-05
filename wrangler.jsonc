@@ -6,7 +6,16 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/family"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "dc-christmas", "database_id": "REPLACE_WITH_D1_ID", "migrations_dir": "migrations" }
+  ],
+  "vars": {
+    // Cloudflare Access team domain, e.g. "arther.cloudflareaccess.com". Leave empty for local dev.
+    "ACCESS_TEAM_DOMAIN": ""
+    // ACCESS_AUD is a secret: wrangler secret put ACCESS_AUD
   },
   "observability": { "enabled": true }
 }

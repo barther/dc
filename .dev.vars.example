@@ -1,0 +1,3 @@
+# Local development only. Copy to .dev.vars (git-ignored).
+# Stands in for a signed-in Access identity when ACCESS_TEAM_DOMAIN is empty.
+DEV_IDENTITY=bart@example.com
