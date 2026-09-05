@@ -1,4 +1,4 @@
-/* Countdown to departure day + a quiet snowfall. */
+/* Countdown to departure day. */
 
 (function () {
   // Departure day: Saturday Nov 28, 2026, Anniston AL (Central Time).
@@ -53,58 +53,4 @@
   render();
   setInterval(render, 1000);
 
-  // ── Snow ─────────────────────────────────────────────────────
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const canvas = document.getElementById("snow");
-  if (!canvas || reduce) { if (canvas) canvas.remove(); return; }
-
-  const ctx = canvas.getContext("2d");
-  let w, h, flakes = [];
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-  function resize() {
-    w = canvas.width = Math.floor(innerWidth * dpr);
-    h = canvas.height = Math.floor(innerHeight * dpr);
-    const count = Math.round((innerWidth * innerHeight) / 14000);
-    flakes = Array.from({ length: count }, () => spawn(true));
-  }
-
-  function spawn(anywhere) {
-    const r = (0.8 + Math.random() * 1.8) * dpr;
-    return {
-      x: Math.random() * w,
-      y: anywhere ? Math.random() * h : -r * 2,
-      r,
-      vy: (0.25 + Math.random() * 0.55) * dpr * (r / dpr),
-      vx: (Math.random() - 0.5) * 0.3 * dpr,
-      drift: Math.random() * Math.PI * 2,
-      a: 0.35 + Math.random() * 0.5,
-    };
-  }
-
-  let last = performance.now();
-  function frame(t) {
-    const dt = Math.min(40, t - last) / 16.67;
-    last = t;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#f3e9d2";
-    for (let i = 0; i < flakes.length; i++) {
-      const f = flakes[i];
-      f.drift += 0.01 * dt;
-      f.x += (f.vx + Math.sin(f.drift) * 0.25 * dpr) * dt;
-      f.y += f.vy * dt;
-      if (f.y > h + f.r * 2) flakes[i] = spawn(false);
-      if (f.x < -10) f.x = w + 10; else if (f.x > w + 10) f.x = -10;
-      ctx.globalAlpha = f.a;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    requestAnimationFrame(frame);
-  }
-
-  resize();
-  addEventListener("resize", resize, { passive: true });
-  requestAnimationFrame(frame);
 })();
