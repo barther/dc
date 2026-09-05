@@ -232,3 +232,26 @@ vote. A must-do still goes through the preview when honoring it costs something.
 **Identity is Cloudflare Access with Entra ID.** The Worker trusts only a verified Access
 identity and maps the tenant address to an internal traveler id, so a changed email never
 rewrites trip history. The pitch is public; the family layer is behind sign-in.
+
+
+## Live trip, weather, achievements (version one, steps three to six)
+
+**Completed is history.** A completed venue is fixed where it happened and never moves. Days
+before today are closed: nothing new lands there, and anything planned there that wasn't marked
+done is re-planned into the days left, or honestly cut. "Not this day" keeps it and moves it.
+"Put it here" is a commitment. "We bailed" records the Uber and takes the venue off that day.
+
+**Weather is venue-specific and slow to act.** The forecast reduces each day to rain, cold,
+wind, and heat. A unit's fit on a day is the worst of its members' ratings for the active
+conditions; indoor museums become valuable on bad days. Fit enters the score below seed and
+identity and above stability. Asking "is there a better plan?" relaxes stability, then the
+suggestion must clear two category steps of gain and cut nothing, or it isn't offered. Accepting
+it makes the moved things commitments and records who accepted and why.
+
+**Achievements reward discovery, judgment, participation, and chaos.** Definitions are data;
+the evaluator is pure; unlocks are idempotent KV facts. Nothing rewards steps, attraction
+totals, or ignoring fatigue. The standings count achievements only, and Bart has appealed the
+results.
+
+**After the trip the page becomes the record.** The record replaces "Today in Washington", and
+family photos replace the promotional ones wherever a `done-` file exists.

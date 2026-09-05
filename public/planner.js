@@ -81,6 +81,7 @@
   // Build the list of schedulable units from the catalog and the user's state.
   function buildUnits(state, external) {
     const punted = new Set(state.punted || []), pinned = new Set(state.pinned || []), requested = new Set(state.requested || []);
+    const completed = state.completed || {}, fixedMap = state.fixed || {}, notMap = state.notThisDay || {};
     const units = [];
     const inBundle = new Set();
 
@@ -116,15 +117,20 @@
     }
     const accessoryIds = new Set(Object.values(catalog.bundles).flatMap((b) => b.accessory));
     for (const u of units) {
+      // Live-trip facts: completed is history, fixed is a commitment, notThisDay is an exclusion.
+      const doneDates = u.members.map((m) => completed[m]).filter(Boolean);
+      u.completedOn = doneDates.length ? doneDates.sort()[0] : null;
+      u.fixedOn = fixedMap[u.id] || u.members.map((m) => fixedMap[m]).find(Boolean) || null;
+      u.notDays = new Set([...(notMap[u.id] || []), ...u.members.flatMap((m) => notMap[m] || [])]);
       u.value = TIER_WEIGHT[u.tier] - u.seed;
       // The thirteen headline experiences are the trip. They may squeeze; the bench may not.
       u.core = u.members.some((id) => catalog.headlines.includes(id));
       // The planner owns the core trip; the family owns the extras. Only headline experiences,
       // requests, and must-dos are scheduled without being asked. Accessories ride with their bundle.
-      u.auto = u.core || u.requested || u.pinned;
+      u.auto = u.core || u.requested || u.pinned || !!u.completedOn || !!u.fixedOn;
       u.isAccessory = !u.bundle && accessoryIds.has(u.id);
       // Ranking: must-do, protected, high, headline mediums, requested, then the bench.
-      u.rank = u.pinned ? -1 : u.tier === "protected" ? 0 : u.tier === "high" ? 1 : u.core ? 2 : u.requested ? 2.5 : 3;
+      u.rank = u.completedOn ? -3 : u.fixedOn ? -2 : u.pinned ? -1 : u.tier === "protected" ? 0 : u.tier === "high" ? 1 : u.core ? 2 : u.requested ? 2.5 : 3;
       // Departure morning: a LO activity, or a shortened indoor/mixed visit. Never a full outdoor day.
       u.departureOK = u.period === "day" && (u.load === "lo" || (u.shortenable && u.environment !== "outdoor" && u.min_hours <= 3));
     }
@@ -141,6 +147,24 @@
     return 0;                                              // preferred
   }
 
+  /* ───────────── Weather: venue-specific, never "Tuesday is bad" ───────────── */
+
+  const FIT_RANK = { poor: 0, acceptable: 1, good: 2, excellent: 3 };
+  const FIT_SCORE = { poor: -6, acceptable: -2, good: 0, excellent: 1 };
+
+  // Fit of a unit on a date given that date's conditions ({ rain, cold, wind, heat } booleans).
+  function weatherFit(u, cond) {
+    if (!cond) return null;
+    const active = ["rain", "cold", "wind", "heat"].filter((k) => cond[k]);
+    if (!active.length) return "good";
+    let worst = "excellent";
+    for (const m of u.members) {
+      const w = venueById[m].weather || {};
+      for (const k of active) { const f = w[k] || "good"; if (FIT_RANK[f] < FIT_RANK[worst]) worst = f; }
+    }
+    return worst;
+  }
+
   /* ───────────── Planning ───────────── */
 
   function frameDays(start, nights) {
@@ -154,13 +178,16 @@
   function plan(cfg, state = {}, prev = null, external = {}) {
     const start = parseISO(cfg.start) || parseISO(DEFAULT.start);
     const nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights | 0 || DEFAULT.nights));
-    const fixed = state.fixed || {};           // unitId -> iso date
-    const notThisDay = state.notThisDay || {}; // unitId -> [iso dates]
     const prevAt = (prev && prev.placements) || {};
+    const today = external.today ? parseISO(external.today) : null;
+    const stability = external.stability != null ? external.stability : 5;
+    const weather = external.weather || null; // { iso: { rain, cold, wind, heat, summary } }
 
     const units = buildUnits(state, external);
     const byId = Object.fromEntries(units.map((u) => [u.id, u]));
     const days = frameDays(start, nights);
+    for (const d of days) { d.past = !!today && d.date < today; d.isToday = !!today && iso(d.date) === iso(today); d.weather = weather ? weather[iso(d.date)] || null : null; }
+    const fixed = Object.fromEntries(units.filter((u) => u.fixedOn).map((u) => [u.id, u.fixedOn]));
     const placed = {};   // unitId -> { dayIdx, slot }
     const reasons = [];
     const excluded = []; // { unit, why, kind }
@@ -174,15 +201,19 @@
       if (d.kind === "arrival") return -Infinity;
       if (slot !== u.period) return -Infinity;
       if (d.kind === "departure") { if (!u.departureOK) return -Infinity; }
-      if (d[slot] && d[slot].id !== ignore) {
+      if (d[slot] && d[slot].id !== ignore && !u.completedOn) {
         // An accessory (the holiday market) yields its slot to anything that matters.
         if (!(d[slot].accessory && TIER_RANK[u.tier] <= TIER_RANK.medium && !u.accessoryOf)) return -Infinity;
       }
+      if (u.completedOn) return u.completedOn === iso(d.date) ? 100 : -Infinity; // history: exactly where it happened
+      if (d.past) return -Infinity;                                                  // the past is closed
       if (u.closed(d.date)) return -Infinity;
-      if (fixed[u.id] && fixed[u.id] !== iso(d.date)) return -Infinity;
-      if ((notThisDay[u.id] || []).includes(iso(d.date))) return -Infinity;
+      if (u.fixedOn && u.fixedOn !== iso(d.date)) return -Infinity;
+      if (u.notDays.has(iso(d.date))) return -Infinity;
 
       let s = 0;
+      const fit = weatherFit(u, d.weather);
+      if (fit) s += FIT_SCORE[fit];
       const other = unitAt(di, slot === "day" ? "night" : "day");
       const otherLoad = other ? other.load : (d.kind === "departure" && slot === "day" ? catalog.structural.departure.night.load : null);
       const ps = pairScore(u.load, otherLoad);
@@ -194,10 +225,10 @@
       if (u.prefer_weekday != null && d.date.getDay() === u.prefer_weekday) s += 3;
       const pr = pairingFor(u);
       if (pr) { const partner = pr.day === u.id ? pr.night : pr.day; if (placed[partner] && placed[partner].dayIdx === di) s += 6; }
-      if (prevAt[u.id] === iso(d.date)) s += 5;                                            // stability
+      if (prevAt[u.id] === iso(d.date)) s += stability;                                    // stability
       const pi = preferredIndex(u);
       if (pi >= 0 && d.kind === "full") s -= 0.3 * Math.abs((di - 1) - pi);               // recognizable week
-      if (fixed[u.id]) s += 50;
+      if (u.fixedOn) s += 50;
       return s;
     }
 
@@ -212,7 +243,7 @@
 
     function put(u, di, slot, tag) {
       const occ = days[di][slot];
-      if (occ && occ.id !== u.id) delete placed[occ.id]; // evicting an accessory
+      if (occ && occ.id !== u.id) delete placed[occ.id]; // evicting an accessory, or history overriding a plan
       days[di][slot] = { id: u.id, shortened: days[di].kind === "departure" && u.load !== "lo", accessory: !!tag };
       placed[u.id] = { dayIdx: di, slot };
     }
@@ -222,7 +253,8 @@
       const dates = days.filter((d) => d.kind === "full" || (d.kind === "departure" && u.departureOK));
       const closures = dates.map((d) => u.closed(d.date)).filter(Boolean);
       if (closures.length === dates.length) return { why: closures[0] + ", every day of the trip", kind: "closed" };
-      if (fixed[u.id]) return { why: `couldn't go on ${fmtDMD(parseISO(fixed[u.id]))}`, kind: "fixed" };
+      if (u.fixedOn) return { why: `couldn't go on ${fmtDMD(parseISO(u.fixedOn))}`, kind: "fixed" };
+      if (today && dates.every((d) => d.past)) return { why: "no days left", kind: "room" };
       if (u.requested && !u.pinned) return { why: "no room without changing the current trip", kind: "room" };
       if (u.load === "hi") return { why: u.period === "night" ? "no light day left to pair it with" : "no full day left for it", kind: "room" };
       return { why: "no room left in the week", kind: "room" };
@@ -267,7 +299,7 @@
     // 1b. Local search: swap two same-slot placements when the week gets better for it.
     for (let pass = 0; pass < 6; pass++) {
       let improved = false;
-      const ids = Object.keys(placed).filter((id) => days[placed[id].dayIdx].kind === "full" && !fixed[id] && !days[placed[id].dayIdx][placed[id].slot].accessory);
+      const ids = Object.keys(placed).filter((id) => days[placed[id].dayIdx].kind === "full" && !byId[id].fixedOn && !byId[id].completedOn && !days[placed[id].dayIdx].past && !days[placed[id].dayIdx][placed[id].slot].accessory);
       for (let i = 0; i < ids.length && !improved; i++) for (let j = i + 1; j < ids.length; j++) {
         const A = byId[ids[i]], B = byId[ids[j]];
         const pa = placed[A.id], pb = placed[B.id];
@@ -292,12 +324,12 @@
         const U = ex.unit;
         const depIdx = days.length - 1;
         const D = days[depIdx].day ? byId[days[depIdx].day.id] : null;
-        if (D && (D.pinned || fixed[D.id])) continue;
+        if (D && (D.pinned || D.fixedOn || D.completedOn)) continue;
         let best = null, bn = 0;
         for (const S of units) {
           const p = placed[S.id];
           if (!p || days[p.dayIdx].kind !== "full" || p.slot !== "day" || !S.departureOK) continue;
-          if (S.tier === "protected" || S.pinned || fixed[S.id] || TIER_RANK[U.tier] > TIER_RANK[S.tier]) continue;
+          if (S.tier === "protected" || S.pinned || S.fixedOn || S.completedOn || days[p.dayIdx].past || TIER_RANK[U.tier] > TIER_RANK[S.tier]) continue;
           if (score(U, p.dayIdx, "day", S.id) === -Infinity) continue;
           if (score(S, depIdx, "day", D ? D.id : undefined) === -Infinity) continue;
           const net = D ? U.value - D.value : U.value - 4;
@@ -387,9 +419,11 @@
     else if (nights > DEFAULT.nights) label = "Extended";
     else label = "Recommended";
 
+    for (const d of days) { d.fit = { day: d.day ? weatherFit(byId[d.day.id], d.weather) : null, night: d.night ? weatherFit(byId[d.night.id], d.weather) : null }; }
     const trainOut = addDays(start, -1), home = addDays(start, nights + 1);
+    const phase = !today ? "plan" : today < start ? "before" : today <= days[days.length - 1].date ? "live" : "after";
     return {
-      start, nights, trainOut, depart: days[days.length - 1].date, home, days, units: byId,
+      start, nights, trainOut, depart: days[days.length - 1].date, home, days, units: byId, today, phase,
       placements: Object.fromEntries(Object.entries(placed).map(([id, p]) => [id, iso(days[p.dayIdx].date)])),
       includedVenues, identity, intact, excluded, reasons, label, openDays, avoidPairs,
       headline: { kept: catalog.headlines.filter(has).length, total: catalog.headlines.length },
@@ -494,7 +528,29 @@
     return options;
   }
 
-  const engine = { plan, summarize, diff, fitOptions, buildUnits, catalog, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
+  // Day-of: would the forecast justify moving things? Only when the win is real.
+  function suggestSwap(cfg, state, current, external) {
+    if (!external || !external.weather) return null;
+    // Asking "is there a better plan given the forecast?" relaxes stability; the gain threshold below guards against churn.
+    const next = plan(cfg, state, current, { ...external, stability: 2 });
+    const moves = [];
+    for (const [id, date] of Object.entries(next.placements)) {
+      const u = next.units[id];
+      if (!current.placements[id] || current.placements[id] === date || u.completedOn || u.isAccessory) continue;
+      const fromCond = external.weather[current.placements[id]] || null, toCond = external.weather[date] || null;
+      const fromFit = weatherFit(u, fromCond), toFit = weatherFit(u, toCond);
+      moves.push({ id, name: u.name, from: current.placements[id], to: date, fromFit, toFit, gain: fromFit && toFit ? FIT_RANK[toFit] - FIT_RANK[fromFit] : 0 });
+    }
+    if (!moves.length) return null;
+    const cut = Object.keys(current.placements).filter((id) => !next.placements[id] && !next.units[id]?.isAccessory);
+    if (cut.length) return null; // never trade an experience for a forecast
+    const gain = moves.reduce((s, m) => s + m.gain, 0);
+    if (gain < 2) return null;    // don't overreact to trivial differences
+    const lines = moves.filter((m) => m.gain > 0).map((m) => `${m.name}: ${fmtDMD(parseISO(m.from))} (${m.fromFit}) → ${fmtDMD(parseISO(m.to))} (${m.toFit})`);
+    return { moves, gain, plan: next, lines, summary: `Nothing gets cut and every day stays balanced. ${lines.join(". ")}.` };
+  }
+
+  const engine = { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, catalog, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
   if (typeof module !== "undefined" && module.exports) { module.exports = engine; return; }
   root.DCPlanner = engine;
 })(typeof window !== "undefined" ? window : globalThis);

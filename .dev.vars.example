@@ -1,3 +1,8 @@
 # Local development only. Copy to .dev.vars (git-ignored).
 # Stands in for a signed-in Access identity when ACCESS_TEAM_DOMAIN is empty.
 DEV_IDENTITY=bart@example.com
+
+# Live-mode testing: pretend it is this date in Washington.
+# DEV_TODAY=2026-12-03
+# Weather fixture instead of the National Weather Service (JSON: { "2026-12-03": { "rain": true, "cold": true, "wind": true, "heat": false, "summary": "38°, rain, windy" } }).
+# WEATHER_FIXTURE=

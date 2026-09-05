@@ -662,3 +662,48 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
   background: var(--ink); color: var(--paper); padding: 10px 16px; font-size: 15px;
   box-shadow: 0 6px 24px rgba(28, 42, 74, 0.35); z-index: 10; max-width: min(90vw, 48ch);
 }
+
+
+/* ───────────── Preferences, live mode ───────────── */
+.prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+.prefs-you { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-right: 2px; }
+.pref.on.must { color: var(--red); border-color: var(--red); }
+.pref.on.good { color: var(--ink); border-color: var(--ink); background: rgba(28, 42, 74, 0.06); }
+.pref.on.meh, .pref.on.punt { color: var(--muted); border-color: var(--muted); }
+.votes { display: inline-flex; gap: 4px; margin-left: 6px; }
+.vote { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 600; border: 1px solid var(--rule); color: var(--muted); }
+.vote.must { border-color: var(--red); color: var(--red); }
+.vote.good { border-color: var(--ink); color: var(--ink); }
+.ctl-state.override { color: var(--muted); }
+.done-state { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; color: var(--ink); align-self: center; }
+.stop.past { opacity: 0.6; }
+.stop.past h3::after { content: " · earlier"; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.stop.today { border-left: 3px solid var(--gold); margin-left: -20px; padding-left: 17px; }
+.stop.today h3::before { content: "Today · "; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+@media (max-width: 560px) { .stop.today { margin-left: -14px; padding-left: 11px; } }
+
+.today { width: 100%; max-width: 560px; border: 1px solid var(--ink); outline: 1px solid var(--ink); outline-offset: 3px; padding: 14px 18px; display: grid; gap: 6px; text-align: left; margin: 4px 0; }
+.today-date { font-family: var(--display); font-size: 22px; }
+.today-weather { font-style: italic; color: var(--ink-2); }
+.today-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 16px; }
+.today-slot { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; min-width: 4ch; }
+.fit { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; padding: 2px 6px 1px; border: 1px solid currentColor; }
+.fit.excellent, .fit.good { color: var(--ink); }
+.fit.acceptable { color: var(--gold); }
+.fit.poor { color: var(--red); }
+
+
+/* ───────────── Better plan, trophies, the record ───────────── */
+.better { border-top: 1px solid var(--rule); padding-top: 8px; margin-top: 4px; display: grid; gap: 6px; }
+.better p { max-width: none; }
+.trophies { border-top: 3px double var(--ink); padding-top: 22px; }
+#trophies-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px 40px; }
+.trophy-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.trophy-list li b { font-family: var(--display); font-weight: 400; font-size: 18px; margin-right: 6px; }
+.trophy-list li span { color: var(--ink-2); font-size: 15px; }
+.standings ol { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; max-width: 22ch; }
+.standings li { display: flex; justify-content: space-between; border-bottom: 1px solid var(--rule); padding: 4px 0; font-family: var(--display); font-size: 18px; }
+.muted { color: var(--muted); font-style: italic; font-size: 15px; margin-top: 8px; }
+.record .record-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+.record .record-list b { font-family: var(--display); font-weight: 400; font-size: 20px; margin-right: 4px; }
+.record-trophy { font-family: var(--display); font-size: 22px; color: var(--red); margin-top: 6px; }

@@ -61,3 +61,19 @@ test("a must-do still goes through the planner's preview when it costs something
   const after = P.plan({ start: s.start, nights: s.nights }, I.plannerState(s), before);
   assert.ok(P.diff(before, after, ["spy-museum"]).consequential, "Sam really wants this is a constraint, not permission to detonate Tuesday");
 });
+
+test("live-trip intents are anyone's: complete, not this day, place, bail, swap", () => {
+  let s = base();
+  for (const t of ["complete", "uncomplete", "not_this_day", "place", "unplace", "bail", "swap"]) assert.ok(I.can(jess, t), t);
+  s = I.apply(s, { type: "complete", venue: "air-space", date: "2026-11-30" }, jess, limits).state;
+  assert.equal(s.completed["air-space"], "2026-11-30");
+  s = I.apply(s, { type: "not_this_day", venue: "arlington", date: "2026-12-04" }, jess, limits).state;
+  assert.deepEqual(s.notThisDay["arlington"], ["2026-12-04"]);
+  s = I.apply(s, { type: "swap", moves: [{ venue: "arlington", date: "2026-12-03" }, { venue: "natural-history", date: "2026-12-04" }], reason: "rain" }, jess, limits).state;
+  assert.equal(s.fixed["arlington"], "2026-12-03");
+  const r = I.apply(s, { type: "bail", venue: "arlington", date: "2026-12-03" }, { id: "sam", name: "Sam" }, limits);
+  assert.match(r.summary, /bailed on/);
+  assert.ok(!r.state.fixed["arlington"] && r.state.notThisDay["arlington"].includes("2026-12-03"));
+  const ps = I.plannerState(r.state);
+  assert.equal(ps.completed["air-space"], "2026-11-30");
+});
