@@ -435,3 +435,80 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
   .stop.featured { margin-left: -14px; padding-left: 11px; }
   .stop-body:has(.stop-photo) .stop-photo { order: -1; }
 }
+
+/* ───────────── Planner: change the trip ─────────────
+   Lives in the invitation card under the countdown. Verdict first,
+   controls behind a disclosure, so the page stays a proposal. */
+
+.planner { display: grid; gap: 10px; justify-items: center; width: 100%; max-width: 560px; }
+.verdict {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 10px;
+  font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600;
+  color: var(--ink);
+}
+.verdict b { font-weight: 600; }
+.verdict .sep { color: var(--gold); letter-spacing: 0; }
+.verdict-label { color: var(--red); }
+.verdict-label.warn { color: var(--muted); }
+.verdict-why { font-size: 16px; color: var(--ink-2); max-width: 52ch; }
+.verdict-why b { color: var(--ink); font-weight: 600; }
+
+.change { width: 100%; }
+.change summary {
+  cursor: pointer; list-style: none;
+  font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600;
+  color: var(--ink);
+  display: inline-flex; gap: 8px; align-items: baseline;
+  border-bottom: 1px solid var(--gold); padding-bottom: 2px;
+}
+.change summary::-webkit-details-marker { display: none; }
+.change[open] summary .plus::before { content: "−"; }
+.change[open] summary .plus { font-size: 0; }
+.change[open] summary .plus::before { font-size: 13px; }
+.change-body {
+  margin-top: 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 28px;
+  align-items: end; justify-items: center; text-align: left;
+  padding: 16px 20px; border: 1px solid var(--rule);
+}
+.field { display: grid; gap: 6px; width: 100%; max-width: 220px; }
+.field > span { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.field input[type="date"] {
+  font: inherit; font-size: 17px; color: var(--ink);
+  background: transparent; border: 0; border-bottom: 1px solid var(--ink);
+  padding: 4px 0; width: 100%;
+}
+.field input[type="date"]:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+.stepper-controls { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; border-bottom: 1px solid var(--ink); }
+.stepper-controls b {
+  font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.stepper-controls button, .reset {
+  font: inherit; cursor: pointer; background: transparent; color: var(--ink);
+}
+.stepper-controls button {
+  border: 1px solid var(--ink); border-radius: 50%; width: 32px; height: 32px; margin: 0 auto 4px;
+  font-size: 20px; line-height: 1; display: grid; place-items: center;
+}
+.stepper-controls button:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+.stepper-controls button:disabled { opacity: 0.35; cursor: default; }
+.stepper-controls button:focus-visible, .reset:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+.reset {
+  grid-column: 1 / -1; justify-self: center;
+  border: 0; border-bottom: 1px solid var(--gold); padding: 0 0 2px;
+  font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; color: var(--red);
+}
+
+/* Cut items on the list */
+.canon li.cut { color: var(--muted); }
+.canon li.cut::before { color: var(--muted); }
+.canon li.cut > span, .canon li.cut { text-decoration: none; }
+.canon li.cut::after { content: "cut"; font-family: var(--text); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red); margin-left: 8px; align-self: center; }
+.canon li { grid-template-columns: 28px 1fr auto; }
+.canon li:not(.cut)::after { content: ""; }
+
+/* "A different trip" */
+.stop.different .options { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; color: var(--ink-2); max-width: 62ch; }
+.stop.different .options b { color: var(--ink); font-weight: 600; }
+.stop.different .options li::before { content: "✦ "; color: var(--gold); }
