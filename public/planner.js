@@ -154,6 +154,18 @@
   const PROTECTED_FULL = ["capitolhill", "archivesmem"];
 
   const DEFAULT = { start: "2026-11-29", nights: 7 };
+  // Bart is back at work Thursday Dec 10, 2026 at 2 PM. The Crescent gets into Anniston ~10:30 AM.
+  const WORK = { date: "2026-12-10", label: "Thu Dec 10, 2 PM" };
+
+  // Days at home between getting off the train and going back to work.
+  function workBuffer(home) {
+    const w = parseISO(WORK.date);
+    return Math.round((w - home) / 86400000);
+  }
+  function workStatus(home) {
+    const b = workBuffer(home);
+    return b >= 2 ? "ok" : b === 1 ? "thin" : b === 0 ? "tight" : "late";
+  }
   const MIN_NIGHTS = 1, MAX_NIGHTS = 9;
 
   /* ───────────── Scheduler ───────────── */
@@ -308,9 +320,17 @@
         day: { label: "A slow last morning", legs: 1, exp: 1 }, night: { label: "Southbound sleeper", legs: 1, exp: 0 }, photo: null,
       });
     }
+    const buf = workBuffer(r.home), ws = workStatus(r.home);
+    const homeBody = ws === "ok"
+      ? [`Get the car, go home, and do absolutely nothing. ${buf === 2 ? "Two full days" : `${buf} days`} at home before Bart is back at work ${WORK.label}. That's part of the plan, not wasted vacation.`]
+      : ws === "thin"
+      ? [`Get the car, go home, and do absolutely nothing. One day at home before Bart is back at work ${WORK.label}. Tighter than the recommended trip, but it works.`]
+      : ws === "tight"
+      ? [`Get the car and go straight home, because Bart is due at work at 2 PM the same day. The Crescent gets in around 10:30 if it's on time. It is not always on time.`]
+      : [`This version gets home ${-buf === 1 ? "a day" : `${-buf} days`} after Bart was due back at work (${WORK.label}). Start earlier or take a night off the end.`];
     days.push({
-      kind: "home", date: r.home, title: `Anniston, ~10:30 AM.`,
-      body: ["Get the car, go home, and do absolutely nothing. Build in a day or two at home before work. That's part of the plan, not wasted vacation."],
+      kind: "home", date: r.home, title: ws === "late" ? "Anniston, ~10:30 AM. Late for work." : ws === "tight" ? "Anniston, ~10:30 AM. Work at 2." : "Anniston, ~10:30 AM.",
+      body: homeBody, late: ws === "late" || ws === "tight",
       photo: ["day-1207-home.webp", "Home."],
     });
     return days;
@@ -329,18 +349,27 @@
   function summarize(r) {
     const N = r.nights, kept = r.kept.size, total = HEADLINES.length;
     const cuts = cutNames(r);
-    const s = { nights: N, label: "", count: `${kept} of ${total} headline experiences`, cuts: cuts.length ? `Cut: ${list(cuts)}.` : "", why: "" };
+    const s = { nights: N, label: "", count: `${kept} of ${total} headline experiences`, cuts: cuts.length ? `Cut: ${list(cuts)}.` : "", why: "", work: "" };
+    const ws = workStatus(r.home), buf = workBuffer(r.home);
+    if (ws === "late") s.work = `Runs into work. Home ${fmtDMD(r.home)}, and Bart is due back ${WORK.label}. Start earlier or take a night off the end.`;
+    else if (ws === "tight") s.work = `Cuts it close. Home ${fmtDMD(r.home)} around 10:30 AM, work at 2 PM the same day, and the Crescent isn't always on time.`;
+    else if (ws === "thin") s.work = `One day at home before work ${WORK.label}.`;
     if (r.mode === "different") {
-      s.label = "A different kind of trip";
+      s.label = ws === "late" ? "Runs into work" : "A different kind of trip";
       s.count = "";
       s.why = `${N === 1 ? "One night" : "Two nights"} isn't a shorter version of this trip. It's a different trip, and it deserves its own plan rather than a mangled version of this one.`;
       return s;
     }
     const hostName = r.host != null ? MODULES[r.days[2 + r.host].id].name : null;
+    if (ws === "late") s.label = "Runs into work";
     const forced = r.cuts.filter((c) => c.why && (c.id === "christmas" || MODULES[c.id].protected));
     if (forced.length) {
       s.label = "These dates don't work";
       s.why = forced.map((c) => c.why).join(" ") + " Nudge the arrival date a day or two and the trip comes back.";
+      return s;
+    }
+    if (ws === "late") {
+      s.why = "";
       return s;
     }
     if (N >= 8) {
@@ -368,7 +397,7 @@
     return s;
   }
 
-  const engine = { plan, summarize, MODULES, HEADLINES, HEADLINE_NAMES, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, parseISO, iso, fmtMD, fmtDMD, fmtDMDY, addDays };
+  const engine = { plan, summarize, workStatus, workBuffer, WORK, MODULES, HEADLINES, HEADLINE_NAMES, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, parseISO, iso, fmtMD, fmtDMD, fmtDMDY, addDays };
   if (typeof module !== "undefined" && module.exports) { module.exports = engine; return; }
   root.DCPlanner = engine;
 
@@ -404,7 +433,7 @@
       <div class="half"><small>Day</small>${ticks(d.day.legs)}<span>${esc(d.day.label)}</span></div>
       <div class="half night"><small>Night</small>${ticks(d.night.legs)}<span>${esc(d.night.label)}</span></div>
     </div>` : "";
-    const cls = ["stop", d.featured ? "featured" : "", d.kind === "home" ? "last" : ""].filter(Boolean).join(" ");
+    const cls = ["stop", d.featured ? "featured" : "", d.kind === "home" ? "last" : "", d.late ? "late" : ""].filter(Boolean).join(" ");
     return `<li class="${cls}">${dateCell}<div class="stop-body"><h3>${esc(d.title)}</h3>${photo}${body}${halves}</div></li>`;
   }
 
@@ -448,6 +477,10 @@
       s.count ? `<span>${esc(s.count)}</span>` : "",
     ].filter(Boolean).join('<span class="sep">·</span>');
     $("verdict-why").innerHTML = [s.cuts ? `<b>${esc(s.cuts)}</b>` : "", esc(s.why)].filter(Boolean).join(" ");
+    const ws = workStatus(r.home);
+    $("verdict-work").textContent = s.work;
+    $("verdict-work").className = "verdict-work " + ws;
+    $("verdict-work").hidden = !s.work;
 
     // Departure board.
     const weekend = r.start.getDay() === 0 || r.start.getDay() === 6;

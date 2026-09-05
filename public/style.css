@@ -512,3 +512,14 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .stop.different .options { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; color: var(--ink-2); max-width: 62ch; }
 .stop.different .options b { color: var(--ink); font-weight: 600; }
 .stop.different .options li::before { content: "✦ "; color: var(--gold); }
+
+/* Work collision */
+.verdict-work { font-size: 16px; max-width: 52ch; color: var(--ink-2); }
+.verdict-work.thin { font-style: italic; color: var(--muted); }
+.verdict-work.tight { color: var(--red); }
+.verdict-work.late { color: var(--red); font-weight: 600; }
+.fixed-fact { grid-column: 1 / -1; font-size: 14px; color: var(--muted); text-align: center; max-width: none; }
+.fixed-fact b { color: var(--ink); font-weight: 600; }
+.stop.late { border-left: 3px solid var(--red); margin-left: -20px; padding-left: 17px; }
+.stop.late h3 { color: var(--red); }
+@media (max-width: 560px) { .stop.late { margin-left: -14px; padding-left: 11px; } }

@@ -92,3 +92,24 @@ test("a closure that kills a protected module is reported, not hidden", () => {
   assert.ok(r.cuts.some((c) => c.id === "archivesmem" && /Thanksgiving/.test(c.why)));
   assert.equal(P.summarize(r).label, "These dates don't work");
 });
+
+test("work on Thu Dec 10 at 2 PM is a hard wall", () => {
+  const ok = P.plan({ start: "2026-11-29", nights: 7 });
+  assert.equal(P.workStatus(ok.home), "ok");
+  assert.equal(P.summarize(ok).work, "");
+
+  const late = P.plan({ start: "2026-12-05", nights: 7 }); // home Sat Dec 12
+  assert.equal(P.workStatus(late.home), "late");
+  assert.equal(P.summarize(late).label, "Runs into work");
+  assert.match(P.summarize(late).work, /Runs into work/);
+  assert.ok(late.days[late.days.length - 1].late);
+
+  const tight = P.plan({ start: "2026-12-02", nights: 7 }); // home Thu Dec 10
+  assert.equal(P.workStatus(tight.home), "tight");
+  assert.match(P.summarize(tight).work, /Cuts it close/);
+  assert.equal(P.summarize(tight).label, "Recommended");
+
+  const thin = P.plan({ start: "2026-11-29", nights: 9 }); // home Wed Dec 9
+  assert.equal(P.workStatus(thin.home), "thin");
+  assert.match(P.summarize(thin).work, /One day at home/);
+});
