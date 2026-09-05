@@ -268,18 +268,18 @@ main { display: grid; gap: 64px; padding-top: 64px; }
   display: flex; flex-wrap: wrap; gap: 6px 24px;
   font-size: 14px; color: var(--ink-2);
 }
-.half { display: inline-flex; align-items: baseline; gap: 6px; }
+.half { display: inline-flex; align-items: center; gap: 8px; }
 .half small { font-size: 12px; letter-spacing: 0.16em; color: var(--muted); font-weight: 400; }
 
-/* level meter: ●○○○ … ●●●●, red once it's a big one */
-.ticks { letter-spacing: 2px; color: var(--ink); font-style: normal; }
-.ticks::before { content: "○○○○"; }
-.ticks[style*="--n:1"]::before { content: "●○○○"; }
-.ticks[style*="--n:2"]::before { content: "●●○○"; }
-.ticks[style*="--n:3"]::before { content: "●●●○"; }
-.ticks[style*="--n:4"]::before { content: "●●●●"; }
-.ticks[style*="--n:4"], .night .ticks[style*="--n:3"] { color: var(--red); }
-.legend .ticks[style*="--n:4"] { color: var(--red); }
+/* load badges: LO / MID / HI */
+.load {
+  display: inline-block; font-style: normal; font-family: var(--text);
+  font-size: 11px; letter-spacing: 0.16em; font-weight: 600;
+  padding: 2px 6px 1px; border: 1px solid currentColor; line-height: 1.2;
+  color: var(--muted);
+}
+.load.mid { color: var(--ink); }
+.load.hi { color: var(--red); }
 
 /* ───────────── The canon ───────────── */
 
@@ -587,3 +587,42 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
   .block { font-size: 10px; letter-spacing: 0.08em; }
   .block .seg.nights { padding: 0 3px; }
 }
+
+
+/* ───────────── Planner v2: controls, tradeoffs, bench ───────────── */
+
+.ctl-row { display: flex; align-items: center; gap: 10px; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.ctl-row > span { min-width: 5ch; }
+.unit-controls { display: inline-flex; gap: 6px; }
+.ctl {
+  font: inherit; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600;
+  background: transparent; color: var(--ink); border: 1px solid var(--rule); padding: 3px 9px 2px; cursor: pointer;
+}
+.ctl:hover { border-color: var(--ink); }
+.ctl.on { color: var(--red); border-color: var(--red); }
+.ctl:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.stop-body > .ctl-row + .ctl-row { margin-top: -4px; }
+
+.tradeoffs { border: 1px solid var(--rule); padding: 14px 18px; display: grid; gap: 8px; }
+.kicker-sm { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; color: var(--red); }
+.tradeoffs ul { margin: 0; padding: 0 0 0 1.1em; color: var(--ink-2); display: grid; gap: 4px; font-size: 16px; }
+
+.bench-wrap { display: grid; gap: 14px; border-top: 3px double var(--ink); padding-top: 22px; }
+.bench-head { font-size: 22px; }
+.bench-intro { color: var(--ink-2); max-width: 62ch; }
+.bench { list-style: none; margin: 0; padding: 0; display: grid; }
+.bench li {
+  display: grid; grid-template-columns: 11ch minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--rule);
+}
+.bench li.empty { grid-template-columns: 1fr; color: var(--muted); font-style: italic; }
+.bench li.punted .bench-name { color: var(--muted); }
+.bench-meta { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.bench-name { font-family: var(--display); font-size: 18px; line-height: 1.25; }
+.bench-note { display: block; font-family: var(--text); font-size: 14px; color: var(--red); font-style: italic; }
+@media (max-width: 560px) {
+  .bench li { grid-template-columns: 1fr auto; }
+  .bench-meta { grid-column: 1 / -1; }
+}
+
+.canon li.punted::after { content: "punted"; }

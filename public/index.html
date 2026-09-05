@@ -147,11 +147,16 @@
       <p class="intro">
         Every day gets one real adventure, and the day and night are balanced so nobody gets wrecked.
         Big museum day? Easy night. Easy afternoon? That's when we go out and see the memorials glow.
-        <span class="legend"><i class="ticks" style="--n:1"></i> easy &nbsp;·&nbsp; <i class="ticks" style="--n:4"></i> big day</span>
+        <span class="legend"><i class="load lo">LO</i> easy &nbsp;·&nbsp; <i class="load mid">MID</i> a real outing &nbsp;·&nbsp; <i class="load hi">HI</i> the whole battery. A HI day gets an easy night.</span>
       </p>
     </div>
 
-    <ol class="line" id="line"><!-- rendered by planner.js --></ol>
+    <div class="tradeoffs" id="tradeoffs-wrap" hidden>
+      <p class="kicker-sm">Tradeoffs</p>
+      <ul id="tradeoffs"></ul>
+    </div>
+
+    <ol class="line" id="line"><!-- rendered by ui.js --></ol>
   </section>
 
   <!-- ───────────── THE LIST ───────────── -->
@@ -166,38 +171,30 @@
     </div>
 
     <ol class="canon" id="canon">
-      <li data-h="capitol">U.S. Capitol</li>
-      <li data-h="loc">Library of Congress</li>
-      <li data-h="airspace">Air and Space Museum</li>
-      <li data-h="naturalhistory">Natural History Museum</li>
-      <li data-h="americanhistory">American History Museum</li>
-      <li data-h="archives">Declaration, Constitution &amp; Bill of Rights</li>
-      <li data-h="whitehouse">The White House</li>
-      <li data-h="lincoln">Lincoln Memorial</li>
-      <li data-h="vietnam">Vietnam Veterans Memorial</li>
-      <li data-h="korea">Korean War Veterans Memorial</li>
-      <li data-h="wwii">World War II Memorial</li>
-      <li data-h="arlington">Arlington National Cemetery</li>
-      <li data-h="christmas">Christmas in Washington</li>
+      <li data-v="us-capitol">U.S. Capitol</li>
+      <li data-v="library-of-congress">Library of Congress</li>
+      <li data-v="air-space">Air and Space Museum</li>
+      <li data-v="natural-history">Natural History Museum</li>
+      <li data-v="american-history">American History Museum</li>
+      <li data-v="national-archives">Declaration, Constitution &amp; Bill of Rights</li>
+      <li data-v="white-house">The White House</li>
+      <li data-v="lincoln-memorial">Lincoln Memorial</li>
+      <li data-v="vietnam-memorial">Vietnam Veterans Memorial</li>
+      <li data-v="korean-memorial">Korean War Veterans Memorial</li>
+      <li data-v="wwii-memorial">World War II Memorial</li>
+      <li data-v="arlington">Arlington National Cemetery</li>
+      <li data-v="national-christmas-tree">Christmas in Washington</li>
     </ol>
 
-    <details class="bonus">
-      <summary><span class="plus" aria-hidden="true">+</span> The bonus round <span>if weather, tickets, or energy open a door</span></summary>
-      <p>None of these are obligations. If a slot opens up, we pick from here. If not, we leave DC without regret.</p>
-      <ul>
-        <li>Washington Monument observation deck</li>
-        <li>Jefferson Memorial</li>
-        <li>MLK Memorial</li>
-        <li>FDR Memorial</li>
-        <li>National Gallery of Art</li>
-        <li>African American History &amp; Culture Museum</li>
-        <li>International Spy Museum</li>
-        <li>Ford's Theatre</li>
-        <li>National Cathedral</li>
-        <li>Georgetown</li>
-        <li>ZooLights at the National Zoo</li>
-      </ul>
-    </details>
+    <div class="bench-wrap">
+      <h3 class="bench-head">Still on the board</h3>
+      <p class="bench-intro">Everything we know about, ranked by how much we'd regret missing it, that didn't make this version. None of these are obligations. Add one and the planner works out what it costs.</p>
+      <ul class="bench" id="bench"></ul>
+      <div id="punted-wrap" hidden>
+        <h3 class="bench-head">Punted</h3>
+        <ul class="bench" id="punted"></ul>
+      </div>
+    </div>
   </section>
 
   <!-- ───────────── HOUSE RULES ───────────── -->
@@ -242,7 +239,9 @@
   <p><span id="foot-dates"></span> · Anniston to Washington and back on the Crescent · Hotel and tour reservations still being locked in.</p>
 </footer>
 
+<script src="/venues.js"></script>
 <script src="/planner.js"></script>
+<script src="/ui.js"></script>
 <script src="/app.js" defer></script>
 </body>
 </html>
