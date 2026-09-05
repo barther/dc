@@ -626,3 +626,23 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 }
 
 .canon li.punted::after { content: "punted"; }
+
+
+/* ───────────── Preview panel, suggestions, requested state ───────────── */
+.panel { border: 1px solid var(--red); padding: 16px 20px; display: grid; gap: 10px; background: rgba(168, 50, 44, 0.04); }
+.panel-head { font-family: var(--display); font-size: 22px; line-height: 1.2; color: var(--ink); }
+.panel-sub { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.panel-list { margin: 0; padding: 0 0 0 1.1em; color: var(--ink-2); display: grid; gap: 4px; }
+.panel-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.panel-actions.vertical { flex-direction: column; align-items: flex-start; }
+.panel-actions .ctl { padding: 6px 12px 5px; }
+
+.ctl-state { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; color: var(--red); align-self: center; margin-right: 4px; }
+.link { font: inherit; background: none; border: 0; padding: 0; color: var(--red); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+.suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--muted); }
+.suggest-head { letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; font-size: 12px; margin-right: 2px; }
+.suggest-btn { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 14px; font-family: var(--text); }
+.suggest-btn em { font-style: normal; color: var(--gold); font-weight: 600; margin-right: 2px; }
+.suggest-or { font-style: italic; }
+.panel-note { color: var(--ink-2); max-width: 52ch; }

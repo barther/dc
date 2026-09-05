@@ -172,3 +172,37 @@ rules rather than being tabulated.
 Weather, live closures, reservations as data, completed-activity tracking, and day-of replanning.
 The plan shape and the constraint order already leave room for them: weather will re-rank days,
 not attractions; a confirmed reservation will pin a date; completed activities will never move.
+
+
+## Interaction model (settled)
+
+**The planner owns the core trip. The family owns the extras.** Only the thirteen headline
+experiences are scheduled without being asked. Everything else is recommended for open slots,
+ranked by seed, and enters the trip only through the family's intent.
+
+Three levels of intent, in scheduler rank: **Must-do** (sacrifice other things first, may
+displace the core and is told so), **Added by you** (please find room if you can; never
+displaces a headline experience; sacrificed before anything pinned), and the ordinary
+recommendation. **Punt** removes a venue and applies immediately; the punt was the explicit act.
+
+A request that doesn't fit is answered with the honest alternatives: replace a specific
+scheduled item, add one night, or leave it on the board. Choosing a replacement is an explicit
+trade the user made, not something the optimizer discovered.
+
+A punt does not auto-refill. Headline experiences may move up into freed capacity (a shortened
+last morning becoming a full day is an improvement and a one-day change); the bench is offered
+on the open slot, or the day stays open. Extending the trip works the same way: extra days come
+back open, with the best additions listed.
+
+Every Must-do or Add runs as a preview first. If the diff is clean it applies. If it is
+consequential, the page names the consequence and asks. Consequential means: a new HI/MID day, a
+headline experience cut, a protected bundle cut, the trip identity changing, a scheduled visit
+dropping to a shortened last morning, or more than a couple of unrelated days moving. HI/HI stays
+forbidden outright. (Confirmed reservations will join this list when reservations become data.)
+
+Standing venue rules (closed weekdays, holiday policy) live on the venue as `constraints`.
+Date-specific facts arrive as trip constraints passed to the planner, so the catalog never
+becomes a chronology of federal building hours.
+
+The night-count ladder is a regression signal, not an input: if the roster or a seed changes
+and a rung moves, that is the engine doing its job.

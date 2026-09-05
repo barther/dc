@@ -14,7 +14,8 @@
  *   reservation   none | recommended | required (needing one ≠ having one)
  *   weather       rain / cold / wind / heat fit: poor | acceptable | good | excellent
  *   bundle        which bundle it belongs to, if any
- *   closures      weekdays (0 = Sunday) and holidays it's shut
+ *   constraints   standing rules: closed weekdays (0 = Sunday) and holiday policy.
+ *                 Date-specific closures are trip constraints, passed to the planner.
  *
  * The bundles layer below adds bundle-level load, ordering, and pairings.
  */
@@ -29,18 +30,18 @@
   const venues = [
     { id: "us-capitol", name: "U.S. Capitol", seed: 1, priority_tier: "protected", period: "day", load: "hi", environment: "mixed",
       min_hours: 2.5, ideal_hours: 4, shortenable: false, reservation: "recommended",
-      weather: { rain: "good", cold: "good", wind: "good", heat: "good" }, bundle: "capitol-hill", closures: FEDERAL_CLOSED },
+      weather: { rain: "good", cold: "good", wind: "good", heat: "good" }, bundle: "capitol-hill", constraints: FEDERAL_CLOSED },
     { id: "national-archives", name: "National Archives", seed: 2, priority_tier: "protected", period: "day", load: "lo", environment: "indoor",
       min_hours: 1.5, ideal_hours: 2.5, shortenable: true, reservation: "recommended",
-      weather: INDOOR_ALL, bundle: null, closures: { weekdays: [], holidays: ["thanksgiving", "christmas"] } },
+      weather: INDOOR_ALL, bundle: null, constraints: { weekdays: [], holidays: ["thanksgiving", "christmas"] } },
     { id: "lincoln-memorial", name: "Lincoln Memorial", seed: 3, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 1, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "main-memorial-loop" },
     { id: "library-of-congress", name: "Library of Congress", seed: 4, priority_tier: "protected", period: "day", load: "hi", environment: "indoor",
-      min_hours: 1.5, ideal_hours: 2.5, shortenable: true, reservation: "required", weather: INDOOR_ALL, bundle: "capitol-hill", closures: FEDERAL_CLOSED },
+      min_hours: 1.5, ideal_hours: 2.5, shortenable: true, reservation: "required", weather: INDOOR_ALL, bundle: "capitol-hill", constraints: FEDERAL_CLOSED },
     { id: "vietnam-memorial", name: "Vietnam Veterans Memorial", seed: 5, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 0.75, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "main-memorial-loop" },
     { id: "air-space", name: "National Air and Space Museum", seed: 6, priority_tier: "high", period: "day", load: "hi", environment: "indoor",
-      min_hours: 2.5, ideal_hours: 5, shortenable: true, reservation: "required", weather: INDOOR_ALL, bundle: null, closures: SMITHSONIAN_CLOSED },
+      min_hours: 2.5, ideal_hours: 5, shortenable: true, reservation: "required", weather: INDOOR_ALL, bundle: null, constraints: SMITHSONIAN_CLOSED },
     { id: "arlington", name: "Arlington National Cemetery", seed: 7, priority_tier: "high", period: "day", load: "hi", environment: "outdoor",
       min_hours: 3, ideal_hours: 5, shortenable: true, reservation: "none",
       weather: { rain: "poor", cold: "acceptable", wind: "poor", heat: "acceptable" }, bundle: null },
@@ -55,14 +56,14 @@
       min_hours: 0.5, ideal_hours: 1, shortenable: true, reservation: "none",
       weather: { rain: "poor", cold: "good", wind: "acceptable", heat: "good" }, bundle: "christmas-washington" },
     { id: "natural-history", name: "National Museum of Natural History", seed: 12, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
-      min_hours: 2.5, ideal_hours: 5, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, closures: SMITHSONIAN_CLOSED },
+      min_hours: 2.5, ideal_hours: 5, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, constraints: SMITHSONIAN_CLOSED },
     { id: "american-history", name: "National Museum of American History", seed: 13, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
-      min_hours: 2, ideal_hours: 4.5, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, closures: SMITHSONIAN_CLOSED },
+      min_hours: 2, ideal_hours: 4.5, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, constraints: SMITHSONIAN_CLOSED },
     { id: "african-american-history", name: "National Museum of African American History and Culture", seed: 14, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
-      min_hours: 3, ideal_hours: 5, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null, closures: SMITHSONIAN_CLOSED },
+      min_hours: 3, ideal_hours: 5, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null, constraints: SMITHSONIAN_CLOSED },
     { id: "washington-monument", name: "Washington Monument", seed: 15, priority_tier: "medium", period: "day", load: "mid", environment: "mixed",
       min_hours: 1, ideal_hours: 2, shortenable: false, reservation: "required",
-      weather: { rain: "poor", cold: "good", wind: "poor", heat: "acceptable" }, bundle: null, closures: { weekdays: [], holidays: ["christmas"] } },
+      weather: { rain: "poor", cold: "good", wind: "poor", heat: "acceptable" }, bundle: null, constraints: { weekdays: [], holidays: ["christmas"] } },
     { id: "jefferson-memorial", name: "Jefferson Memorial", seed: 16, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 1, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "tidal-basin-loop" },
     { id: "mlk-memorial", name: "Martin Luther King Jr. Memorial", seed: 17, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
@@ -70,14 +71,14 @@
     { id: "fdr-memorial", name: "Franklin Delano Roosevelt Memorial", seed: 18, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
       min_hours: 0.75, ideal_hours: 1.25, shortenable: true, reservation: "none", weather: MEMORIAL, bundle: "tidal-basin-loop" },
     { id: "national-gallery", name: "National Gallery of Art", seed: 19, priority_tier: "bonus", period: "day", load: "hi", environment: "indoor",
-      min_hours: 2, ideal_hours: 4, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, closures: { weekdays: [], holidays: ["christmas", "newyear"] } },
+      min_hours: 2, ideal_hours: 4, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, constraints: { weekdays: [], holidays: ["christmas", "newyear"] } },
     { id: "georgetown", name: "Georgetown", seed: 20, priority_tier: "bonus", period: "day", load: "mid", environment: "mixed",
       min_hours: 2, ideal_hours: 4, shortenable: true, reservation: "none",
       weather: { rain: "poor", cold: "good", wind: "acceptable", heat: "acceptable" }, bundle: null },
     { id: "national-cathedral", name: "Washington National Cathedral", seed: 21, priority_tier: "bonus", period: "day", load: "mid", environment: "indoor",
       min_hours: 1.5, ideal_hours: 3, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null },
     { id: "fords-theatre", name: "Ford's Theatre", seed: 22, priority_tier: "bonus", period: "day", load: "lo", environment: "indoor",
-      min_hours: 1, ideal_hours: 2, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null, closures: { weekdays: [], holidays: ["thanksgiving", "christmas"] } },
+      min_hours: 1, ideal_hours: 2, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null, constraints: { weekdays: [], holidays: ["thanksgiving", "christmas"] } },
     { id: "zoolights", name: "ZooLights", seed: 23, priority_tier: "bonus", period: "night", load: "mid", environment: "outdoor",
       min_hours: 1.5, ideal_hours: 2.5, shortenable: true, reservation: "recommended",
       weather: { rain: "poor", cold: "good", wind: "acceptable", heat: "good" }, bundle: null },

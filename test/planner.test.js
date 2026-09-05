@@ -22,7 +22,7 @@ test("default dates generate the recommended trip", () => {
   assert.equal(p.headline.kept, 13);
   assert.deepEqual(dayIds(p), [
     ["air-space", null], ["capitol-hill", null], ["national-archives", "main-memorial-loop"],
-    ["natural-history", null], ["arlington", null], ["washington-monument", "christmas-washington"],
+    ["natural-history", null], ["arlington", null], ["holiday-market", "christmas-washington"],
   ]);
   assert.equal(dep(p), "american-history");
   assert.equal(P.fmtDMD(p.trainOut), "Sat Nov 28");
@@ -119,11 +119,12 @@ test("departure day never hosts Arlington or a full outdoor day", () => {
   }
 });
 
-test("a punt changes one day, not the week", () => {
+test("a punt changes one day, not the week (a headline moving up to a full day is allowed)", () => {
   const before = plan();
   const after = plan({}, { punted: ["natural-history"] }, before);
-  const moved = Object.keys(before.placements).filter((id) => after.placements[id] && after.placements[id] !== before.placements[id]);
-  assert.deepEqual(moved, [], `moved: ${moved.join(", ")}`);
+  const d = P.diff(before, after, ["natural-history"]);
+  assert.deepEqual(d.moved.filter((n) => !d.promoted.includes(n)), [], `moved: ${d.moved.join(", ")}`);
+  assert.deepEqual(d.promoted, ["National Museum of American History"]);
 });
 
 test("impossible dates produce an honest warning, not a quiet cut", () => {
@@ -146,4 +147,81 @@ test("work window: the train can't leave before Bart's shift, and must get home 
   assert.equal(P.summarize(plan({ start: "2026-11-27" })).label, "Runs into work");
   assert.equal(P.summarize(plan({ start: "2026-12-05" })).label, "Runs into work");
   assert.match(P.summarize(plan({ start: "2026-12-02" })).work, /Cuts it close/);
+});
+
+/* ───── Customization semantics ───── */
+
+test("Add to trip is not Must-do: a request never displaces a headline experience", () => {
+  const p = plan({}, { requested: ["national-gallery"] });
+  assert.ok(!included(p, "national-gallery"));
+  assert.equal(p.headline.kept, 13);
+  assert.ok(p.reasons.some((r) => /National Gallery.*doesn't fit/.test(r)));
+  const q = plan({}, { pinned: ["national-gallery"] });
+  assert.ok(included(q, "national-gallery"));
+});
+
+test("a request that doesn't fit gets honest options, including the explicit trade and a longer trip", () => {
+  const opts = P.fitOptions(D, { requested: ["national-gallery"] }, "national-gallery");
+  assert.ok(opts.some((o) => o.kind === "replace" && o.unit === "american-history"));
+  assert.ok(opts.some((o) => o.kind === "night"));
+  for (const o of opts) assert.ok(o.plan.includedVenues.has("national-gallery"));
+});
+
+test("a punt may leave a slot empty; the bench is suggested, not imposed", () => {
+  const before = plan();
+  const p = plan({}, { punted: ["natural-history"] }, before);
+  const dep = p.days[p.days.length - 1];
+  assert.equal(dep.day, null, "the last morning stays open after the headline museum moves up");
+  assert.ok(dep.suggest.day.length > 0);
+  assert.ok(!p.days.some((d) => d.day && ["african-american-history", "national-gallery", "washington-monument"].includes(d.day.id)));
+});
+
+test("the planner owns the core trip; the family owns the extras: 8 nights leaves a day open with suggestions", () => {
+  const p = plan({ nights: 8 });
+  assert.equal(p.headline.kept, 13);
+  const open = p.days.filter((d) => d.kind !== "arrival" && !d.day && !d.night);
+  assert.ok(open.length >= 1);
+  assert.ok(open.every((d) => d.suggest.day && d.suggest.day.length));
+  assert.ok(!Object.values(p.units).some((u) => !u.core && !u.isAccessory && p.placements[u.id]));
+});
+
+test("a forced HI/MID pairing is flagged in the preview, not silently accepted", () => {
+  const before = plan({ nights: 5 });
+  const after = plan({ nights: 5 }, { pinned: ["spy-museum"] }, before);
+  const d = P.diff(before, after, ["spy-museum"]);
+  assert.ok(d.consequential);
+  assert.ok(d.messages.length);
+});
+
+test("an action that destroys trip identity requires an explicit choice", () => {
+  const before = plan({ nights: 3 });
+  const after = plan({ nights: 3 }, { pinned: ["national-gallery", "spy-museum", "african-american-history"] }, before);
+  const d = P.diff(before, after, ["national-gallery", "spy-museum", "african-american-history"]);
+  assert.ok(d.identityChanged);
+  assert.ok(d.messages[0].startsWith("This changes the kind of trip"));
+});
+
+test("replanning moves nothing unrelated when a stable solution exists", () => {
+  const before = plan();
+  for (const state of [{ punted: ["arlington"] }, { requested: ["fords-theatre"] }, { punted: ["natural-history"] }]) {
+    const after = plan({}, state, before);
+    const acted = [...(state.punted || []), ...(state.requested || [])];
+    const d = P.diff(before, after, acted);
+    const unrelated = d.moved.filter((n) => !d.promoted.includes(n) && !d.shortened.includes(n));
+    assert.deepEqual(unrelated, [], JSON.stringify(state));
+  }
+});
+
+test("a requested attraction is sacrificed before a pinned one", () => {
+  const p = plan({ nights: 4 }, { requested: ["national-gallery"], pinned: ["spy-museum"] });
+  assert.ok(included(p, "spy-museum"));
+  assert.ok(!included(p, "national-gallery"));
+});
+
+test("standing venue rules and trip-specific closures are separate inputs", () => {
+  assert.ok(C.venues.every((v) => !("closures" in v)));
+  const p = P.plan(D, {}, null, { closures: [{ venue: "air-space", date: "2026-11-30", note: "private event" }] });
+  const mon = p.days.find((d) => P.iso(d.date) === "2026-11-30");
+  assert.notEqual(mon.day && mon.day.id, "air-space");
+  assert.ok(included(p, "air-space"), "a one-day closure moves it, not cuts it");
 });

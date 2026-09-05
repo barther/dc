@@ -62,7 +62,8 @@
   /* ───────────── State ───────────── */
 
   let cfg = { ...DEFAULT };
-  let user = { punted: [], pinned: [] };
+  let user = { punted: [], pinned: [], requested: [] };
+  let pending = null; // an action awaiting confirmation, or a request awaiting a trade
   let prevPlan = null;
 
   function readHash() {
@@ -73,6 +74,7 @@
       if (k === "nights" && +v >= MIN_NIGHTS && +v <= MAX_NIGHTS) cfg.nights = +v;
       if (k === "punt" && v) user.punted = v.split(",").filter(Boolean);
       if (k === "pin" && v) user.pinned = v.split(",").filter(Boolean);
+      if (k === "ask" && v) user.requested = v.split(",").filter(Boolean);
     }
   }
   function writeHash() {
@@ -81,9 +83,10 @@
     if (cfg.nights !== DEFAULT.nights) parts.push(`nights=${cfg.nights}`);
     if (user.punted.length) parts.push(`punt=${user.punted.join(",")}`);
     if (user.pinned.length) parts.push(`pin=${user.pinned.join(",")}`);
+    if (user.requested.length) parts.push(`ask=${user.requested.join(",")}`);
     history.replaceState(null, "", location.pathname + location.search + (parts.length ? "#" + parts.join("&") : ""));
   }
-  const isDefault = () => cfg.start === DEFAULT.start && cfg.nights === DEFAULT.nights && !user.punted.length && !user.pinned.length;
+  const isDefault = () => cfg.start === DEFAULT.start && cfg.nights === DEFAULT.nights && !user.punted.length && !user.pinned.length && !user.requested.length;
 
   /* ───────────── Day cards ───────────── */
 
@@ -94,14 +97,26 @@
     return `<div class="halves">${h("day", day)}${h("night", night)}</div>`;
   }
 
-  function unitControls(u, slotInfo) {
+  function unitControls(u) {
     if (!u) return "";
-    const pinned = u.pinned;
     const ids = u.members.join(",");
-    return `<span class="unit-controls">
-      <button type="button" class="ctl${pinned ? " on" : ""}" data-act="pin" data-ids="${ids}" title="${pinned ? "Marked must-do. Click to relax." : "Protect this from ordinary cuts"}">${pinned ? "✦ Must-do" : "Must-do"}</button>
-      <button type="button" class="ctl" data-act="punt" data-ids="${ids}" title="Take this off the trip">Punt</button>
-    </span>`;
+    const state = u.pinned ? `<span class="ctl-state">✦ Must-do</span>` : u.requested ? `<span class="ctl-state">Added by you</span>` : "";
+    const pin = u.pinned
+      ? `<button type="button" class="ctl" data-act="unpin" data-ids="${ids}" title="Back to an ordinary recommendation">Relax</button>`
+      : `<button type="button" class="ctl" data-act="pin" data-ids="${ids}" title="Protect this from ordinary cuts">Must-do</button>`;
+    const off = u.requested && !u.pinned
+      ? `<button type="button" class="ctl" data-act="unask" data-ids="${ids}" title="Back to the board">Remove</button>`
+      : `<button type="button" class="ctl" data-act="punt" data-ids="${ids}" title="Take this off the trip">Punt</button>`;
+    return `<span class="unit-controls">${state}${pin}${off}</span>`;
+  }
+
+  // Ranked suggestions for an open slot. Recommended, never imposed.
+  function suggestions(d, slot) {
+    const list = d.suggest && d.suggest[slot];
+    if (!list || !list.length) return "";
+    return `<div class="suggest"><span class="suggest-head">${slot === "day" ? "Best additions" : "Or, after dark"}</span>
+      ${list.map((x) => `<button type="button" class="ctl suggest-btn" data-act="ask" data-ids="${x.id}"><em>#${x.seed}</em> ${esc(x.name)}${x.shortened ? ", shortened" : ""}</button>`).join("")}
+      <span class="suggest-or">or leave it open.</span></div>`;
   }
 
   function figure(photo, cls) {
@@ -117,21 +132,21 @@
     else if (nu) title = `${cap(nc.title)}.`;
     else title = NARRATIVE.open.title;
     if (dc) body.push(...dc.body); if (nc) body.push(...nc.body);
-    if (!du && !nu) body.push(...NARRATIVE.open.body);
+    if (!du && !nu) body.push(p.nights > DEFAULT.nights && p.headline.kept === p.headline.total ? "Everything in the core trip already fits comfortably. This day is open on purpose." : NARRATIVE.open.body[0]);
     if (du && !nu) body.push(du.load === "hi" ? "Then dinner, the hotel, and nothing. That's the plan, not a gap in it." : "Dinner. Nothing scheduled after.");
     const featured = (dc && dc.featured) || (nc && nc.featured);
     const photo = (dc && dc.photo) || (nc && nc.photo) || null;
     const dayHalf = du ? { label: du.short, load: du.load } : C.structural.open;
     const nightHalf = nu ? { label: nu.short, load: nu.load } : C.structural.rest;
     return card(d, title, body, photo, halves(dayHalf, nightHalf), featured, false,
-      (du ? `<div class="ctl-row"><span>Day</span>${unitControls(du)}</div>` : "") + (nu ? `<div class="ctl-row"><span>Night</span>${unitControls(nu)}</div>` : ""));
+      (du ? `<div class="ctl-row"><span>Day</span>${unitControls(du)}</div>` : suggestions(d, "day")) + (nu ? `<div class="ctl-row"><span>Night</span>${unitControls(nu)}</div>` : (du && du.load !== "hi" ? suggestions(d, "night") : "")));
   }
 
   function renderDeparture(p, d) {
     const du = d.day ? p.units[d.day.id] : null;
     if (!du) {
       const n = NARRATIVE.departureEmpty;
-      return card(d, n.title, n.body, null, halves(n.day, C.structural.departure.night), false, false, "");
+      return card(d, n.title, n.body, null, halves(n.day, C.structural.departure.night), false, false, suggestions(d, "day"));
     }
     const c = unitCopy(du);
     const title = d.day.shortened ? `${cap(c.title)}, shortened, then home.` : `${cap(c.title)}, then home.`;
@@ -167,10 +182,13 @@
     const puntedVenues = user.punted.map((id) => C.venues.find((v) => v.id === id)).filter(Boolean);
     const row = (u) => {
       const ex = p.excluded.find((e) => e.unit.id === u.id);
-      const note = u.pinned ? `<em class="bench-note">Marked must-do, but there's ${ex ? ex.why : "no room"}.</em>` : "";
+      const note = u.pinned ? `<em class="bench-note">Marked must-do, but there's ${ex ? ex.why : "no room"}.</em>`
+        : u.requested ? `<em class="bench-note">Doesn't fit without changing the current trip. <button type="button" class="link" data-act="options" data-ids="${u.members[0]}">See the options</button></em>` : "";
       const btn = u.pinned
         ? `<button type="button" class="ctl" data-act="unpin" data-ids="${u.members.join(",")}">Let it go</button>`
-        : `<button type="button" class="ctl" data-act="pin" data-ids="${u.members.join(",")}">Add to trip</button>`;
+        : u.requested
+        ? `<button type="button" class="ctl" data-act="unask" data-ids="${u.members.join(",")}">Never mind</button>`
+        : `<button type="button" class="ctl" data-act="ask" data-ids="${u.members.join(",")}">Add to trip</button>`;
       return `<li><span class="bench-meta">#${u.seed} · ${u.load.toUpperCase()} · ${u.period.toUpperCase()}</span><span class="bench-name">${esc(u.name)}${note}</span>${btn}</li>`;
     };
     const puntRow = (v) => `<li class="punted"><span class="bench-meta">#${v.seed} · ${v.load.toUpperCase()} · ${v.period.toUpperCase()}</span><span class="bench-name">${esc(v.name)}</span><button type="button" class="ctl" data-act="unpunt" data-ids="${v.id}">Bring back</button></li>`;
@@ -236,7 +254,7 @@
 
   function update(next, live) {
     if (next.cfg) cfg = { ...cfg, ...next.cfg };
-    if (next.user) user = { punted: [...next.user.punted], pinned: [...next.user.pinned] };
+    if (next.user) user = { punted: [...(next.user.punted || [])], pinned: [...(next.user.pinned || [])], requested: [...(next.user.requested || [])] };
     cfg.nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights));
     if (!live) writeHash();
     render();
@@ -304,15 +322,86 @@
   render();
   $("cfg-minus").addEventListener("click", () => update({ cfg: { nights: cfg.nights - 1 } }));
   $("cfg-plus").addEventListener("click", () => update({ cfg: { nights: cfg.nights + 1 } }));
-  $("cfg-reset").addEventListener("click", () => update({ cfg: { ...DEFAULT }, user: { punted: [], pinned: [] } }));
-  document.addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-act]"); if (!b) return;
-    const ids = b.dataset.ids.split(","), act = b.dataset.act;
-    const u = { punted: user.punted.filter((id) => !ids.includes(id)), pinned: user.pinned.filter((id) => !ids.includes(id)) };
+  $("cfg-reset").addEventListener("click", () => { pending = null; renderPanel(); update({ cfg: { ...DEFAULT }, user: { punted: [], pinned: [], requested: [] } }); });
+
+  /* ───────────── Actions: preview first, then apply or ask ───────────── */
+
+  function nextUser(act, ids) {
+    const u = { punted: user.punted.filter((id) => !ids.includes(id)), pinned: user.pinned.filter((id) => !ids.includes(id)), requested: user.requested.filter((id) => !ids.includes(id)) };
     if (act === "punt") u.punted.push(...ids);
     if (act === "pin") u.pinned.push(...ids);
+    if (act === "ask") u.requested.push(...ids);
+    if (act === "unpin" && ids.some((id) => user.requested.includes(id))) u.requested.push(...ids); // relax back to requested
+    return u;
+  }
+
+  function renderPanel() {
+    const el = $("panel");
+    if (!pending) { el.hidden = true; el.innerHTML = ""; return; }
+    el.hidden = false;
+    if (pending.kind === "confirm") {
+      el.innerHTML = `<p class="panel-head">${esc(pending.title)}</p>
+        <ul class="panel-list">${pending.messages.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>
+        <div class="panel-actions"><button type="button" class="ctl on" data-panel="go">${esc(pending.go)}</button><button type="button" class="ctl" data-panel="no">Don't make this change</button></div>`;
+    } else {
+      el.innerHTML = `<p class="panel-head">${esc(pending.name)} doesn't fit without changing the current trip.</p>
+        ${pending.options.length ? `<p class="panel-sub">Best options:</p>` : `<p class="panel-note">At this length, every trade would go to something we rank higher. Mark it must-do on a day if it matters more than that, or add nights.</p>`}
+        <div class="panel-actions vertical">
+          ${pending.options.map((o, i) => `<button type="button" class="ctl" data-panel="opt" data-i="${i}">${esc(o.label)}</button>`).join("")}
+          <button type="button" class="ctl" data-panel="board">Leave it on the board</button>
+        </div>`;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function act(action, ids) {
+    pending = null;
+    const before = prevPlan;
+    const u = nextUser(action, ids);
+    if (action === "punt" || action === "unpunt" || action === "unask" || action === "unpin") {
+      update({ user: u });
+      const d = P.diff(before, prevPlan, ids);
+      if (action === "punt" && d.notes.length) { $("tradeoffs-wrap").hidden = false; $("tradeoffs").insertAdjacentHTML("afterbegin", d.notes.map((n) => `<li>${esc(n)}</li>`).join("")); }
+      return;
+    }
+    const after = P.plan(cfg, u, before);
+    const unit = Object.values(after.units).find((x) => x.members.some((m) => ids.includes(m)));
+    if (action === "ask" && unit && !after.placements[unit.id]) {
+      pending = { kind: "options", name: unit.name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], before) };
+      renderPanel(); return;
+    }
+    const d = P.diff(before, after, ids);
+    if (d.consequential) {
+      const cutsCore = d.cutHeadlines.length || d.cutProtected.length || d.identityChanged;
+      pending = { kind: "confirm", user: u, messages: d.messages.concat(d.notes),
+        title: d.identityChanged ? "This changes the kind of trip." : cutsCore ? `To keep ${unit ? unit.name : "this"}, something has to give.` : d.newAvoid.length ? "This makes a day harder." : "This changes more than one day.",
+        go: cutsCore && unit ? `Keep ${unit.name}${d.cutHeadlines.length ? `, drop ${d.cutHeadlines[0]}` : ""}` : "Continue anyway" };
+      renderPanel(); return;
+    }
     update({ user: u });
-    if (act === "pin" || act === "unpunt") document.getElementById("week").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (d.notes.length) { $("tradeoffs-wrap").hidden = false; $("tradeoffs").insertAdjacentHTML("afterbegin", d.notes.map((n) => `<li>${esc(n)}</li>`).join("")); }
+    $("week").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  document.addEventListener("click", (e) => {
+    const pb = e.target.closest("button[data-panel]");
+    if (pb) {
+      const k = pb.dataset.panel;
+      if (k === "go" && pending) { const u = pending.user; pending = null; renderPanel(); update({ user: u }); }
+      else if (k === "opt" && pending) {
+        const o = pending.options[+pb.dataset.i]; const id = pending.id; pending = null; renderPanel();
+        if (o.kind === "night") update({ cfg: { nights: cfg.nights + 1 }, user: nextUser("ask", [id]) });
+        else update({ user: { ...nextUser("ask", [id]), punted: [...user.punted.filter((x) => !o.members.includes(x)), ...o.members] } });
+        $("week").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      else if (k === "board" && pending) { const id = pending.id; pending = null; renderPanel(); update({ user: nextUser("ask", [id]) }); }
+      else { pending = null; renderPanel(); }
+      return;
+    }
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const ids = b.dataset.ids.split(","), a = b.dataset.act;
+    if (a === "options") { pending = { kind: "options", name: prevPlan.units[Object.values(prevPlan.units).find((x) => x.members.includes(ids[0])).id].name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
+    act(a, ids);
   });
   if (!isDefault()) $("change").open = true;
 })();

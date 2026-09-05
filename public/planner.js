@@ -63,24 +63,30 @@
 
   const venueById = Object.fromEntries(catalog.venues.map((v) => [v.id, v]));
 
-  function venueClosed(v, d) {
-    const c = v.closures;
-    if (!c) return null;
-    if (c.weekdays && c.weekdays.includes(d.getDay())) return `${v.name} is closed on ${DOW[d.getDay()]}days`;
-    const h = holiday(d);
-    if (h && c.holidays && c.holidays.includes(h)) return `${v.name} is closed on ${HOLIDAY_NAMES[h]}`;
+  // Standing rules live on the venue; date-specific facts arrive as trip constraints.
+  function venueClosed(v, d, external) {
+    const c = v.constraints;
+    if (c) {
+      if (c.weekdays && c.weekdays.includes(d.getDay())) return `${v.name} is closed on ${DOW[d.getDay()]}days`;
+      const h = holiday(d);
+      if (h && c.holidays && c.holidays.includes(h)) return `${v.name} is closed on ${HOLIDAY_NAMES[h]}`;
+    }
+    const day = iso(d);
+    for (const x of (external && external.closures) || []) {
+      if (x.venue === v.id && x.date === day) return `${v.name} is closed ${fmtDMD(d)}${x.note ? ` (${x.note})` : ""}`;
+    }
     return null;
   }
 
   // Build the list of schedulable units from the catalog and the user's state.
-  function buildUnits(state) {
-    const punted = new Set(state.punted || []), pinned = new Set(state.pinned || []);
+  function buildUnits(state, external) {
+    const punted = new Set(state.punted || []), pinned = new Set(state.pinned || []), requested = new Set(state.requested || []);
     const units = [];
     const inBundle = new Set();
 
     for (const [bid, b] of Object.entries(catalog.bundles)) {
       const core = b.core.filter((id) => !punted.has(id));
-      b.core.forEach((id) => inBundle.add(id)); b.accessory.forEach((id) => inBundle.add(id));
+      b.core.forEach((id) => inBundle.add(id)); // accessories stay standalone units and ride along
       if (!core.length) continue;
       const members = core.map((id) => venueById[id]);
       const whole = core.length === b.core.length;
@@ -95,8 +101,8 @@
         members: core, accessory: b.accessory.filter((id) => !punted.has(id)),
         shortenable: members.every((v) => v.shortenable), min_hours: members.reduce((s, v) => s + v.min_hours, 0),
         prefer_weekday: b.prefer_weekday ?? null,
-        pinned: core.some((id) => pinned.has(id)),
-        closed: (d) => { for (const v of members) { const r = venueClosed(v, d); if (r) return r; } return null; },
+        pinned: core.some((id) => pinned.has(id)), requested: core.some((id) => requested.has(id)),
+        closed: (d) => { for (const v of members) { const r = venueClosed(v, d, external); if (r) return r; } return null; },
       });
     }
     for (const v of catalog.venues) {
@@ -105,13 +111,20 @@
         id: v.id, bundle: false, whole: true, name: v.name, short: v.name,
         period: v.period, environment: v.environment, load: v.load, tier: v.priority_tier, seed: v.seed,
         members: [v.id], accessory: [], shortenable: v.shortenable, min_hours: v.min_hours,
-        prefer_weekday: null, pinned: pinned.has(v.id), closed: (d) => venueClosed(v, d),
+        prefer_weekday: null, pinned: pinned.has(v.id), requested: requested.has(v.id), closed: (d) => venueClosed(v, d, external),
       });
     }
+    const accessoryIds = new Set(Object.values(catalog.bundles).flatMap((b) => b.accessory));
     for (const u of units) {
       u.value = TIER_WEIGHT[u.tier] - u.seed;
       // The thirteen headline experiences are the trip. They may squeeze; the bench may not.
       u.core = u.members.some((id) => catalog.headlines.includes(id));
+      // The planner owns the core trip; the family owns the extras. Only headline experiences,
+      // requests, and must-dos are scheduled without being asked. Accessories ride with their bundle.
+      u.auto = u.core || u.requested || u.pinned;
+      u.isAccessory = !u.bundle && accessoryIds.has(u.id);
+      // Ranking: must-do, protected, high, headline mediums, requested, then the bench.
+      u.rank = u.pinned ? -1 : u.tier === "protected" ? 0 : u.tier === "high" ? 1 : u.core ? 2 : u.requested ? 2.5 : 3;
       // Departure morning: a LO activity, or a shortened indoor/mixed visit. Never a full outdoor day.
       u.departureOK = u.period === "day" && (u.load === "lo" || (u.shortenable && u.environment !== "outdoor" && u.min_hours <= 3));
     }
@@ -138,14 +151,14 @@
     return days;
   }
 
-  function plan(cfg, state = {}, prev = null) {
+  function plan(cfg, state = {}, prev = null, external = {}) {
     const start = parseISO(cfg.start) || parseISO(DEFAULT.start);
     const nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights | 0 || DEFAULT.nights));
     const fixed = state.fixed || {};           // unitId -> iso date
     const notThisDay = state.notThisDay || {}; // unitId -> [iso dates]
     const prevAt = (prev && prev.placements) || {};
 
-    const units = buildUnits(state);
+    const units = buildUnits(state, external);
     const byId = Object.fromEntries(units.map((u) => [u.id, u]));
     const days = frameDays(start, nights);
     const placed = {};   // unitId -> { dayIdx, slot }
@@ -177,7 +190,7 @@
       if (ps < 0 && !u.core) return -Infinity;   // only the headline experiences get to squeeze a day
       s += ps;
       if (other && other.environment === "outdoor" && u.environment === "outdoor" && !u.accessoryOf && !(other.accessory)) s -= 3; // two cold outings in one day
-      if (d.kind === "departure" && u.load !== "lo") s -= 4;                              // shortened
+      if (d.kind === "departure" && u.load !== "lo") s -= 6;                              // shortened: worth more than stability
       if (u.prefer_weekday != null && d.date.getDay() === u.prefer_weekday) s += 3;
       const pr = pairingFor(u);
       if (pr) { const partner = pr.day === u.id ? pr.night : pr.day; if (placed[partner] && placed[partner].dayIdx === di) s += 6; }
@@ -210,14 +223,15 @@
       const closures = dates.map((d) => u.closed(d.date)).filter(Boolean);
       if (closures.length === dates.length) return { why: closures[0] + ", every day of the trip", kind: "closed" };
       if (fixed[u.id]) return { why: `couldn't go on ${fmtDMD(parseISO(fixed[u.id]))}`, kind: "fixed" };
+      if (u.requested && !u.pinned) return { why: "no room without changing the current trip", kind: "room" };
       if (u.load === "hi") return { why: u.period === "night" ? "no light day left to pair it with" : "no full day left for it", kind: "room" };
       return { why: "no room left in the week", kind: "room" };
     }
 
     // 1. Place by value: pinned first, then the rest. Bonus-tier venues wait on the bench.
     const order = units
-      .filter((u) => u.tier !== "bonus" || u.pinned)
-      .sort((a, b) => (b.pinned - a.pinned) || (b.value - a.value));
+      .filter((u) => u.auto && !u.isAccessory)
+      .sort((a, b) => (a.rank - b.rank) || (b.value - a.value));
     function placeAccessories(u) {
       const p = placed[u.id]; if (!p) return;
       for (const aid of u.accessory) {
@@ -320,7 +334,27 @@
     for (const ex of excluded) {
       if (ex.kind === "closed") reasons.push(`${cap(ex.unit.name)} can't fit these dates: ${ex.why}.`);
       else if (ex.unit.pinned) reasons.push(`${cap(ex.unit.name)} is marked must-do but there's ${ex.why}.`);
+      else if (ex.unit.requested) reasons.push(`${cap(ex.unit.name)} doesn't fit without changing the current trip.`);
       else if (ex.unit.core) reasons.push(`${cap(ex.unit.name)} is cut: ${ex.why}.`);
+    }
+    for (const u of units) {
+      const pl = placed[u.id];
+      if (u.requested && !u.pinned && pl && !u.core) reasons.push(`${cap(u.name)} is in because you asked. It takes ${fmtDMD(days[pl.dayIdx].date)}${days[pl.dayIdx].kind === "departure" ? ", the last morning" : ""}.`);
+    }
+
+    // 3b. Suggestions for open slots: the bench may be recommended, never imposed.
+    for (let di = 0; di < days.length; di++) {
+      const d = days[di];
+      if (d.kind === "arrival") continue;
+      d.suggest = {};
+      for (const slot of d.kind === "departure" ? ["day"] : ["day", "night"]) {
+        if (d[slot]) continue;
+        const floor = d.kind === "departure" ? -6.5 : -1.5;
+        d.suggest[slot] = units
+          .filter((u) => !placed[u.id] && !u.auto && !u.isAccessory && u.period === slot && score(u, di, slot) >= floor)
+          .sort((a, b) => a.seed - b.seed).slice(0, 3)
+          .map((u) => ({ id: u.id, name: u.name, seed: u.seed, load: u.load, shortened: d.kind === "departure" && u.load !== "lo" }));
+      }
     }
 
     // 4. What survived.
@@ -340,7 +374,7 @@
     const avoidPairs = days.filter((d) => d.day && d.night && pairScore(byId[d.day.id].load, byId[d.night.id].load) === -8).length;
     const shortenedHigh = days.some((d) => d.day && d.day.shortened && TIER_RANK[byId[d.day.id].tier] <= TIER_RANK.high);
     const openDays = days.filter((d) => d.kind === "full" && !d.day && !d.night).length;
-    const punted = (state.punted || []).length;
+    const punted = (state.punted || []).length + (state.requested || []).length + (state.pinned || []).length;
 
     let label;
     if (cutTier("protected").some((e) => e.kind === "closed")) label = "These dates don't work";
@@ -349,7 +383,7 @@
     else if (cutTier("medium").filter((e) => e.unit.core).length >= 2) label = "Highlights version";
     else if (cutTier("medium").filter((e) => e.unit.core).length === 1) label = "First real cut";
     else if (avoidPairs || shortenedHigh) label = "Compressed full trip";
-    else if (punted) label = "Your version";
+    else if (punted && nights <= DEFAULT.nights) label = "Your version";
     else if (nights > DEFAULT.nights) label = "Extended";
     else label = "Recommended";
 
@@ -398,7 +432,69 @@
     return names.slice(0, -1).join(", ") + (names.length > 2 ? "," : "") + " and " + names[names.length - 1];
   }
 
-  const engine = { plan, summarize, buildUnits, catalog, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
+  /* ───────────── Preview: what an action would change ───────────── */
+
+  // Compare two plans. `acted` = venue ids the user just acted on (their own moves don't count).
+  function diff(before, after, acted = []) {
+    const actedUnits = new Set(Object.values(after.units).concat(Object.values(before.units)).filter((u) => u.members.some((m) => acted.includes(m))).map((u) => u.id));
+    const moved = Object.keys(before.placements).filter((id) => after.placements[id] && after.placements[id] !== before.placements[id] && !actedUnits.has(id)).map((id) => before.units[id].name);
+    const avoidDays = (p) => new Set(p.days.filter((d) => d.day && d.night && pairScore(p.units[d.day.id].load, p.units[d.night.id].load) === -8).map((d) => iso(d.date)));
+    const beforeAvoid = avoidDays(before);
+    const newAvoid = after.days.filter((d) => avoidDays(after).has(iso(d.date)) && !beforeAvoid.has(iso(d.date)));
+    const cutHeadlines = catalog.headlines.filter((id) => before.includedVenues.has(id) && !after.includedVenues.has(id) && !acted.includes(id)).map((id) => venueById[id].name);
+    const cutProtected = Object.values(before.units).filter((u) => u.tier === "protected" && before.placements[u.id] && !after.placements[u.id] && !actedUnits.has(u.id)).map((u) => u.name);
+    const identityChanged = before.intact && !after.intact;
+    const depOf = (p) => { const d = p.days[p.days.length - 1].day; return d ? d.id : null; };
+    const shortened = Object.keys(after.placements).filter((id) => depOf(after) === id && after.days[after.days.length - 1].day.shortened && before.placements[id] && depOf(before) !== id && !actedUnits.has(id)).map((id) => after.units[id].name);
+    const promoted = Object.keys(after.placements).filter((id) => depOf(before) === id && depOf(after) !== id && !actedUnits.has(id)).map((id) => after.units[id].name);
+    const movedOnly = moved.filter((n) => !shortened.includes(n) && !promoted.includes(n));
+
+    const messages = [];
+    for (const d of newAvoid) {
+      const a = after.units[d.day.id], b = after.units[d.night.id];
+      const added = actedUnits.has(a.id) ? a : actedUnits.has(b.id) ? b : b, other = added === a ? b : a;
+      messages.push(`This makes ${fmtDMD(d.date)} a hard day. ${cap(other.name)} is already ${other.load.toUpperCase()}; adding ${added.name} makes it ${a.load.toUpperCase()}/${b.load.toUpperCase()}.`);
+    }
+    if (identityChanged) messages.unshift("This changes the kind of trip.");
+    if (cutProtected.length) messages.push(`The best plan then drops ${list(cutProtected)}.`);
+    else if (cutHeadlines.length) messages.push(`The best plan then drops ${list(cutHeadlines)}.`);
+    if (shortened.length) messages.push(`${cap(list(shortened))} drops to a couple of hours on the last morning.`);
+    if (movedOnly.length > 2) messages.push(`${movedOnly.length} other days move: ${list(movedOnly)}.`);
+    const notes = [];
+    if (promoted.length) notes.push(`${cap(list(promoted))} moves up to a full day.`);
+    if (movedOnly.length && movedOnly.length <= 2) notes.push(`${cap(list(movedOnly))} ${movedOnly.length === 1 ? "moves" : "move"} to another day.`);
+    const consequential = messages.length > 0;
+    return { moved, newAvoid: newAvoid.map((d) => iso(d.date)), cutHeadlines, cutProtected, identityChanged, shortened, promoted, consequential, messages, notes };
+  }
+
+  // When a request doesn't land, the honest alternatives: an explicit trade or a longer trip.
+  function fitOptions(cfg, state0, id, prev, external) {
+    const state = { ...state0, requested: [...new Set([...(state0.requested || []), id])] };
+    const base = plan(cfg, state, prev, external);
+    const U = Object.values(base.units).find((u) => u.members.includes(id));
+    if (!U || base.placements[U.id]) return [];
+    const options = [];
+    const tryState = (st) => { const p = plan(cfg, st, base, external); const u = Object.values(p.units).find((x) => x.members.includes(id)); return u && p.placements[u.id] ? p : null; };
+    // Replace something of the same period that the planner scheduled.
+    const candidates = Object.values(base.units).filter((x) => base.placements[x.id] && x.period === U.period && !x.pinned && x.id !== U.id && !x.isAccessory)
+      .sort((a, b) => a.value - b.value);
+    for (const X of candidates) {
+      const st = { ...state, punted: [...(state.punted || []), ...X.members] };
+      const p = tryState(st);
+      if (!p) continue;
+      const day = base.days.find((d) => (d.day && d.day.id === X.id) || (d.night && d.night.id === X.id));
+      options.push({ kind: "replace", unit: X.id, members: X.members, label: `Replace ${X.name} on ${day.kind === "departure" ? "the last morning" : fmtDMD(day.date)}`, plan: p });
+      if (options.length >= 3) break;
+    }
+    if (cfg.nights < MAX_NIGHTS) {
+      const p = plan({ ...cfg, nights: cfg.nights + 1 }, state, base, external);
+      const u = Object.values(p.units).find((x) => x.members.includes(id));
+      if (u && p.placements[u.id]) options.push({ kind: "night", label: "Add one night" + (p.work.status === "late" ? " (runs into work)" : p.work.status === "tight" ? " (cuts it close at work)" : ""), plan: p });
+    }
+    return options;
+  }
+
+  const engine = { plan, summarize, diff, fitOptions, buildUnits, catalog, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
   if (typeof module !== "undefined" && module.exports) { module.exports = engine; return; }
   root.DCPlanner = engine;
 })(typeof window !== "undefined" ? window : globalThis);

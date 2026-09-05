@@ -41,10 +41,11 @@ breaking it. Three files, one direction of data flow:
   state (punts, pins) and returns a plan: each day's day and night assignment, what was cut or
   shortened, the tradeoffs worth explaining, and a label derived from what survived.
 - `public/ui.js` renders the plan and owns the controls: the calendar strip, the nights stepper,
-  Must-do and Punt on each day, and the bench of everything still on the board.
+  Must-do and Punt on each day, Add to trip on the bench and on open slots, and the preview
+  panel that names a consequence before a change lands.
 
 Trip-design state (dates, nights, punts, pins) lives in the URL hash, so a configured trip can
-be sent around: `/#start=2026-12-05&nights=5&punt=natural-history`. The doctrine is in
+be sent around: `/#start=2026-12-05&nights=5&punt=natural-history&ask=fords-theatre`. The doctrine is in
 `PLANNER.md`; `npm test` checks the behavioral invariants.
 
 ## Editing the plan
