@@ -113,3 +113,19 @@ test("work on Thu Dec 10 at 2 PM is a hard wall", () => {
   assert.equal(P.workStatus(thin.home), "thin");
   assert.match(P.summarize(thin).work, /One day at home/);
 });
+
+test("Bart works until Sat Nov 28 at 2 PM, so the train can't leave before that", () => {
+  const fine = P.plan({ start: "2026-11-29", nights: 7 }); // boards Nov 28 evening
+  assert.equal(P.workEarly(fine.trainOut), 0);
+  assert.equal(fine.days[0].late, false);
+
+  const early = P.plan({ start: "2026-11-27", nights: 7 }); // boards Thu Nov 26
+  assert.equal(P.workEarly(early.trainOut), 2);
+  assert.equal(P.summarize(early).label, "Runs into work");
+  assert.match(P.summarize(early).work, /works until Sat Nov 28, 2 PM/);
+  assert.ok(early.days[0].late);
+
+  const later = P.plan({ start: "2026-12-01", nights: 5 }); // boards Mon Nov 30, off work
+  assert.equal(P.summarize(later).work, "");
+  assert.doesNotMatch(later.days[0].body[0], /clocks out/);
+});

@@ -154,8 +154,14 @@
   const PROTECTED_FULL = ["capitolhill", "archivesmem"];
 
   const DEFAULT = { start: "2026-11-29", nights: 7 };
-  // Bart is back at work Thursday Dec 10, 2026 at 2 PM. The Crescent gets into Anniston ~10:30 AM.
-  const WORK = { date: "2026-12-10", label: "Thu Dec 10, 2 PM" };
+  // Bart works until 2 PM Saturday Nov 28, 2026 (evening boarding is fine) and is back at work
+  // Thursday Dec 10, 2026 at 2 PM. The Crescent gets into Anniston ~10:30 AM.
+  const WORK = { date: "2026-12-10", label: "Thu Dec 10, 2 PM", off: "2026-11-28", offLabel: "Sat Nov 28, 2 PM" };
+
+  // Days the outbound train day sits before Bart's last shift ends (0 = boards that evening).
+  function workEarly(trainOut) {
+    return Math.round((parseISO(WORK.off) - trainOut) / 86400000);
+  }
 
   // Days at home between getting off the train and going back to work.
   function workBuffer(home) {
@@ -282,9 +288,15 @@
   // Build the full day list: train out, arrival, full days, departure, home.
   function frame(r, fulls, depMuseum) {
     const days = [];
+    const early = workEarly(r.trainOut);
     days.push({
-      kind: "train", date: r.trainOut, title: "All aboard.",
-      body: ["Bart clocks out at 2:00, we load up, drive to Anniston, eat, and climb onto the Crescent. Nothing to accomplish tonight except finding the bunks and watching Alabama slide by in the dark."],
+      kind: "train", date: r.trainOut, late: early > 0,
+      title: early > 0 ? "All aboard. Except Bart's at work." : "All aboard.",
+      body: [early > 0
+        ? `Bart works until ${WORK.offLabel}, so this train leaves ${early === 1 ? "a day" : `${early} days`} before he can. Push the arrival date later.`
+        : early === 0
+        ? "Bart clocks out at 2:00, we load up, drive to Anniston, eat, and climb onto the Crescent. Nothing to accomplish tonight except finding the bunks and watching Alabama slide by in the dark."
+        : "Load up, drive to Anniston, eat, and climb onto the Crescent. Nothing to accomplish tonight except finding the bunks and watching Alabama slide by in the dark."],
       day: { label: "Pack and drive", legs: 1, exp: 0 }, night: { label: "The train is the activity", legs: 1, exp: 0 },
       photo: ["day-1128-anniston-station.webp", "Anniston station at boarding time"],
     });
@@ -350,25 +362,26 @@
     const N = r.nights, kept = r.kept.size, total = HEADLINES.length;
     const cuts = cutNames(r);
     const s = { nights: N, label: "", count: `${kept} of ${total} headline experiences`, cuts: cuts.length ? `Cut: ${list(cuts)}.` : "", why: "", work: "" };
-    const ws = workStatus(r.home), buf = workBuffer(r.home);
-    if (ws === "late") s.work = `Runs into work. Home ${fmtDMD(r.home)}, and Bart is due back ${WORK.label}. Start earlier or take a night off the end.`;
+    const ws = workStatus(r.home), buf = workBuffer(r.home), early = workEarly(r.trainOut);
+    if (early > 0) s.work = `Runs into work. This boards ${fmtDMD(r.trainOut)}, and Bart works until ${WORK.offLabel}. Arrive ${early === 1 ? "a day" : `${early} days`} later.`;
+    else if (ws === "late") s.work = `Runs into work. Home ${fmtDMD(r.home)}, and Bart is due back ${WORK.label}. Start earlier or take a night off the end.`;
     else if (ws === "tight") s.work = `Cuts it close. Home ${fmtDMD(r.home)} around 10:30 AM, work at 2 PM the same day, and the Crescent isn't always on time.`;
     else if (ws === "thin") s.work = `One day at home before work ${WORK.label}.`;
     if (r.mode === "different") {
-      s.label = ws === "late" ? "Runs into work" : "A different kind of trip";
+      s.label = ws === "late" || early > 0 ? "Runs into work" : "A different kind of trip";
       s.count = "";
       s.why = `${N === 1 ? "One night" : "Two nights"} isn't a shorter version of this trip. It's a different trip, and it deserves its own plan rather than a mangled version of this one.`;
       return s;
     }
     const hostName = r.host != null ? MODULES[r.days[2 + r.host].id].name : null;
-    if (ws === "late") s.label = "Runs into work";
+    if (ws === "late" || early > 0) s.label = "Runs into work";
     const forced = r.cuts.filter((c) => c.why && (c.id === "christmas" || MODULES[c.id].protected));
     if (forced.length) {
       s.label = "These dates don't work";
       s.why = forced.map((c) => c.why).join(" ") + " Nudge the arrival date a day or two and the trip comes back.";
       return s;
     }
-    if (ws === "late") {
+    if (ws === "late" || early > 0) {
       s.why = "";
       return s;
     }
@@ -397,7 +410,7 @@
     return s;
   }
 
-  const engine = { plan, summarize, workStatus, workBuffer, WORK, MODULES, HEADLINES, HEADLINE_NAMES, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, parseISO, iso, fmtMD, fmtDMD, fmtDMDY, addDays };
+  const engine = { plan, summarize, workStatus, workBuffer, workEarly, WORK, MODULES, HEADLINES, HEADLINE_NAMES, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, parseISO, iso, fmtMD, fmtDMD, fmtDMDY, addDays };
   if (typeof module !== "undefined" && module.exports) { module.exports = engine; return; }
   root.DCPlanner = engine;
 
@@ -477,7 +490,7 @@
       s.count ? `<span>${esc(s.count)}</span>` : "",
     ].filter(Boolean).join('<span class="sep">·</span>');
     $("verdict-why").innerHTML = [s.cuts ? `<b>${esc(s.cuts)}</b>` : "", esc(s.why)].filter(Boolean).join(" ");
-    const ws = workStatus(r.home);
+    const ws = workEarly(r.trainOut) > 0 ? "late" : workStatus(r.home);
     $("verdict-work").textContent = s.work;
     $("verdict-work").className = "verdict-work " + ws;
     $("verdict-work").hidden = !s.work;
