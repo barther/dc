@@ -32,18 +32,26 @@ records what the family decided; identity says who did it.
 npx wrangler d1 create dc-christmas          # paste the id into wrangler.jsonc
 npx wrangler kv namespace create KV          # paste the id into wrangler.jsonc
 npx wrangler d1 migrations apply dc-christmas
-# map the family's tenant addresses to travelers
-npx wrangler d1 execute dc-christmas --command "UPDATE traveler_identities SET email='bart@yourtenant.com' WHERE traveler_id='bart'"
+# map the family's tenant addresses to travelers (ids: bart, jess, sam, nanny)
+npx wrangler d1 execute dc-christmas --command "INSERT INTO traveler_identities (email, traveler_id) VALUES ('bart@yourtenant.com', 'bart')"
 ```
 
 Identity is Cloudflare Access with Entra ID. In Zero Trust, add a self-hosted application for
-`dc.arther.co` covering the paths `/family`, `/api/me`, and `/api/intent`, with Entra ID as the
-login method and a policy allowing the four addresses. Then set `ACCESS_TEAM_DOMAIN` in
+`dc.arther.co` covering `/family` and `/api/*`, with Entra ID as the login method and a policy
+allowing the four addresses. The Worker enforces the same boundary itself: everything under
+`/api/` except `/api/me` answers 401 to anyone who isn't a mapped traveler, so the public site
+is the pitch and the recommended itinerary only. Family state, the decision log, live mode, and
+the trophy case are behind sign-in. Then set `ACCESS_TEAM_DOMAIN` in
 `wrangler.jsonc` and the application's AUD tag as a secret: `npx wrangler secret put ACCESS_AUD`.
 The pitch stays public; "Sign in" goes through `/family`, and the Access cookie covers the API.
 
+Writes are guarded transactionally: each accepted change inserts the next version into
+`trip_versions` first, so a stale writer collides on the primary key and D1 rolls the whole batch
+back. The loser gets a 409 with the current trip.
+
 Locally, `wrangler dev` uses a local D1 (`npx wrangler d1 migrations apply dc-christmas --local`)
-and a local KV; `.dev.vars` stands in for a signed-in identity, can pin "today" for live mode,
+and a local KV; `.dev.vars` stands in for a signed-in identity (`DEV_IDENTITY=bart` maps by
+traveler id when no identity row exists), can pin "today" for live mode,
 and can supply a weather fixture instead of the live forecast (see `.dev.vars.example`).
 
 ### The trip's phases

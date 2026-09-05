@@ -27,7 +27,7 @@
   function apply(state, intent, traveler, limits) {
     const { MIN_NIGHTS, MAX_NIGHTS, validVenue } = limits;
     if (!can(traveler, intent.type)) return { error: ADMIN_ONLY.has(intent.type) ? "Bart administers the vacation. That one's his." : "Not a thing you can do.", status: 403 };
-    const next = { start: state.start, nights: state.nights, venues: { ...state.venues }, preferences: JSON.parse(JSON.stringify(state.preferences || {})),
+    const next = { start: state.start, nights: state.nights, travelers: state.travelers, venues: { ...state.venues }, preferences: JSON.parse(JSON.stringify(state.preferences || {})),
       completed: { ...(state.completed || {}) }, fixed: { ...(state.fixed || {}) }, notThisDay: JSON.parse(JSON.stringify(state.notThisDay || {})) };
     const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
     const venue = intent.venue;
@@ -125,14 +125,17 @@
   // Group interpretation of personal preferences, layered under explicit shared state.
   //   any Must do -> pinned; everyone who has an opinion says punt (and at least two do) -> punted;
   //   mixed -> the planner decides; no response -> neutral.
+  //   any Must do -> pinned; every traveler on the trip says punt -> punted (silence is neutral,
+  //   so abstentions never help remove anything); sounds good with no objection -> requested.
   function groupState(state) {
     const venues = { ...state.venues };
+    const everyone = state.travelers || [];
     const byVenue = {};
     for (const [tid, prefs] of Object.entries(state.preferences || {})) for (const [vid, c] of Object.entries(prefs)) (byVenue[vid] = byVenue[vid] || []).push({ tid, c });
     for (const [vid, votes] of Object.entries(byVenue)) {
       if (venues[vid]) continue; // explicit shared state (an administrator's override) wins
       if (votes.some((v) => v.c === "must")) venues[vid] = "pinned";
-      else if (votes.length >= 2 && votes.every((v) => v.c === "punt")) venues[vid] = "punted";
+      else if (everyone.length && everyone.every((t) => votes.some((v) => v.tid === t && v.c === "punt"))) venues[vid] = "punted";
       else if (votes.some((v) => v.c === "good") && !votes.some((v) => v.c === "punt")) venues[vid] = "requested";
     }
     return venues;

@@ -6,7 +6,7 @@ const P = require("../public/planner.js");
 
 const limits = { MIN_NIGHTS: P.MIN_NIGHTS, MAX_NIGHTS: P.MAX_NIGHTS, validVenue: (id) => P.catalog.venues.some((v) => v.id === id) };
 const bart = { id: "bart", name: "Bart", is_admin: 1 }, jess = { id: "jess", name: "Jess", is_admin: 0 };
-const base = () => ({ start: "2026-11-29", nights: 7, venues: {}, preferences: {} });
+const base = () => ({ start: "2026-11-29", nights: 7, venues: {}, preferences: {}, travelers: ["bart", "jess", "sam", "nanny"] });
 
 test("anyone can operate the vacation", () => {
   for (const t of ["punt", "pin", "ask", "unpunt", "unpin", "unask", "prefer"]) assert.ok(I.can(jess, t), t);
@@ -41,7 +41,10 @@ test("personal preferences are opinions, interpreted as a group", () => {
   s = I.apply(s, { type: "prefer", venue: "spy-museum", choice: "punt" }, jess, limits).state;
   assert.deepEqual(I.plannerState(s).punted, [], "one punt is an opinion, not a removal");
   s = I.apply(s, { type: "prefer", venue: "spy-museum", choice: "punt" }, bart, limits).state;
-  assert.deepEqual(I.plannerState(s).punted, ["spy-museum"], "everyone who spoke says punt");
+  assert.deepEqual(I.plannerState(s).punted, [], "two punts and two silences is not everyone");
+  s = I.apply(s, { type: "prefer", venue: "spy-museum", choice: "punt" }, { id: "sam", name: "Sam" }, limits).state;
+  s = I.apply(s, { type: "prefer", venue: "spy-museum", choice: "punt" }, { id: "nanny", name: "Nanny" }, limits).state;
+  assert.deepEqual(I.plannerState(s).punted, ["spy-museum"], "everyone punts, it's gone");
   s = I.apply(s, { type: "prefer", venue: "georgetown", choice: "good" }, { id: "nanny", name: "Nanny" }, limits).state;
   assert.deepEqual(I.plannerState(s).requested, ["georgetown"], "sounds good asks the planner to find room");
   s = I.apply(s, { type: "prefer", venue: "georgetown", choice: "punt" }, jess, limits).state;

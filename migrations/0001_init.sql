@@ -60,13 +60,9 @@ INSERT OR IGNORE INTO travelers (id, name, role, is_admin) VALUES
   ('sam',   'Sam',   'Minor Stakeholder',  0),
   ('nanny', 'Nanny', 'Nanny',              0);
 
--- Placeholder identities. Replace with the real tenant addresses:
---   wrangler d1 execute dc-christmas --command "UPDATE traveler_identities SET email='...' WHERE traveler_id='bart'"
-INSERT OR IGNORE INTO traveler_identities (email, traveler_id) VALUES
-  ('bart@example.com',  'bart'),
-  ('jess@example.com',  'jess'),
-  ('sam@example.com',   'sam'),
-  ('nanny@example.com', 'nanny');
+-- Identities are not seeded here. Map the family's tenant addresses after applying:
+--   wrangler d1 execute dc-christmas --command "INSERT INTO traveler_identities (email, traveler_id) VALUES ('bart@yourtenant.com', 'bart')"
+-- Local dev uses DEV_IDENTITY from .dev.vars, which maps by traveler id when no identity row exists.
 
 INSERT OR IGNORE INTO trips (id, start, nights, version, updated_at)
-  VALUES ('dc-2026', '2026-11-29', 7, 1, '2026-01-01T00:00:00Z');
+  VALUES ('dc-2026', '2026-11-29', 7, 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));

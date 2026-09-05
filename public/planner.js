@@ -20,7 +20,9 @@
   /* ───────────── Trip facts ───────────── */
 
   const DEFAULT = { start: "2026-11-29", nights: 7 };
-  const MIN_NIGHTS = 1, MAX_NIGHTS = 10;
+  // Fourteen nights is the ceiling of the master roster: beyond the core week the days come back
+  // open, with the bench suggested, unless the family accepts the extras.
+  const MIN_NIGHTS = 1, MAX_NIGHTS = 14;
   // Bart works until 2 PM Sat Nov 28 (evening boarding is fine) and is back Thu Dec 10 at 2 PM.
   const WORK = { date: "2026-12-10", label: "Thu Dec 10, 2 PM", off: "2026-11-28", offLabel: "Sat Nov 28, 2 PM" };
   const TRAIN = { boardLabel: "evening", arriveWeekend: "~2:12 PM", arriveWeekday: "afternoon, per the timetable", departLabel: "6:30 PM", homeLabel: "~10:30 AM CT" };

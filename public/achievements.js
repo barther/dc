@@ -61,7 +61,7 @@
         case "decision": ok = facts.decisions.some((d) => decisionMatches(d, r.decision) && (r.by === "any" || mine(d))); break;
         case "preferences": ok = Object.keys((facts.preferences || {})[facts.travelerId] || {}).length >= r.count; break;
         case "trip_complete": ok = facts.phase === "after" && (!r.no_hihi || !facts.hadHiHi) && (!r.admin || !!facts.isAdmin); break;
-        case "everyone_has": { const u = facts.unlockedByTraveler || {}; const ids = Object.keys(u); ok = ids.length > 0 && ids.every((t) => (u[t] || []).length >= r.count); break; }
+        case "everyone_has": { const u = facts.unlockedByTraveler || {}; const ids = facts.travelerIds || []; ok = ids.length > 0 && ids.every((t) => (u[t] || []).length >= r.count); break; }
         default: ok = false;
       }
       if (ok) out.push(a.id);
