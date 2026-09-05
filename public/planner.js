@@ -1,489 +1,500 @@
 /*
- * DC Trip Planner — engine + renderer.
+ * DC Trip Planner — the scheduler.
  *
- * The page opens as the recommended seven-night trip. "Change the trip"
- * lets the family move the start date or the number of nights, and the
- * itinerary re-plans immediately, preserving the trip's identity and pacing
- * before it worries about attraction count. See PLANNER.md for the doctrine.
+ * Pure: takes the venue catalog, trip dates, and user state, returns a plan.
+ * No DOM. Runs under node for tests. The renderer lives in ui.js.
  *
- * The engine (plan) is pure and also runs under node for tests.
+ * For every placement the questions are, in order: is it important, does it
+ * fit, does the day stay humane, is there a better day, and if something has
+ * to lose, what should lose. Never "how much can we cram in".
+ *
+ * Constraint order when rules collide (highest first):
+ *   completed · pinned/fixed · closures · reservation · bundle integrity ·
+ *   HI/MID/LO safety · trip identity · seed · weather · stability · weekday.
  */
 (function (root) {
   "use strict";
+
+  const catalog = typeof module !== "undefined" && module.exports ? require("./venues.js") : root.DCVenues;
+
+  /* ───────────── Trip facts ───────────── */
+
+  const DEFAULT = { start: "2026-11-29", nights: 7 };
+  const MIN_NIGHTS = 1, MAX_NIGHTS = 10;
+  // Bart works until 2 PM Sat Nov 28 (evening boarding is fine) and is back Thu Dec 10 at 2 PM.
+  const WORK = { date: "2026-12-10", label: "Thu Dec 10, 2 PM", off: "2026-11-28", offLabel: "Sat Nov 28, 2 PM" };
+  const TRAIN = { boardLabel: "evening", arriveWeekend: "~2:12 PM", arriveWeekday: "afternoon, per the timetable", departLabel: "6:30 PM", homeLabel: "~10:30 AM CT" };
 
   /* ───────────── Dates ───────────── */
 
   const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
   function parseISO(s) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
     if (!m) return null;
     const d = new Date(+m[1], +m[2] - 1, +m[3]);
     return isNaN(d) ? null : d;
   }
-  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
-  function iso(d) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const fmtMD = (d) => `${MON[d.getMonth()]} ${d.getDate()}`;
   const fmtDMD = (d) => `${DOW[d.getDay()]} ${fmtMD(d)}`;
   const fmtDMDY = (d) => `${fmtDMD(d)}, ${d.getFullYear()}`;
+  const daysBetween = (a, b) => Math.round((b - a) / 86400000);
 
-  // Closures that matter for these modules.
   function holiday(d) {
     const m = d.getMonth() + 1, day = d.getDate();
-    if (m === 12 && day === 25) return "Christmas Day";
-    if (m === 1 && day === 1) return "New Year's Day";
-    if (m === 11 && d.getDay() === 4 && day >= 22 && day <= 28) return "Thanksgiving";
+    if (m === 12 && day === 25) return "christmas";
+    if (m === 1 && day === 1) return "newyear";
+    if (m === 11 && d.getDay() === 4 && day >= 22 && day <= 28) return "thanksgiving";
+    return null;
+  }
+  const HOLIDAY_NAMES = { christmas: "Christmas Day", newyear: "New Year's Day", thanksgiving: "Thanksgiving" };
+
+  function workBuffer(home) { return daysBetween(home, parseISO(WORK.date)); }
+  function workStatus(home) { const b = workBuffer(home); return b >= 2 ? "ok" : b === 1 ? "thin" : b === 0 ? "tight" : "late"; }
+  function workEarly(trainOut) { return daysBetween(trainOut, parseISO(WORK.off)); }
+
+  /* ───────────── Units: what the scheduler actually places ───────────── */
+
+  const TIER_WEIGHT = { protected: 1000, high: 200, medium: 100, bonus: 20 };
+  const TIER_RANK = { protected: 0, high: 1, medium: 2, bonus: 3 };
+  const LOAD = { lo: 0, mid: 1, hi: 2 };
+
+  const venueById = Object.fromEntries(catalog.venues.map((v) => [v.id, v]));
+
+  // Standing rules live on the venue; date-specific facts arrive as trip constraints.
+  function venueClosed(v, d, external) {
+    const c = v.constraints;
+    if (c) {
+      if (c.weekdays && c.weekdays.includes(d.getDay())) return `${v.name} is closed on ${DOW[d.getDay()]}days`;
+      const h = holiday(d);
+      if (h && c.holidays && c.holidays.includes(h)) return `${v.name} is closed on ${HOLIDAY_NAMES[h]}`;
+    }
+    const day = iso(d);
+    for (const x of (external && external.closures) || []) {
+      if (x.venue === v.id && x.date === day) return `${v.name} is closed ${fmtDMD(d)}${x.note ? ` (${x.note})` : ""}`;
+    }
     return null;
   }
 
-  /* ───────────── Modules ───────────── */
+  // Build the list of schedulable units from the catalog and the user's state.
+  function buildUnits(state, external) {
+    const punted = new Set(state.punted || []), pinned = new Set(state.pinned || []), requested = new Set(state.requested || []);
+    const units = [];
+    const inBundle = new Set();
 
-  const REST = { label: "Dinner, nothing scheduled", legs: 1, exp: 0 };
-
-  // Headline experiences (the 13 on "The list"), keyed to match data-h in the HTML.
-  const HEADLINES = [
-    "capitol", "loc", "airspace", "naturalhistory", "americanhistory", "archives",
-    "whitehouse", "lincoln", "vietnam", "korea", "wwii", "arlington", "christmas",
-  ];
-  const HEADLINE_NAMES = {
-    capitol: "U.S. Capitol", loc: "Library of Congress", airspace: "Air and Space Museum",
-    naturalhistory: "Natural History Museum", americanhistory: "American History Museum",
-    archives: "Declaration, Constitution & Bill of Rights", whitehouse: "The White House",
-    lincoln: "Lincoln Memorial", vietnam: "Vietnam Veterans Memorial", korea: "Korean War Veterans Memorial",
-    wwii: "World War II Memorial", arlington: "Arlington National Cemetery", christmas: "Christmas in Washington",
-  };
-
-  const MODULES = {
-    airspace: {
-      id: "airspace", name: "Air & Space", rank: 0, headlines: ["airspace"],
-      day: { label: "Air & Space Museum", legs: 4, exp: 0 }, night: { label: "Dinner, feet up", legs: 1, exp: 0 },
-      indoor: true, closed: (d) => holiday(d) === "Christmas Day" ? "closed Christmas Day" : null,
-      title: "Air & Space.",
-      body: ["A whole day for the National Air and Space Museum. Real spacecraft. Real rockets. The planes that changed everything, hanging right over your head. We go at our own pace and leave when we're full."],
-      photo: ["day-1130-air-space.webp", "National Air and Space Museum"],
-      short: {
-        title: "Air & Space, shortened, then home.",
-        body: ["Check out, leave the bags with the hotel, and give the morning to Air and Space: the Wright Flyer, the Spirit of St. Louis, an Apollo capsule, and whatever else pulls hardest. A couple of hours, not the full day it gets in the seven-night trip. Lunch, luggage, Union Station, and the 6:30 Crescent south."],
-        label: "Air & Space, a couple of hours", legs: 3,
-      },
-    },
-    capitolhill: {
-      id: "capitolhill", name: "Capitol Hill", rank: 1, headlines: ["capitol", "loc"], protected: true,
-      day: { label: "Capitol + Library of Congress", legs: 4, exp: 1 }, night: REST,
-      indoor: false,
-      closed: (d) => d.getDay() === 0 ? "the Capitol and the Library are closed Sundays" : holiday(d) ? `closed on ${holiday(d)}` : null,
-      title: "Capitol Hill.",
-      body: ["Morning tour inside the U.S. Capitol, under the dome. Lunch. Then across the street to the Library of Congress, where the Great Hall of the Jefferson Building is the single most beautiful room in the country. Argue with us after you've seen it."],
-      photo: ["day-1201-loc-great-hall.webp", "The Great Hall, Library of Congress"],
-    },
-    archivesmem: {
-      id: "archivesmem", name: "Archives + memorial night", rank: 2, headlines: ["archives", "lincoln", "vietnam", "korea", "wwii"], protected: true,
-      day: { label: "National Archives", legs: 2, exp: 0 }, night: { label: "WWII → Vietnam → Lincoln → Korea", legs: 4, exp: 4 },
-      indoor: false, closed: (d) => holiday(d) ? `the Archives are closed on ${holiday(d)}` : null,
-      featured: true, hostsNight: false,
-      title: "The founding documents, then the big memorial night.",
-      body: [
-        "A short daytime visit to the National Archives to stand in front of the Declaration of Independence, the Constitution, and the Bill of Rights. The real ones. Then back to the hotel to warm up and rest, because tonight is the one we'll talk about for years.",
-        "Reach the Vietnam Wall at dusk while the names are still easy to read. Then let it get dark: World War II Memorial, up the steps to Lincoln, and finally the Korean War Memorial, where the statues come alive under the lights. Bundle up. Hot chocolate after.",
-      ],
-      photo: ["day-1202-lincoln-night.webp", "Lincoln Memorial after dark"],
-    },
-    naturalhistory: {
-      id: "naturalhistory", name: "Natural History", rank: 3, headlines: ["naturalhistory"],
-      day: { label: "Natural History Museum", legs: 4, exp: 0 }, night: REST,
-      indoor: true, closed: (d) => holiday(d) === "Christmas Day" ? "closed Christmas Day" : null,
-      title: "Natural History.",
-      body: ["Dinosaurs. The Hope Diamond. The elephant in the rotunda. The ocean hall, the mammals, the giant squid. Sam, this is your day. We stay until everyone has seen the thing they came for."],
-      photo: ["day-1203-natural-history.webp", "National Museum of Natural History"],
-      short: {
-        title: "Natural History, shortened, then home.",
-        body: ["Check out, leave the bags with the hotel, and give the morning to Natural History: the elephant, the dinosaurs, the Hope Diamond, and not much else. This is the greatest-hits version, not the full day it gets in the seven-night trip. Lunch, luggage, Union Station, and the 6:30 Crescent south."],
-        label: "Natural History, the greatest hits", legs: 3,
-      },
-    },
-    open: {
-      id: "open", name: "Open day", rank: 4.5, headlines: [],
-      day: { label: "Nothing scheduled, on purpose", legs: 1, exp: 0 }, night: REST,
-      indoor: true, closed: () => null,
-      title: "Open day.",
-      body: ["Nothing scheduled, on purpose. If the sun's out, the Tidal Basin loop: Jefferson, MLK, FDR. If it isn't, the National Gallery. If everyone's cooked, the hotel and a long lunch. Whitespace is part of the itinerary."],
-      photo: null,
-    },
-    arlington: {
-      id: "arlington", name: "Arlington", rank: 4, headlines: ["arlington"], inflexible: true,
-      day: { label: "Arlington National Cemetery", legs: 4, exp: 3 }, night: REST,
-      indoor: false, closed: () => null,
-      title: "Arlington.",
-      body: ["One Metro ride across the river to Arlington National Cemetery. The Tomb of the Unknown Soldier and the Changing of the Guard, which we build the whole day around. President Kennedy's gravesite and the eternal flame. Arlington House on the hill, looking back over the whole city. Quiet, cold, and unforgettable."],
-      photo: ["day-1204-arlington-guard.webp", "Changing of the Guard, Tomb of the Unknown Soldier"],
-    },
-    christmas: {
-      id: "christmas", name: "Christmas Washington", rank: 5, headlines: ["whitehouse", "christmas"], protected: true,
-      day: { label: "Holiday market + downtown", legs: 2, exp: 1 }, night: { label: "White House + National Christmas Tree", legs: 3, exp: 3 },
-      indoor: false, closed: () => null, featured: true, preferDow: 6,
-      title: "Christmas Washington.",
-      body: [
-        "Sleep in. Wander the holiday market and the downtown decorations, poke around the shops, get lunch and something warm to drink, and possibly the Washington Monument if tickets and weather cooperate. Then back to the hotel for an afternoon reset.",
-        "After dark: the White House, the Ellipse, and the National Christmas Tree if the 2026 lighting has happened by then, with the state and territory trees around it. This night isn't for learning anything. It's for lights, cocoa, and seasonal nonsense.",
-      ],
-      photo: ["day-1205-national-christmas-tree.webp", "The National Christmas Tree on the Ellipse"],
-      // When compressed, the night rides on another day and this paragraph is appended there.
-      compressed: "Then, after dark, Christmas Washington: the White House, the Ellipse, and the National Christmas Tree if the 2026 lighting has happened by then. Call the afternoon early, reset at the hotel, bundle up. The holiday market becomes a quick stop on the way rather than its own day. Lights, cocoa, seasonal nonsense.",
-    },
-    americanhistory: {
-      id: "americanhistory", name: "American History", rank: 6, headlines: ["americanhistory"],
-      day: { label: "American History Museum", legs: 3, exp: 0 }, night: REST,
-      indoor: true, closed: (d) => holiday(d) === "Christmas Day" ? "closed Christmas Day" : null,
-      departureOnly: true,
-      photo: ["day-1206-american-history.webp", "National Museum of American History"],
-      short: {
-        title: "American History, then home.",
-        body: ["Check out, leave the bags with the hotel, and spend the morning at the National Museum of American History. The Star-Spangled Banner, the actual flag from the actual song, plus the presidents, the trains, the inventions, and whatever else pulls us in. Lunch, grab the luggage, Union Station, and the 6:30 Crescent south."],
-        label: "American History Museum", legs: 3,
-      },
-    },
-  };
-
-  // Which museum gets the departure morning, best first, when it couldn't get its own day.
-  const MUSEUM_PRIORITY = ["airspace", "naturalhistory", "americanhistory"];
-  // Full-day modules that bend before others. Order = who keeps a full day first.
-  const FLEXIBLE = ["arlington", "airspace", "naturalhistory"];
-  const PROTECTED_FULL = ["capitolhill", "archivesmem"];
-
-  const DEFAULT = { start: "2026-11-29", nights: 7 };
-  const MIN_NIGHTS = 1, MAX_NIGHTS = 9;
-
-  /* ───────────── Scheduler ───────────── */
-
-  function permutations(arr) {
-    const out = [];
-    (function rec(a, m) {
-      if (!a.length) { out.push(m); return; }
-      const seen = new Set();
-      for (let i = 0; i < a.length; i++) {
-        if (seen.has(a[i])) continue; // identical open days
-        seen.add(a[i]);
-        rec(a.slice(0, i).concat(a.slice(i + 1)), m.concat(a[i]));
-      }
-    })(arr, []);
-    return out;
-  }
-
-  function dayScore(day, night) {
-    let s = 0;
-    if (day.legs + night.legs > 6) s -= 4;
-    if (day.exp + night.exp > 4) s -= 4;
-    return s;
-  }
-
-  function scoreOrder(order, dates) {
-    let s = 0;
-    for (let i = 0; i < order.length; i++) {
-      const m = MODULES[order[i]], d = dates[i];
-      if (m.closed(d)) s -= 1000;
-      s += dayScore(m.day, m.night);
-      if (m.preferDow != null && d.getDay() === m.preferDow) s += 3;
-      for (let j = i + 1; j < order.length; j++) if (MODULES[order[j]].rank < m.rank) s -= 1; // inversions vs canonical
-    }
-    return s;
-  }
-
-  function plan(cfg) {
-    const start = parseISO(cfg.start) || parseISO(DEFAULT.start);
-    const N = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights | 0 || DEFAULT.nights));
-    const trainOut = addDays(start, -1), depart = addDays(start, N), home = addDays(start, N + 1);
-    const fullDates = [];
-    for (let i = 1; i < N; i++) fullDates.push(addDays(start, i));
-
-    const r = { start, nights: N, trainOut, depart, home, days: [], cuts: [], notes: [], kept: new Set(), mode: "full" };
-
-    if (N < 3) { r.mode = "different"; r.days = frame(r, [], null, null); return r; }
-
-    // 1. Who gets a full day. Protected first, Christmas only if everyone else still fits,
-    //    then the least flexible (Arlington can't be shortened), then by priority.
-    let placed = PROTECTED_FULL.slice();
-    let slots = fullDates.length - placed.length;
-    let christmasFull = false;
-    if (slots >= FLEXIBLE.length + 1) { placed.push("christmas"); christmasFull = true; slots--; }
-    for (const id of FLEXIBLE) if (slots > 0) { placed.push(id); slots--; }
-    while (slots-- > 0) placed.push("open");
-
-    // 2. The departure morning hosts the best indoor museum that lost its full day.
-    let depMuseum = MUSEUM_PRIORITY.find((id) => !placed.includes(id)) || null;
-
-    // 3. Assign dates: search orderings, best score wins, canonical order breaks ties.
-    let assign = null;
-    for (let attempt = 0; attempt < 3 && !assign; attempt++) {
-      const orders = permutations(placed.slice().sort((a, b) => MODULES[a].rank - MODULES[b].rank));
-      let best = null, bestScore = -Infinity;
-      for (const o of orders) { const sc = scoreOrder(o, fullDates); if (sc > bestScore) { bestScore = sc; best = o; } }
-      const bad = best.map((id, i) => [id, MODULES[id].closed(fullDates[i])]).filter((x) => x[1]);
-      if (!bad.length) { assign = best; break; }
-      for (const [id, why] of bad) {
-        placed.splice(placed.indexOf(id), 1);
-        placed.push("open");
-        r.cuts.push({ id, why: `${MODULES[id].name} can't fit these dates: ${why}.` });
-        if (id === "christmas") christmasFull = false;
-      }
-    }
-    if (!assign) assign = placed;
-
-    if (depMuseum && MODULES[depMuseum].closed(depart)) {
-      r.notes.push(`${MODULES[depMuseum].name} is ${MODULES[depMuseum].closed(depart)}, so the last morning stays light.`);
-      depMuseum = null;
-    }
-
-    // 4. Christmas night, compressed: pick the host day.
-    let host = null;
-    if (!christmasFull && !r.cuts.some((c) => c.id === "christmas")) {
-      let bestS = -Infinity;
-      assign.forEach((id, i) => {
-        const m = MODULES[id];
-        if (m.hostsNight === false) return;
-        const d = fullDates[i];
-        let s = dayScore(m.day, MODULES.christmas.night) + (d.getDay() === 6 ? 3 : 0) + (m.indoor ? 2 : 0) + i * 0.3;
-        if (id === "open") s += 4;
-        if (s > bestS) { bestS = s; host = i; }
+    for (const [bid, b] of Object.entries(catalog.bundles)) {
+      const core = b.core.filter((id) => !punted.has(id));
+      b.core.forEach((id) => inBundle.add(id)); // accessories stay standalone units and ride along
+      if (!core.length) continue;
+      const members = core.map((id) => venueById[id]);
+      const whole = core.length === b.core.length;
+      const tier = members.reduce((t, v) => TIER_RANK[v.priority_tier] < TIER_RANK[t] ? v.priority_tier : t, members[0].priority_tier);
+      units.push({
+        id: bid, bundle: true, whole,
+        name: whole ? b.name : members.map((v) => v.name).join(" + "),
+        short: whole ? b.short : members.map((v) => v.name).join(" + "),
+        period: b.period, environment: b.environment,
+        load: whole ? b.load : members.reduce((l, v) => LOAD[v.load] > LOAD[l] ? v.load : l, "lo"),
+        tier, seed: Math.min(...members.map((v) => v.seed)),
+        members: core, accessory: b.accessory.filter((id) => !punted.has(id)),
+        shortenable: members.every((v) => v.shortenable), min_hours: members.reduce((s, v) => s + v.min_hours, 0),
+        prefer_weekday: b.prefer_weekday ?? null,
+        pinned: core.some((id) => pinned.has(id)), requested: core.some((id) => requested.has(id)),
+        closed: (d) => { for (const v of members) { const r = venueClosed(v, d, external); if (r) return r; } return null; },
       });
-      if (host == null) r.cuts.push({ id: "christmas", why: "There's no evening left for Christmas Washington on these dates." });
     }
-
-    // 5. Book-keeping: what survived.
-    for (const id of assign) MODULES[id].headlines.forEach((h) => r.kept.add(h));
-    if (depMuseum) MODULES[depMuseum].headlines.forEach((h) => r.kept.add(h));
-    if (christmasFull || host != null) MODULES.christmas.headlines.forEach((h) => r.kept.add(h));
-    for (const id of ["americanhistory", "naturalhistory", "airspace", "arlington"]) {
-      if (!assign.includes(id) && id !== depMuseum && !r.cuts.some((c) => c.id === id)) {
-        r.cuts.push({ id, why: null });
-      }
+    for (const v of catalog.venues) {
+      if (inBundle.has(v.id) || punted.has(v.id)) continue;
+      units.push({
+        id: v.id, bundle: false, whole: true, name: v.name, short: v.name,
+        period: v.period, environment: v.environment, load: v.load, tier: v.priority_tier, seed: v.seed,
+        members: [v.id], accessory: [], shortenable: v.shortenable, min_hours: v.min_hours,
+        prefer_weekday: null, pinned: pinned.has(v.id), requested: requested.has(v.id), closed: (d) => venueClosed(v, d, external),
+      });
     }
-    r.christmasFull = christmasFull;
-    r.host = host;
-    r.depMuseum = depMuseum;
-    r.days = frame(r, assign.map((id, i) => ({ id, date: fullDates[i], hostsChristmas: host === i })), depMuseum);
-    return r;
+    const accessoryIds = new Set(Object.values(catalog.bundles).flatMap((b) => b.accessory));
+    for (const u of units) {
+      u.value = TIER_WEIGHT[u.tier] - u.seed;
+      // The thirteen headline experiences are the trip. They may squeeze; the bench may not.
+      u.core = u.members.some((id) => catalog.headlines.includes(id));
+      // The planner owns the core trip; the family owns the extras. Only headline experiences,
+      // requests, and must-dos are scheduled without being asked. Accessories ride with their bundle.
+      u.auto = u.core || u.requested || u.pinned;
+      u.isAccessory = !u.bundle && accessoryIds.has(u.id);
+      // Ranking: must-do, protected, high, headline mediums, requested, then the bench.
+      u.rank = u.pinned ? -1 : u.tier === "protected" ? 0 : u.tier === "high" ? 1 : u.core ? 2 : u.requested ? 2.5 : 3;
+      // Departure morning: a LO activity, or a shortened indoor/mixed visit. Never a full outdoor day.
+      u.departureOK = u.period === "day" && (u.load === "lo" || (u.shortenable && u.environment !== "outdoor" && u.min_hours <= 3));
+    }
+    return units;
   }
 
-  // Build the full day list: train out, arrival, full days, departure, home.
-  function frame(r, fulls, depMuseum) {
+  /* ───────────── The doctrine of a day ───────────── */
+
+  // Score for putting two loads on one day. null = the other slot is empty.
+  function pairScore(a, b) {
+    if (!a || !b) return 0;
+    if (a === "hi" && b === "hi") return -Infinity;       // forbidden
+    if ((a === "hi" && b === "mid") || (a === "mid" && b === "hi")) return -8; // avoid
+    return 0;                                              // preferred
+  }
+
+  /* ───────────── Planning ───────────── */
+
+  function frameDays(start, nights) {
     const days = [];
-    days.push({
-      kind: "train", date: r.trainOut, title: "All aboard.",
-      body: ["Bart clocks out at 2:00, we load up, drive to Anniston, eat, and climb onto the Crescent. Nothing to accomplish tonight except finding the bunks and watching Alabama slide by in the dark."],
-      day: { label: "Pack and drive", legs: 1, exp: 0 }, night: { label: "The train is the activity", legs: 1, exp: 0 },
-      photo: ["day-1128-anniston-station.webp", "Anniston station at boarding time"],
-    });
-    if (r.mode === "different") return days;
-    days.push({
-      kind: "arrive", date: r.start, title: "Hello, Washington.",
-      body: ["Roll into Union Station, check into the hotel, unpack, eat. Then, after dark, our first real look at the city: the U.S. Capitol dome lit up against the night sky. No tour. No agenda. Just stand there and take it in."],
-      day: { label: "Arrive, hotel, food", legs: 1, exp: 0 }, night: { label: "The Capitol, illuminated", legs: 3, exp: 2 },
-      photo: ["day-1129-union-station.webp", "The main hall at Union Station"],
-    });
-    for (const f of fulls) {
-      const m = MODULES[f.id];
-      const d = { kind: "full", id: f.id, date: f.date, title: m.title, body: m.body.slice(), day: m.day, night: m.night, photo: m.photo, featured: !!m.featured };
-      if (f.hostsChristmas) {
-        d.title = m.title.replace(/\.$/, "") + ", then Christmas Washington.";
-        d.body.push(MODULES.christmas.compressed);
-        d.night = MODULES.christmas.night;
-        d.featured = true;
-        d.photo = m.photo || MODULES.christmas.photo;
-      }
-      days.push(d);
-    }
-    if (depMuseum) {
-      const m = MODULES[depMuseum];
-      days.push({
-        kind: "depart", id: depMuseum, date: r.depart, title: m.short.title, body: m.short.body,
-        day: { label: m.short.label, legs: m.short.legs, exp: 0 }, night: { label: "Southbound sleeper", legs: 1, exp: 0 }, photo: m.photo,
-      });
-    } else {
-      days.push({
-        kind: "depart", date: r.depart, title: "Last morning, then home.",
-        body: ["Check out, leave the bags with the hotel, a slow breakfast, and one last walk on the Mall. Lunch, luggage, Union Station, and the 6:30 Crescent south. Nothing big on purpose."],
-        day: { label: "A slow last morning", legs: 1, exp: 1 }, night: { label: "Southbound sleeper", legs: 1, exp: 0 }, photo: null,
-      });
-    }
-    days.push({
-      kind: "home", date: r.home, title: `Anniston, ~10:30 AM.`,
-      body: ["Get the car, go home, and do absolutely nothing. Build in a day or two at home before work. That's part of the plan, not wasted vacation."],
-      photo: ["day-1207-home.webp", "Home."],
-    });
+    days.push({ date: start, kind: "arrival", day: null, night: null });
+    for (let i = 1; i < nights; i++) days.push({ date: addDays(start, i), kind: "full", day: null, night: null });
+    days.push({ date: addDays(start, nights), kind: "departure", day: null, night: null });
     return days;
   }
 
+  function plan(cfg, state = {}, prev = null, external = {}) {
+    const start = parseISO(cfg.start) || parseISO(DEFAULT.start);
+    const nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights | 0 || DEFAULT.nights));
+    const fixed = state.fixed || {};           // unitId -> iso date
+    const notThisDay = state.notThisDay || {}; // unitId -> [iso dates]
+    const prevAt = (prev && prev.placements) || {};
+
+    const units = buildUnits(state, external);
+    const byId = Object.fromEntries(units.map((u) => [u.id, u]));
+    const days = frameDays(start, nights);
+    const placed = {};   // unitId -> { dayIdx, slot }
+    const reasons = [];
+    const excluded = []; // { unit, why, kind }
+
+    const unitAt = (di, slot) => days[di][slot] ? byId[days[di][slot].id] : null;
+    const preferredIndex = (u) => catalog.preferred_order.indexOf(u.id);
+    const pairingFor = (u) => catalog.pairings.find((p) => p.day === u.id || p.night === u.id);
+
+    function score(u, di, slot, ignore) {
+      const d = days[di];
+      if (d.kind === "arrival") return -Infinity;
+      if (slot !== u.period) return -Infinity;
+      if (d.kind === "departure") { if (!u.departureOK) return -Infinity; }
+      if (d[slot] && d[slot].id !== ignore) {
+        // An accessory (the holiday market) yields its slot to anything that matters.
+        if (!(d[slot].accessory && TIER_RANK[u.tier] <= TIER_RANK.medium && !u.accessoryOf)) return -Infinity;
+      }
+      if (u.closed(d.date)) return -Infinity;
+      if (fixed[u.id] && fixed[u.id] !== iso(d.date)) return -Infinity;
+      if ((notThisDay[u.id] || []).includes(iso(d.date))) return -Infinity;
+
+      let s = 0;
+      const other = unitAt(di, slot === "day" ? "night" : "day");
+      const otherLoad = other ? other.load : (d.kind === "departure" && slot === "day" ? catalog.structural.departure.night.load : null);
+      const ps = pairScore(u.load, otherLoad);
+      if (ps === -Infinity) return -Infinity;
+      if (ps < 0 && !u.core) return -Infinity;   // only the headline experiences get to squeeze a day
+      s += ps;
+      if (other && other.environment === "outdoor" && u.environment === "outdoor" && !u.accessoryOf && !(other.accessory)) s -= 3; // two cold outings in one day
+      if (d.kind === "departure" && u.load !== "lo") s -= 6;                              // shortened: worth more than stability
+      if (u.prefer_weekday != null && d.date.getDay() === u.prefer_weekday) s += 3;
+      const pr = pairingFor(u);
+      if (pr) { const partner = pr.day === u.id ? pr.night : pr.day; if (placed[partner] && placed[partner].dayIdx === di) s += 6; }
+      if (prevAt[u.id] === iso(d.date)) s += 5;                                            // stability
+      const pi = preferredIndex(u);
+      if (pi >= 0 && d.kind === "full") s -= 0.3 * Math.abs((di - 1) - pi);               // recognizable week
+      if (fixed[u.id]) s += 50;
+      return s;
+    }
+
+    function bestSlot(u, ignore) {
+      let best = null, bs = -Infinity;
+      for (let di = 0; di < days.length; di++) {
+        const sc = score(u, di, u.period, ignore);
+        if (sc > bs) { bs = sc; best = { dayIdx: di, slot: u.period, score: sc }; }
+      }
+      return best;
+    }
+
+    function put(u, di, slot, tag) {
+      const occ = days[di][slot];
+      if (occ && occ.id !== u.id) delete placed[occ.id]; // evicting an accessory
+      days[di][slot] = { id: u.id, shortened: days[di].kind === "departure" && u.load !== "lo", accessory: !!tag };
+      placed[u.id] = { dayIdx: di, slot };
+    }
+    function remove(u) { const p = placed[u.id]; if (!p) return; days[p.dayIdx][p.slot] = null; delete placed[u.id]; }
+
+    function whyNoSlot(u) {
+      const dates = days.filter((d) => d.kind === "full" || (d.kind === "departure" && u.departureOK));
+      const closures = dates.map((d) => u.closed(d.date)).filter(Boolean);
+      if (closures.length === dates.length) return { why: closures[0] + ", every day of the trip", kind: "closed" };
+      if (fixed[u.id]) return { why: `couldn't go on ${fmtDMD(parseISO(fixed[u.id]))}`, kind: "fixed" };
+      if (u.requested && !u.pinned) return { why: "no room without changing the current trip", kind: "room" };
+      if (u.load === "hi") return { why: u.period === "night" ? "no light day left to pair it with" : "no full day left for it", kind: "room" };
+      return { why: "no room left in the week", kind: "room" };
+    }
+
+    // 1. Place by value: pinned first, then the rest. Bonus-tier venues wait on the bench.
+    const order = units
+      .filter((u) => u.auto && !u.isAccessory)
+      .sort((a, b) => (a.rank - b.rank) || (b.value - a.value));
+    function placeAccessories(u) {
+      const p = placed[u.id]; if (!p) return;
+      for (const aid of u.accessory) {
+        const a = byId[aid]; if (!a || placed[aid]) continue;
+        a.accessoryOf = u.id;
+        if (score(a, p.dayIdx, a.period) > -Infinity) put(a, p.dayIdx, a.period, "accessory");
+      }
+    }
+    for (const u of order) {
+      if (placed[u.id]) continue;
+      // A pairing (Archives by day, the memorial loop by night) is placed as one decision.
+      const pr = pairingFor(u);
+      const partner = pr ? byId[pr.day === u.id ? pr.night : pr.day] : null;
+      let best = null;
+      if (partner && !placed[partner.id]) {
+        let bs = -Infinity;
+        for (let di = 0; di < days.length; di++) {
+          const s1 = score(u, di, u.period); if (s1 === -Infinity) continue;
+          const keep = days[di][u.period]; put(u, di, u.period);
+          const s2 = score(partner, di, partner.period);
+          days[di][u.period] = keep; delete placed[u.id];
+          if (s2 === -Infinity) continue;
+          if (s1 + s2 + 6 > bs) { bs = s1 + s2 + 6; best = { dayIdx: di, slot: u.period, withPartner: true }; }
+        }
+      }
+      if (!best) best = bestSlot(u);
+      if (!best) { const w = whyNoSlot(u); excluded.push({ unit: u, ...w }); continue; }
+      put(u, best.dayIdx, best.slot);
+      if (best.withPartner) put(partner, best.dayIdx, partner.period);
+      placeAccessories(u); if (best.withPartner) placeAccessories(partner);
+    }
+
+    // 1b. Local search: swap two same-slot placements when the week gets better for it.
+    for (let pass = 0; pass < 6; pass++) {
+      let improved = false;
+      const ids = Object.keys(placed).filter((id) => days[placed[id].dayIdx].kind === "full" && !fixed[id] && !days[placed[id].dayIdx][placed[id].slot].accessory);
+      for (let i = 0; i < ids.length && !improved; i++) for (let j = i + 1; j < ids.length; j++) {
+        const A = byId[ids[i]], B = byId[ids[j]];
+        const pa = placed[A.id], pb = placed[B.id];
+        if (pa.slot !== pb.slot || pa.dayIdx === pb.dayIdx) continue;
+        const before = score(A, pa.dayIdx, pa.slot, A.id) + score(B, pb.dayIdx, pb.slot, B.id);
+        const after = score(A, pb.dayIdx, pb.slot, B.id) + score(B, pa.dayIdx, pa.slot, A.id);
+        if (after > before + 0.5) {
+          const ca = days[pa.dayIdx][pa.slot], cb = days[pb.dayIdx][pb.slot];
+          days[pa.dayIdx][pa.slot] = cb; days[pb.dayIdx][pb.slot] = ca;
+          placed[A.id] = { dayIdx: pb.dayIdx, slot: pb.slot }; placed[B.id] = { dayIdx: pa.dayIdx, slot: pa.slot };
+          improved = true; break;
+        }
+      }
+      if (!improved) break;
+    }
+
+    // 2. Release valve: a shortenable indoor visit can move to the last morning so a
+    //    higher-value full-day experience keeps a full day.
+    for (let pass = 0; pass < 4; pass++) {
+      let did = false;
+      for (const ex of excluded.filter((e) => e.kind === "room" && e.unit.period === "day").sort((a, b) => b.unit.value - a.unit.value)) {
+        const U = ex.unit;
+        const depIdx = days.length - 1;
+        const D = days[depIdx].day ? byId[days[depIdx].day.id] : null;
+        if (D && (D.pinned || fixed[D.id])) continue;
+        let best = null, bn = 0;
+        for (const S of units) {
+          const p = placed[S.id];
+          if (!p || days[p.dayIdx].kind !== "full" || p.slot !== "day" || !S.departureOK) continue;
+          if (S.tier === "protected" || S.pinned || fixed[S.id] || TIER_RANK[U.tier] > TIER_RANK[S.tier]) continue;
+          if (score(U, p.dayIdx, "day", S.id) === -Infinity) continue;
+          if (score(S, depIdx, "day", D ? D.id : undefined) === -Infinity) continue;
+          const net = D ? U.value - D.value : U.value - 4;
+          if (net > bn) { bn = net; best = S; }
+        }
+        if (!best) continue;
+        const p = placed[best.id];
+        remove(best); if (D) remove(D);
+        put(U, p.dayIdx, "day"); put(best, depIdx, "day");
+        excluded.splice(excluded.indexOf(ex), 1);
+        if (D) excluded.push({ unit: D, why: `lost the last morning to ${best.name}`, kind: "room" });
+        reasons.push(`${best.name} moves to the last morning, shortened, so ${U.name} keeps a full day${D ? `. ${D.name} drops off to make that work` : ""}.`);
+        did = true; break;
+      }
+      if (!did) break;
+    }
+
+    // 3. Explain the tradeoffs, not the mundane placements.
+    for (const d of days) {
+      if (!d.day || !d.night) continue;
+      const a = byId[d.day.id], b = byId[d.night.id];
+      if (pairScore(a.load, b.load) === -8) reasons.push(`${cap(b.name)} shares ${fmtDMD(d.date)} with ${a.name}: a big day and a big night. No lighter arrangement kept both.`);
+    }
+    for (const d of days) if (d.kind === "departure" && d.day && d.day.shortened) {
+      const u = byId[d.day.id];
+      if (!reasons.some((r) => r.startsWith(u.name + " moves"))) reasons.push(`${u.name} takes the last morning in shortened form: a couple of hours before the train.`);
+    }
+    for (const u of units) {
+      const pl = placed[u.id];
+      if (u.pinned && pl && days[pl.dayIdx].kind !== "departure" && !catalog.headlines.some((h) => u.members.includes(h))) {
+        reasons.push(`${cap(u.name)} is in because you marked it must-do. It takes ${fmtDMD(days[pl.dayIdx].date)}.`);
+      }
+    }
+    for (const ex of excluded) {
+      if (ex.kind === "closed") reasons.push(`${cap(ex.unit.name)} can't fit these dates: ${ex.why}.`);
+      else if (ex.unit.pinned) reasons.push(`${cap(ex.unit.name)} is marked must-do but there's ${ex.why}.`);
+      else if (ex.unit.requested) reasons.push(`${cap(ex.unit.name)} doesn't fit without changing the current trip.`);
+      else if (ex.unit.core) reasons.push(`${cap(ex.unit.name)} is cut: ${ex.why}.`);
+    }
+    for (const u of units) {
+      const pl = placed[u.id];
+      if (u.requested && !u.pinned && pl && !u.core) reasons.push(`${cap(u.name)} is in because you asked. It takes ${fmtDMD(days[pl.dayIdx].date)}${days[pl.dayIdx].kind === "departure" ? ", the last morning" : ""}.`);
+    }
+
+    // 3b. Suggestions for open slots: the bench may be recommended, never imposed.
+    for (let di = 0; di < days.length; di++) {
+      const d = days[di];
+      if (d.kind === "arrival") continue;
+      d.suggest = {};
+      for (const slot of d.kind === "departure" ? ["day"] : ["day", "night"]) {
+        if (d[slot]) continue;
+        const floor = d.kind === "departure" ? -6.5 : -1.5;
+        d.suggest[slot] = units
+          .filter((u) => !placed[u.id] && !u.auto && !u.isAccessory && u.period === slot && score(u, di, slot) >= floor)
+          .sort((a, b) => a.seed - b.seed).slice(0, 3)
+          .map((u) => ({ id: u.id, name: u.name, seed: u.seed, load: u.load, shortened: d.kind === "departure" && u.load !== "lo" }));
+      }
+    }
+
+    // 4. What survived.
+    const includedVenues = new Set();
+    for (const u of units) if (placed[u.id]) u.members.forEach((id) => includedVenues.add(id));
+    const has = (id) => includedVenues.has(id);
+    const identity = {
+      civic: has("us-capitol") || has("library-of-congress"),
+      documents: has("national-archives"),
+      memorials: ["lincoln-memorial", "vietnam-memorial", "wwii-memorial", "korean-memorial"].every(has),
+      christmas: has("white-house") && has("national-christmas-tree"),
+      smithsonian: ["air-space", "natural-history", "american-history", "african-american-history"].some(has),
+    };
+    const intact = Object.values(identity).every(Boolean);
+
+    const cutTier = (t) => excluded.filter((e) => e.unit.tier === t && e.kind !== "punted");
+    const avoidPairs = days.filter((d) => d.day && d.night && pairScore(byId[d.day.id].load, byId[d.night.id].load) === -8).length;
+    const shortenedHigh = days.some((d) => d.day && d.day.shortened && TIER_RANK[byId[d.day.id].tier] <= TIER_RANK.high);
+    const openDays = days.filter((d) => d.kind === "full" && !d.day && !d.night).length;
+    const punted = (state.punted || []).length + (state.requested || []).length + (state.pinned || []).length;
+
+    let label;
+    if (cutTier("protected").some((e) => e.kind === "closed")) label = "These dates don't work";
+    else if (!intact) label = "A different kind of trip";
+    else if (cutTier("high").length) label = "Minimum recommended";
+    else if (cutTier("medium").filter((e) => e.unit.core).length >= 2) label = "Highlights version";
+    else if (cutTier("medium").filter((e) => e.unit.core).length === 1) label = "First real cut";
+    else if (avoidPairs || shortenedHigh) label = "Compressed full trip";
+    else if (punted && nights <= DEFAULT.nights) label = "Your version";
+    else if (nights > DEFAULT.nights) label = "Extended";
+    else label = "Recommended";
+
+    const trainOut = addDays(start, -1), home = addDays(start, nights + 1);
+    return {
+      start, nights, trainOut, depart: days[days.length - 1].date, home, days, units: byId,
+      placements: Object.fromEntries(Object.entries(placed).map(([id, p]) => [id, iso(days[p.dayIdx].date)])),
+      includedVenues, identity, intact, excluded, reasons, label, openDays, avoidPairs,
+      headline: { kept: catalog.headlines.filter(has).length, total: catalog.headlines.length },
+      work: { status: workStatus(home), buffer: workBuffer(home), early: workEarly(trainOut) },
+    };
+  }
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
   /* ───────────── Summary copy ───────────── */
 
-  function cutNames(r) {
-    return r.cuts.map((c) => c.id === "christmas" ? "Christmas Washington" : MODULES[c.id].name);
+  function summarize(p) {
+    const N = p.nights;
+    const cuts = p.excluded.filter((e) => e.unit.core).map((e) => e.unit.name);
+    const s = { nights: N, label: p.label, count: `${p.headline.kept} of ${p.headline.total} headline experiences`, cuts: cuts.length ? `Cut: ${list(cuts)}.` : "", why: "", work: "" };
+    const ws = p.work.status, early = p.work.early;
+    if (early > 0) s.work = `Runs into work. This boards ${fmtDMD(p.trainOut)}, and Bart works until ${WORK.offLabel}. Arrive ${early === 1 ? "a day" : `${early} days`} later.`;
+    else if (ws === "late") s.work = `Runs into work. Home ${fmtDMD(p.home)}, and Bart is due back ${WORK.label}. Start earlier or take a night off the end.`;
+    else if (ws === "tight") s.work = `Cuts it close. Home ${fmtDMD(p.home)} around 10:30 AM, work at 2 PM the same day, and the Crescent isn't always on time.`;
+    else if (ws === "thin") s.work = `One day at home before work ${WORK.label}.`;
+    if (early > 0 || ws === "late") s.label = "Runs into work";
+
+    const missing = Object.entries(p.identity).filter(([, ok]) => !ok).map(([k]) => ({ civic: "the Capitol", documents: "the founding documents", memorials: "the memorial night", christmas: "Christmas Washington", smithsonian: "a major Smithsonian" }[k]));
+    switch (p.label) {
+      case "These dates don't work": s.why = "Nudge the arrival date a day or two and the trip comes back."; break;
+      case "A different kind of trip": s.why = `Without ${list(missing)}, this isn't a shorter version of Washington for Christmas. It's a different trip, which is fine, as long as we know it.`; break;
+      case "Minimum recommended": s.why = "This is the shortest version that still feels like the same trip: the civic core, the founding documents, the memorial night, and Christmas Washington."; break;
+      case "Highlights version": s.why = "We're protecting the uniquely Washington things over more museums: the Capitol, the founding documents, Arlington, the memorial night, and Christmas."; break;
+      case "First real cut": s.why = "Everything else still fits at a reasonable pace."; break;
+      case "Compressed full trip": s.why = "Same major sights, less breathing room."; break;
+      case "Extended": s.why = p.openDays ? `Everything we'd recommend is already in. ${p.openDays === 1 ? "One day is open" : `${p.openDays} days are open`}, on purpose. The bench has ideas if the weather's right.` : "Everything from the recommended week, with room for more."; break;
+      case "Your version": s.why = "The recommended trip, minus what you punted."; break;
+      default: s.why = "Everything fits without turning the week into a death march. Best pacing.";
+    }
+    return s;
   }
+
   function list(names) {
     if (names.length <= 1) return names.join("");
     return names.slice(0, -1).join(", ") + (names.length > 2 ? "," : "") + " and " + names[names.length - 1];
   }
 
-  function summarize(r) {
-    const N = r.nights, kept = r.kept.size, total = HEADLINES.length;
-    const cuts = cutNames(r);
-    const s = { nights: N, label: "", count: `${kept} of ${total} headline experiences`, cuts: cuts.length ? `Cut: ${list(cuts)}.` : "", why: "" };
-    if (r.mode === "different") {
-      s.label = "A different kind of trip";
-      s.count = "";
-      s.why = `${N === 1 ? "One night" : "Two nights"} isn't a shorter version of this trip. It's a different trip, and it deserves its own plan rather than a mangled version of this one.`;
-      return s;
+  /* ───────────── Preview: what an action would change ───────────── */
+
+  // Compare two plans. `acted` = venue ids the user just acted on (their own moves don't count).
+  function diff(before, after, acted = []) {
+    const actedUnits = new Set(Object.values(after.units).concat(Object.values(before.units)).filter((u) => u.members.some((m) => acted.includes(m))).map((u) => u.id));
+    const moved = Object.keys(before.placements).filter((id) => after.placements[id] && after.placements[id] !== before.placements[id] && !actedUnits.has(id)).map((id) => before.units[id].name);
+    const avoidDays = (p) => new Set(p.days.filter((d) => d.day && d.night && pairScore(p.units[d.day.id].load, p.units[d.night.id].load) === -8).map((d) => iso(d.date)));
+    const beforeAvoid = avoidDays(before);
+    const newAvoid = after.days.filter((d) => avoidDays(after).has(iso(d.date)) && !beforeAvoid.has(iso(d.date)));
+    const cutHeadlines = catalog.headlines.filter((id) => before.includedVenues.has(id) && !after.includedVenues.has(id) && !acted.includes(id)).map((id) => venueById[id].name);
+    const cutProtected = Object.values(before.units).filter((u) => u.tier === "protected" && before.placements[u.id] && !after.placements[u.id] && !actedUnits.has(u.id)).map((u) => u.name);
+    const identityChanged = before.intact && !after.intact;
+    const depOf = (p) => { const d = p.days[p.days.length - 1].day; return d ? d.id : null; };
+    const shortened = Object.keys(after.placements).filter((id) => depOf(after) === id && after.days[after.days.length - 1].day.shortened && before.placements[id] && depOf(before) !== id && !actedUnits.has(id)).map((id) => after.units[id].name);
+    const promoted = Object.keys(after.placements).filter((id) => depOf(before) === id && depOf(after) !== id && !actedUnits.has(id)).map((id) => after.units[id].name);
+    const movedOnly = moved.filter((n) => !shortened.includes(n) && !promoted.includes(n));
+
+    const messages = [];
+    for (const d of newAvoid) {
+      const a = after.units[d.day.id], b = after.units[d.night.id];
+      const added = actedUnits.has(a.id) ? a : actedUnits.has(b.id) ? b : b, other = added === a ? b : a;
+      messages.push(`This makes ${fmtDMD(d.date)} a hard day. ${cap(other.name)} is already ${other.load.toUpperCase()}; adding ${added.name} makes it ${a.load.toUpperCase()}/${b.load.toUpperCase()}.`);
     }
-    const hostName = r.host != null ? MODULES[r.days[2 + r.host].id].name : null;
-    const forced = r.cuts.filter((c) => c.why && (c.id === "christmas" || MODULES[c.id].protected));
-    if (forced.length) {
-      s.label = "These dates don't work";
-      s.why = forced.map((c) => c.why).join(" ") + " Nudge the arrival date a day or two and the trip comes back.";
-      return s;
-    }
-    if (N >= 8) {
-      s.label = "Extended";
-      s.why = `Everything from the recommended week, plus ${N - 7 === 1 ? "an open day" : `${N - 7} open days`} for the bonus round or for doing nothing at all.`;
-    } else if (N === 7) {
-      s.label = "Recommended";
-      s.why = "Everything fits without turning the week into a death march. Best pacing.";
-    } else if (N === 6) {
-      s.label = "Compressed full trip";
-      s.why = `Same major sights, less breathing room. The holiday market becomes a quick stop, and Christmas night rides on the back of the ${hostName} day.`;
-    } else if (N === 5) {
-      s.label = "First real cut";
-      s.why = `${MODULES[r.depMuseum] ? MODULES[r.depMuseum].name + " moves to a shortened last morning before the train. " : ""}Everything else still fits at a reasonable pace.`;
-    } else if (N === 4) {
-      s.label = "Highlights version";
-      s.why = `We're protecting the uniquely Washington things over more museums: the Capitol, the founding documents, Arlington, the memorial night, and Christmas. ${MODULES[r.depMuseum] ? MODULES[r.depMuseum].name + " becomes a couple of hours on the last morning." : ""}`;
-    } else {
-      s.label = "Minimum recommended";
-      s.why = "This is the shortest version that still feels like the same trip: the civic core, the founding documents, the memorial night, Air & Space, and Christmas Washington.";
-    }
-    if (r.notes.length) s.why += " " + r.notes.join(" ");
-    const dateCuts = r.cuts.filter((c) => c.why).map((c) => c.why);
-    if (dateCuts.length) s.why += " " + dateCuts.join(" ");
-    return s;
+    if (identityChanged) messages.unshift("This changes the kind of trip.");
+    if (cutProtected.length) messages.push(`The best plan then drops ${list(cutProtected)}.`);
+    else if (cutHeadlines.length) messages.push(`The best plan then drops ${list(cutHeadlines)}.`);
+    if (shortened.length) messages.push(`${cap(list(shortened))} drops to a couple of hours on the last morning.`);
+    if (movedOnly.length > 2) messages.push(`${movedOnly.length} other days move: ${list(movedOnly)}.`);
+    const notes = [];
+    if (promoted.length) notes.push(`${cap(list(promoted))} moves up to a full day.`);
+    if (movedOnly.length && movedOnly.length <= 2) notes.push(`${cap(list(movedOnly))} ${movedOnly.length === 1 ? "moves" : "move"} to another day.`);
+    const consequential = messages.length > 0;
+    return { moved, newAvoid: newAvoid.map((d) => iso(d.date)), cutHeadlines, cutProtected, identityChanged, shortened, promoted, consequential, messages, notes };
   }
 
-  const engine = { plan, summarize, MODULES, HEADLINES, HEADLINE_NAMES, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, parseISO, iso, fmtMD, fmtDMD, fmtDMDY, addDays };
+  // When a request doesn't land, the honest alternatives: an explicit trade or a longer trip.
+  function fitOptions(cfg, state0, id, prev, external) {
+    const state = { ...state0, requested: [...new Set([...(state0.requested || []), id])] };
+    const base = plan(cfg, state, prev, external);
+    const U = Object.values(base.units).find((u) => u.members.includes(id));
+    if (!U || base.placements[U.id]) return [];
+    const options = [];
+    const tryState = (st) => { const p = plan(cfg, st, base, external); const u = Object.values(p.units).find((x) => x.members.includes(id)); return u && p.placements[u.id] ? p : null; };
+    // Replace something of the same period that the planner scheduled.
+    const candidates = Object.values(base.units).filter((x) => base.placements[x.id] && x.period === U.period && !x.pinned && x.id !== U.id && !x.isAccessory)
+      .sort((a, b) => a.value - b.value);
+    for (const X of candidates) {
+      const st = { ...state, punted: [...(state.punted || []), ...X.members] };
+      const p = tryState(st);
+      if (!p) continue;
+      const day = base.days.find((d) => (d.day && d.day.id === X.id) || (d.night && d.night.id === X.id));
+      options.push({ kind: "replace", unit: X.id, members: X.members, label: `Replace ${X.name} on ${day.kind === "departure" ? "the last morning" : fmtDMD(day.date)}`, plan: p });
+      if (options.length >= 3) break;
+    }
+    if (cfg.nights < MAX_NIGHTS) {
+      const p = plan({ ...cfg, nights: cfg.nights + 1 }, state, base, external);
+      const u = Object.values(p.units).find((x) => x.members.includes(id));
+      if (u && p.placements[u.id]) options.push({ kind: "night", label: "Add one night" + (p.work.status === "late" ? " (runs into work)" : p.work.status === "tight" ? " (cuts it close at work)" : ""), plan: p });
+    }
+    return options;
+  }
+
+  const engine = { plan, summarize, diff, fitOptions, buildUnits, catalog, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
   if (typeof module !== "undefined" && module.exports) { module.exports = engine; return; }
   root.DCPlanner = engine;
-
-  /* ───────────── Renderer (browser only) ───────────── */
-
-  if (typeof document === "undefined") return;
-
-  const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const ticks = (n) => `<i class="ticks" style="--n:${n}"></i>`;
-
-  function readHash() {
-    const cfg = { ...DEFAULT };
-    const h = location.hash.replace(/^#/, "");
-    for (const part of h.split("&")) {
-      const [k, v] = part.split("=");
-      if (k === "start" && parseISO(v)) cfg.start = v;
-      if (k === "nights" && +v >= MIN_NIGHTS && +v <= MAX_NIGHTS) cfg.nights = +v;
-    }
-    return cfg;
-  }
-  function writeHash(cfg) {
-    const isDefault = cfg.start === DEFAULT.start && cfg.nights === DEFAULT.nights;
-    const url = location.pathname + location.search + (isDefault ? "" : `#start=${cfg.start}&nights=${cfg.nights}`);
-    history.replaceState(null, "", url);
-  }
-
-  function renderDay(d) {
-    const dateCell = `<div class="stop-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span></div>`;
-    const photo = d.photo ? `<figure class="stop-photo"><img class="photo" src="/img/${d.photo[0]}" alt="${esc(d.photo[1])}" loading="lazy"><figcaption>${esc(d.photo[1])}</figcaption></figure>` : "";
-    const body = d.body.map((p) => `<p>${esc(p)}</p>`).join("");
-    const halves = d.day ? `<div class="halves">
-      <div class="half"><small>Day</small>${ticks(d.day.legs)}<span>${esc(d.day.label)}</span></div>
-      <div class="half night"><small>Night</small>${ticks(d.night.legs)}<span>${esc(d.night.label)}</span></div>
-    </div>` : "";
-    const cls = ["stop", d.featured ? "featured" : "", d.kind === "home" ? "last" : ""].filter(Boolean).join(" ");
-    return `<li class="${cls}">${dateCell}<div class="stop-body"><h3>${esc(d.title)}</h3>${photo}${body}${halves}</div></li>`;
-  }
-
-  function renderDifferent(r) {
-    const n = r.nights === 1 ? "One night" : "Two nights";
-    return `<li class="stop different"><div class="stop-date"><b>${DOW[r.start.getDay()]}</b><span>${fmtMD(r.start)}</span></div>
-      <div class="stop-body">
-        <h3>${n} is a different trip.</h3>
-        <p>The seven-night plan is built around one big thing a day with room to breathe. Cutting it to ${r.nights === 1 ? "one night" : "two nights"} wouldn't shorten that trip, it would replace it. Rather than hand you a mangled version, pick what this shorter trip is <em>for</em>:</p>
-        <ul class="options">
-          <li><b>Monuments &amp; government.</b> The Capitol, the founding documents, and the memorial night. Washington the idea.</li>
-          <li><b>Museums &amp; family.</b> Air &amp; Space and Natural History, with the Capitol lit up on the way in. Washington for Sam.</li>
-          <li><b>Christmas Washington.</b> The tree, the White House, the market, the lights. Washington the postcard.</li>
-        </ul>
-        <p>The planner doesn't write those yet. Pick one and we'll build it by hand.</p>
-      </div></li>`;
-  }
-
-  function render(cfg) {
-    const r = plan(cfg);
-    const s = summarize(r);
-
-    // Hero dates and countdown source.
-    $("eyebrow-dates").innerHTML = `${esc(fmtDMD(r.trainOut))} → ${esc(fmtDMDY(r.home))}`.replace(/ /g, "&nbsp;");
-    root.DCTrip = { depart: new Date(r.trainOut.getFullYear(), r.trainOut.getMonth(), r.trainOut.getDate()), arrive: addDays(r.start, 0), home: r.home };
-    root.dispatchEvent(new CustomEvent("trip:change"));
-
-    const NW = ["", "One night", "Two nights", "Three nights", "Four nights", "Five nights", "Six nights", "Seven nights", "Eight nights", "Nine nights"];
-    $("lede-nights").textContent = NW[r.nights] || `${r.nights} nights`;
-
-    // Verdict line + controls.
-    $("cfg-nights").textContent = String(r.nights);
-    $("cfg-start").value = iso(r.start);
-    $("cfg-minus").disabled = r.nights <= MIN_NIGHTS;
-    $("cfg-plus").disabled = r.nights >= MAX_NIGHTS;
-    const isDefault = cfg.start === DEFAULT.start && cfg.nights === DEFAULT.nights;
-    $("cfg-reset").hidden = isDefault;
-    $("verdict").innerHTML = [
-      `<b>${r.nights} ${r.nights === 1 ? "night" : "nights"}</b>`,
-      `<span class="verdict-label${r.mode === "different" ? " warn" : ""}">${esc(s.label)}</span>`,
-      s.count ? `<span>${esc(s.count)}</span>` : "",
-    ].filter(Boolean).join('<span class="sep">·</span>');
-    $("verdict-why").innerHTML = [s.cuts ? `<b>${esc(s.cuts)}</b>` : "", esc(s.why)].filter(Boolean).join(" ");
-
-    // Departure board.
-    const weekend = r.start.getDay() === 0 || r.start.getDay() === 6;
-    $("b-out-from").textContent = `${fmtDMD(r.trainOut)} · evening`;
-    $("b-out-to").textContent = `${fmtDMD(r.start)} · ${weekend ? "~2:12 PM" : "afternoon, per the timetable"}`;
-    $("b-back-from").textContent = `${fmtDMD(r.depart)} · 6:30 PM`;
-    $("b-back-to").textContent = `${fmtDMD(r.home)} · ~10:30 AM CT`;
-
-    // The week.
-    const WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
-    const nDays = r.days.length - 1; // the home day doesn't count
-    $("week-kicker").textContent = r.mode === "different" ? "II.  A different trip" : `II.  ${WORDS[nDays] || nDays} days, one big thing a day`;
-    $("line").innerHTML = r.mode === "different" ? renderDay(r.days[0]) + renderDifferent(r) : r.days.map(renderDay).join("");
-
-    // The list: mark cuts.
-    const cutSet = new Set(r.mode === "different" ? [] : HEADLINES.filter((h) => !r.kept.has(h)));
-    document.querySelectorAll("#canon li[data-h]").forEach((li) => li.classList.toggle("cut", cutSet.has(li.dataset.h)));
-    $("canon-note").textContent = r.mode === "different" ? "Which of these a shorter trip keeps depends on what it's for."
-      : cutSet.size ? `${HEADLINES.length - cutSet.size} of thirteen on this version. The rest are marked.` : "All on the schedule.";
-
-    // Footer.
-    $("foot-dates").textContent = `${fmtMD(r.trainOut)} – ${fmtMD(r.home)}, ${r.home.getFullYear()}`;
-  }
-
-  let cfg = readHash();
-  function update(next) {
-    cfg = { ...cfg, ...next };
-    cfg.nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights));
-    writeHash(cfg);
-    render(cfg);
-  }
-
-  render(cfg);
-  $("cfg-minus").addEventListener("click", () => update({ nights: cfg.nights - 1 }));
-  $("cfg-plus").addEventListener("click", () => update({ nights: cfg.nights + 1 }));
-  $("cfg-start").addEventListener("change", (e) => { if (parseISO(e.target.value)) update({ start: e.target.value }); });
-  $("cfg-reset").addEventListener("click", () => update({ ...DEFAULT }));
-  if (cfg.start !== DEFAULT.start || cfg.nights !== DEFAULT.nights) $("change").open = true;
 })(typeof window !== "undefined" ? window : globalThis);

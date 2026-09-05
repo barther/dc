@@ -111,3 +111,98 @@ Not a generic tourism planner, not a freeform AI itinerary generator, not a drag
 spreadsheet, not a preference questionnaire, not an attraction-count optimizer, not a booking
 engine, not a map dashboard. This is still our trip. The planner answers one question: *what does
 our trip look like if we change the dates or make it shorter?*
+
+
+---
+
+# Version two: Build Your Trip
+
+The planner is now an opinionated scheduler over a venue catalog rather than a table of
+night-count rules. The governing sentence: **build an opinionated scheduler that protects the
+best Washington experiences and the family's energy, then lets the user overrule it without
+breaking the trip.** For every placement the order of questions is: is it important, does it
+fit, does the day stay humane, is there a better day, and if something has to lose, what should
+lose.
+
+## Data is the source of truth
+
+`public/venues.js` holds every experience with seed (how badly we'd regret missing it), priority
+tier, period, LO/MID/HI load, environment, min and ideal hours, shortenable, reservation,
+weather fit, closures, and bundle. Bundles (Capitol Hill, the memorial loop, Christmas
+Washington, the Tidal Basin loop) carry bundle-level load and move together. The Archives and
+the memorial loop are a same-day pairing. The holiday market is an accessory of Christmas
+Washington: it rides along when the slot is free and yields to anything that matters.
+
+## Capacity and the doctrine of a day
+
+Each day has a day slot and a night slot. Arrival day is structural (arrive, hotel, the Capitol
+illuminated) and never spare capacity. Departure day is a partial morning: a LO activity or a
+shortened indoor visit, never Arlington or a full outdoor day, and it doubles as the release
+valve when a higher-value experience needs a full day. Pairings: HI+LO, MID+MID, MID+LO and
+LO+LO are preferred; HI+MID is avoided and only the thirteen headline experiences are allowed
+to create one; HI+HI is forbidden. Empty time is valid. Bonus-tier venues stay on the bench
+until asked for.
+
+## How a plan is built
+
+1. Build units from the catalog and the user's state (punts remove venues; pins go first).
+2. Place by value, highest first, into the best-scoring slot. Score = pacing (avoid −8, two
+   outdoor outings −3), shortening (−4), a preferred weekday (+3), the Archives/memorials pairing
+   (+6), stability against the previous plan (+5), and a small tiebreak toward the recommended
+   order of the week.
+3. Local search: swap two same-slot placements when the week gets better for it.
+4. Release valve: a shortenable indoor visit moves to the last morning so a more important
+   full-day experience keeps a full day, when the trade is worth it.
+5. Explain the tradeoffs: shared big days, shortened visits, cuts of headline experiences,
+   closures, pins that couldn't be honored, and what a pin displaced.
+
+## Labels are derived
+
+The identity test asks whether the civic core, the founding documents, the memorial night,
+Christmas Washington, and a major Smithsonian all survived. A protected experience lost to a
+closure gives *These dates don't work*. A broken identity gives *A different kind of trip*, which
+is also what punting the Capitol earns. A lost high-tier experience gives *Minimum recommended*;
+two lost headline museums *Highlights version*; one, *First real cut*; a squeezed day with
+everything kept, *Compressed full trip*; punts with the core intact, *Your version*; more than
+seven nights, *Extended*; otherwise *Recommended*. The night-count ladder falls out of these
+rules rather than being tabulated.
+
+## Not in version one
+
+Weather, live closures, reservations as data, completed-activity tracking, and day-of replanning.
+The plan shape and the constraint order already leave room for them: weather will re-rank days,
+not attractions; a confirmed reservation will pin a date; completed activities will never move.
+
+
+## Interaction model (settled)
+
+**The planner owns the core trip. The family owns the extras.** Only the thirteen headline
+experiences are scheduled without being asked. Everything else is recommended for open slots,
+ranked by seed, and enters the trip only through the family's intent.
+
+Three levels of intent, in scheduler rank: **Must-do** (sacrifice other things first, may
+displace the core and is told so), **Added by you** (please find room if you can; never
+displaces a headline experience; sacrificed before anything pinned), and the ordinary
+recommendation. **Punt** removes a venue and applies immediately; the punt was the explicit act.
+
+A request that doesn't fit is answered with the honest alternatives: replace a specific
+scheduled item, add one night, or leave it on the board. Choosing a replacement is an explicit
+trade the user made, not something the optimizer discovered.
+
+A punt does not auto-refill. Headline experiences may move up into freed capacity (a shortened
+last morning becoming a full day is an improvement and a one-day change); the bench is offered
+on the open slot, or the day stays open. Extending the trip works the same way: extra days come
+back open, with the best additions listed.
+
+Every Must-do or Add runs as a preview first. If the diff is clean it applies. If it is
+consequential, the page names the consequence and asks. Consequential means: a new HI/MID day, a
+headline experience cut, a protected bundle cut, the trip identity changing, a scheduled visit
+dropping to a shortened last morning, or more than a couple of unrelated days moving. HI/HI stays
+forbidden outright. (Confirmed reservations will join this list when reservations become data.)
+
+Standing venue rules (closed weekdays, holiday policy) live on the venue as `constraints`.
+Date-specific facts arrive as trip constraints passed to the planner, so the catalog never
+becomes a chronology of federal building hours.
+
+The night-count ladder is a regression signal, not an input: if the roster or a seed changes
+and a rung moves, that is the engine doing its job.

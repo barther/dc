@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Washington, for Christmas</title>
-  <meta name="description" content="Bart, Jess, Sam, and Nanny take the Crescent to Washington, DC for seven nights, Nov 28 – Dec 7, 2026.">
+  <meta name="description" content="Bart, Jess, Sam, and Nanny take the Crescent to Washington, DC for Christmas. Seven nights, sleeper cars both ways, and a planner to see what a shorter trip costs.">
   <meta name="theme-color" content="#f4f1ea">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23f4f1ea'/%3E%3Crect x='6' y='6' width='52' height='52' fill='none' stroke='%231c2a4a' stroke-width='3'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='%23a8322c' font-family='Georgia,serif'%3EW%3C/text%3E/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,7 +31,7 @@
 <body>
 <header class="hero">
   <p class="eyebrow">
-    <span id="eyebrow-dates">Sat&nbsp;Nov&nbsp;28 → Mon&nbsp;Dec&nbsp;7, 2026</span>
+    <span id="eyebrow-dates"></span>
     <span class="star" aria-hidden="true">✦</span>
     <span>Anniston&nbsp;⇄&nbsp;Washington via the Crescent</span>
   </p>
@@ -41,7 +41,7 @@
     <img class="photo" src="/img/hero-capitol-night.webp" alt="The U.S. Capitol at night" fetchpriority="high">
   </figure>
   <p class="lede">
-    <span id="lede-nights">Seven nights</span> in the capital. Sleeper cars there and back. The Capitol lit up at night,
+    <span id="lede-nights"></span> in the capital. Sleeper cars there and back. The Capitol lit up at night,
     dinosaurs, the Hope Diamond, the actual Declaration of Independence, and a whole city
     dressed for Christmas. Bart, Jess, Sam, and Nanny. All of us, together, the whole week.
   </p>
@@ -55,19 +55,25 @@
   <p class="countdown-label" id="countdown-label">until we board the train</p>
 
   <div class="planner">
-    <p class="verdict" id="verdict"><b>7 nights</b><span class="sep">·</span><span class="verdict-label">Recommended</span><span class="sep">·</span><span>13 of 13 headline experiences</span></p>
-    <p class="verdict-why" id="verdict-why">Everything fits without turning the week into a death march. Best pacing.</p>
+    <p class="verdict" id="verdict"></p>
+    <p class="verdict-why" id="verdict-why"></p>
+    <p class="verdict-work ok" id="verdict-work" hidden></p>
     <details class="change" id="change">
       <summary><span class="plus" aria-hidden="true">+</span> Change the trip</summary>
       <div class="change-body">
-        <label class="field"><span>Arrive in Washington</span><input type="date" id="cfg-start" value="2026-11-29" min="2026-11-01" max="2027-01-31"></label>
+        <div class="strip-wrap">
+          <p class="strip-hint"><span>Drag the trip along the calendar.</span> <span class="legend-work">Shaded days, Bart's at work.</span></p>
+          <div class="strip" id="strip" aria-label="Trip dates"></div>
+          <p class="strip-hint strip-hint-keys">Arrow keys move it a day at a time.</p>
+        </div>
         <div class="field stepper"><span>Hotel nights</span>
           <div class="stepper-controls">
             <button type="button" id="cfg-minus" aria-label="One fewer night">−</button>
-            <b id="cfg-nights">7</b>
+            <b id="cfg-nights"></b>
             <button type="button" id="cfg-plus" aria-label="One more night">+</button>
           </div>
         </div>
+        <p class="fixed-fact" id="fixed-fact"></p>
         <button type="button" class="reset" id="cfg-reset" hidden>Back to the recommended trip</button>
       </div>
     </details>
@@ -109,14 +115,14 @@
       </div>
       <div class="board-row" role="row">
         <span role="cell"><b>Crescent 20</b><small>Northbound</small></span>
-        <span role="cell"><b>Anniston, AL</b><small id="b-out-from">Sat Nov 28 · evening</small></span>
-        <span role="cell"><b>Washington Union Station</b><small id="b-out-to">Sun Nov 29 · ~2:12 PM</small></span>
+        <span role="cell"><b>Anniston, AL</b><small id="b-out-from"></small></span>
+        <span role="cell"><b>Washington Union Station</b><small id="b-out-to"></small></span>
         <span role="cell"><b>Overnight</b><small>2 sleeper rooms</small></span>
       </div>
       <div class="board-row" role="row">
         <span role="cell"><b>Crescent 19</b><small>Southbound</small></span>
-        <span role="cell"><b>Washington Union Station</b><small id="b-back-from">Sun Dec 6 · 6:30 PM</small></span>
-        <span role="cell"><b>Anniston, AL</b><small id="b-back-to">Mon Dec 7 · ~10:30 AM CT</small></span>
+        <span role="cell"><b>Washington Union Station</b><small id="b-back-from"></small></span>
+        <span role="cell"><b>Anniston, AL</b><small id="b-back-to"></small></span>
         <span role="cell"><b>Overnight</b><small>2 sleeper rooms</small></span>
       </div>
     </div>
@@ -141,11 +147,18 @@
       <p class="intro">
         Every day gets one real adventure, and the day and night are balanced so nobody gets wrecked.
         Big museum day? Easy night. Easy afternoon? That's when we go out and see the memorials glow.
-        <span class="legend"><i class="ticks" style="--n:1"></i> easy &nbsp;·&nbsp; <i class="ticks" style="--n:4"></i> big day</span>
+        <span class="legend"><i class="load lo">LO</i> easy &nbsp;·&nbsp; <i class="load mid">MID</i> a real outing &nbsp;·&nbsp; <i class="load hi">HI</i> the whole battery. A HI day gets an easy night.</span>
       </p>
     </div>
 
-    <ol class="line" id="line"><!-- rendered by planner.js --></ol>
+    <div class="panel" id="panel" hidden></div>
+
+    <div class="tradeoffs" id="tradeoffs-wrap" hidden>
+      <p class="kicker-sm">Tradeoffs</p>
+      <ul id="tradeoffs"></ul>
+    </div>
+
+    <ol class="line" id="line"><!-- rendered by ui.js --></ol>
   </section>
 
   <!-- ───────────── THE LIST ───────────── -->
@@ -160,38 +173,30 @@
     </div>
 
     <ol class="canon" id="canon">
-      <li data-h="capitol">U.S. Capitol</li>
-      <li data-h="loc">Library of Congress</li>
-      <li data-h="airspace">Air and Space Museum</li>
-      <li data-h="naturalhistory">Natural History Museum</li>
-      <li data-h="americanhistory">American History Museum</li>
-      <li data-h="archives">Declaration, Constitution &amp; Bill of Rights</li>
-      <li data-h="whitehouse">The White House</li>
-      <li data-h="lincoln">Lincoln Memorial</li>
-      <li data-h="vietnam">Vietnam Veterans Memorial</li>
-      <li data-h="korea">Korean War Veterans Memorial</li>
-      <li data-h="wwii">World War II Memorial</li>
-      <li data-h="arlington">Arlington National Cemetery</li>
-      <li data-h="christmas">Christmas in Washington</li>
+      <li data-v="us-capitol">U.S. Capitol</li>
+      <li data-v="library-of-congress">Library of Congress</li>
+      <li data-v="air-space">Air and Space Museum</li>
+      <li data-v="natural-history">Natural History Museum</li>
+      <li data-v="american-history">American History Museum</li>
+      <li data-v="national-archives">Declaration, Constitution &amp; Bill of Rights</li>
+      <li data-v="white-house">The White House</li>
+      <li data-v="lincoln-memorial">Lincoln Memorial</li>
+      <li data-v="vietnam-memorial">Vietnam Veterans Memorial</li>
+      <li data-v="korean-memorial">Korean War Veterans Memorial</li>
+      <li data-v="wwii-memorial">World War II Memorial</li>
+      <li data-v="arlington">Arlington National Cemetery</li>
+      <li data-v="national-christmas-tree">Christmas in Washington</li>
     </ol>
 
-    <details class="bonus">
-      <summary><span class="plus" aria-hidden="true">+</span> The bonus round <span>if weather, tickets, or energy open a door</span></summary>
-      <p>None of these are obligations. If a slot opens up, we pick from here. If not, we leave DC without regret.</p>
-      <ul>
-        <li>Washington Monument observation deck</li>
-        <li>Jefferson Memorial</li>
-        <li>MLK Memorial</li>
-        <li>FDR Memorial</li>
-        <li>National Gallery of Art</li>
-        <li>African American History &amp; Culture Museum</li>
-        <li>International Spy Museum</li>
-        <li>Ford's Theatre</li>
-        <li>National Cathedral</li>
-        <li>Georgetown</li>
-        <li>ZooLights at the National Zoo</li>
-      </ul>
-    </details>
+    <div class="bench-wrap">
+      <h3 class="bench-head">Still on the board</h3>
+      <p class="bench-intro">Everything we know about, ranked by how much we'd regret missing it, that isn't in this version. The planner schedules the core trip on its own; these are yours to add. Ask for one and it finds room if it can, or tells you what it would cost.</p>
+      <ul class="bench" id="bench"></ul>
+      <div id="punted-wrap" hidden>
+        <h3 class="bench-head">Punted</h3>
+        <ul class="bench" id="punted"></ul>
+      </div>
+    </div>
   </section>
 
   <!-- ───────────── HOUSE RULES ───────────── -->
@@ -233,10 +238,12 @@
     <img class="photo" src="/img/family.webp" alt="Bart, Jess, Sam, and Nanny" loading="lazy">
   </figure>
   <p><b>Bart · Jess · Sam · Nanny</b></p>
-  <p><span id="foot-dates">Nov 28 – Dec 7, 2026</span> · Anniston to Washington and back on the Crescent · Hotel and tour reservations still being locked in.</p>
+  <p><span id="foot-dates"></span> · Anniston to Washington and back on the Crescent · Hotel and tour reservations still being locked in.</p>
 </footer>
 
+<script src="/venues.js"></script>
 <script src="/planner.js"></script>
+<script src="/ui.js"></script>
 <script src="/app.js" defer></script>
 </body>
 </html>

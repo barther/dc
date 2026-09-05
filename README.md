@@ -1,15 +1,13 @@
 # Washington, for Christmas
 
-A one-page promo site for the family's DC trip (Sat Nov 28 → Mon Dec 7, 2026), built to get
+A one-page promo site for the family's Christmas trip to Washington, DC, built to get
 Jess, Sam, and Nanny excited. Content comes from the trip docs in this repo
 (`dc-trip-nov-dec-2026.md`, `dc-trip-nov29-dec6-2026.md`).
 
 ## Architecture
 
-A single Cloudflare Worker (`src/index.js`) that:
-
-- serves the static site in `public/` through Workers Static Assets (`ASSETS` binding), and
-- answers `GET /api/countdown` with a server-side countdown to departure day.
+A single Cloudflare Worker (`src/index.js`) that serves the static site in `public/` through
+Workers Static Assets (`ASSETS` binding) and adds security headers. It knows no trip dates.
 
 No build step. No framework. Fonts come from Google Fonts; everything else is in `public/`.
 
@@ -33,15 +31,26 @@ dashboard if you want a nicer link to text the family.
 
 ## The planner
 
-"Change the trip" under the countdown lets the family move the arrival date or the number of
-hotel nights. `public/planner.js` re-plans the week immediately, protecting the trip's identity
-and pacing before attraction count. The doctrine it follows is in `PLANNER.md`; the trip-length
-ladder is pinned by `test/planner.test.js` (`npm test`). The chosen trip lives in the URL hash,
-so a link like `/#start=2026-12-05&nights=5` opens that version directly.
+The page opens on the recommended seven-night trip, then lets the family overrule it without
+breaking it. Three files, one direction of data flow:
+
+- `public/venues.js` is the source of truth: every experience with its seed, tier, day/night,
+  LO/MID/HI load, environment, hours, closures, and bundle. Plus the bundle catalog, the
+  Archives/memorials pairing, structural days, and the prose for each unit.
+- `public/planner.js` is the scheduler. Pure, no DOM, runs under node. It takes dates and user
+  state (punts, pins) and returns a plan: each day's day and night assignment, what was cut or
+  shortened, the tradeoffs worth explaining, and a label derived from what survived.
+- `public/ui.js` renders the plan and owns the controls: the calendar strip, the nights stepper,
+  Must-do and Punt on each day, Add to trip on the bench and on open slots, and the preview
+  panel that names a consequence before a change lands.
+
+Trip-design state (dates, nights, punts, pins) lives in the URL hash, so a configured trip can
+be sent around: `/#start=2026-12-05&nights=5&punt=natural-history&ask=fords-theatre`. The doctrine is in
+`PLANNER.md`; `npm test` checks the behavioral invariants.
 
 ## Editing the plan
 
-The list and the house rules are plain HTML in `public/index.html`. The itinerary copy, each
-day's effort levels, and the cut order live in the `MODULES` table at the top of
-`public/planner.js`. The countdown follows whatever trip the planner renders; the server-side
-`/api/countdown` in `src/index.js` only knows the recommended dates.
+The list and the house rules are plain HTML in `public/index.html`. Everything the scheduler
+knows, and the copy for each experience, lives in `public/venues.js`. Every date on the page, the countdown included, comes from the planner. The
+recommended trip, the train times, and Bart's work window are the constants at the top of
+`public/planner.js`; nothing else in the repo carries a date.
