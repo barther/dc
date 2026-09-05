@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 const A = require("../public/achievements.js");
 const C = require("../public/venues.js");
 
-const facts = (over) => ({ travelerId: "sam", isAdmin: false, completed: {}, bundles: C.bundles, decisions: [], preferences: {}, phase: "live", hadHiHi: false, unlockedByTraveler: {}, ...over });
+const FAMILY = ["bart", "jess", "sam", "nanny"];
+const facts = (over) => ({ travelerId: "sam", isAdmin: false, completed: {}, bundles: C.bundles, decisions: [], preferences: {}, phase: "live", hadHiHi: false, unlockedByTraveler: {}, travelerIds: FAMILY, ...over });
 
 test("discovery achievements come from completion, and a bundle needs every member", () => {
   assert.deepEqual(A.evaluate(facts({ completed: { "national-archives": "2026-12-02" } })), ["we-the-people"]);
@@ -29,4 +30,10 @@ test("trip achievements need the trip to be over, and Clark needs to be the admi
 
 test("nothing rewards suffering: no rule counts steps or attraction totals", () => {
   for (const d of A.defs) assert.ok(!/steps|walk|count_total|max/.test(JSON.stringify(d.rule)), d.id);
+});
+
+test("Four Score counts every traveler on the trip, not just those already on the board", () => {
+  const three = { bart: ["a", "b", "c", "d"], jess: ["a", "b", "c", "d"], sam: ["a", "b", "c", "d"] };
+  assert.ok(!A.evaluate(facts({ unlockedByTraveler: three })).includes("four-score"), "Nanny has none yet");
+  assert.ok(A.evaluate(facts({ unlockedByTraveler: { ...three, nanny: ["a", "b", "c", "d"] } })).includes("four-score"));
 });

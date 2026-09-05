@@ -3,11 +3,12 @@
  *
  * Takes a plan from DCPlanner and turns it into the page. Two modes:
  *
- *   shared  — the family's canonical trip from the Worker. Signed-in travelers
- *             send intents; the Worker re-runs the planner and persists the
- *             result. Anonymous visitors see the shared trip and can explore
- *             what-ifs locally without changing it.
- *   local   — no Worker (a static preview). Everything lives in the URL hash.
+ *   shared  — a signed-in traveler's view of the family's canonical trip from
+ *             the Worker. Intents go up; the Worker re-runs the planner and
+ *             persists the result.
+ *   local   — the public pitch: the recommended trip and what-ifs in the URL
+ *             hash. Anonymous visitors never see family state. Also the mode
+ *             of a static preview with no Worker at all.
  */
 (function () {
   "use strict";
@@ -245,7 +246,7 @@
 
     // Hero
     $("eyebrow-dates").innerHTML = `${esc(fmtDMD(p.trainOut))} → ${esc(fmtDMDY(p.home))}`.replace(/ /g, "&nbsp;");
-    const NW = ["", "One night", "Two nights", "Three nights", "Four nights", "Five nights", "Six nights", "Seven nights", "Eight nights", "Nine nights", "Ten nights"];
+    const NW = ["", "One night", "Two nights", "Three nights", "Four nights", "Five nights", "Six nights", "Seven nights", "Eight nights", "Nine nights", "Ten nights", "Eleven nights", "Twelve nights", "Thirteen nights", "Fourteen nights"];
     $("lede-nights").textContent = NW[p.nights] || `${p.nights} nights`;
     window.DCTrip = { depart: p.trainOut, arrive: new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate(), 14, 12), home: new Date(p.home.getFullYear(), p.home.getMonth(), p.home.getDate(), 10, 30) };
     window.dispatchEvent(new CustomEvent("trip:change"));
@@ -279,7 +280,7 @@
     renderTrophies();
 
     // Week
-    const WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+    const WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen"];
     const nDays = p.days.length + 1;
     $("week-kicker").textContent = `II.  ${WORDS[nDays] || nDays} days, one big thing a day`;
     $("line").innerHTML = renderWeek(p);
@@ -409,10 +410,10 @@
 
   function renderIdentity() {
     const el = $("identity");
-    if (!shared) { el.hidden = true; return; }
+    if (!shared && !hasWorker) { el.hidden = true; return; }
     el.hidden = false;
-    if (me) el.innerHTML = `<span class="who">Signed in as <b>${esc(me.name)}</b> · ${esc(me.role)}</span>${whatIf ? "" : ""}`;
-    else el.innerHTML = `<span class="who">This is the family's shared trip.${whatIf ? " You're exploring a what-if; nothing here changes it." : ""}</span> <a href="/family" class="signin">Sign in</a>`;
+    if (me) el.innerHTML = `<span class="who">Signed in as <b>${esc(me.name)}</b> · ${esc(me.role)}</span>`;
+    else el.innerHTML = `<span class="who">This is the pitch. Family, the trip itself is behind the door.</span> <a href="/family" class="signin">Sign in</a>`;
   }
 
   function renderDecisions() {
@@ -425,13 +426,19 @@
 
   /* ───────────── Talking to the Worker ───────────── */
 
+  let hasWorker = false; // a Worker answered, even if we're anonymous
+
   async function fetchShared() {
     try {
-      const [t, m] = await Promise.all([fetch("/api/trip", { headers: { accept: "application/json" } }), fetch("/api/me", { headers: { accept: "application/json" }, redirect: "manual" })]);
-      if (!t.ok) return false;
+      const m = await fetch("/api/me", { headers: { accept: "application/json" }, redirect: "manual" });
+      let mj = null; try { mj = m.ok ? await m.json() : null; } catch (_) {}
+      hasWorker = m.ok || m.type === "opaqueredirect" || m.status === 401 || m.status === 403;
+      me = mj && mj.traveler ? mj.traveler : null; travelers = (mj && mj.travelers) || [];
+      if (!me) return false; // the pitch, locally; family state stays behind sign-in
+      const t = await fetch("/api/trip", { headers: { accept: "application/json" } });
+      if (!t.ok) { me = null; return false; }
       shared = await t.json();
       today = shared.today || null;
-      try { const mj = m.ok ? await m.json() : null; me = mj && mj.traveler ? mj.traveler : null; travelers = (mj && mj.travelers) || []; } catch (_) { me = null; }
       return true;
     } catch (_) { return false; }
   }
@@ -532,7 +539,6 @@
   $("cfg-reset").addEventListener("click", () => {
     pending = null; renderPanel();
     if (shared && signedIn()) { update({ cfg: { ...DEFAULT }, user: { reset: true, punted: [], pinned: [], requested: [] } }); return; }
-    if (shared) { adoptShared(); whatIf = false; render(); return; }
     update({ cfg: { ...DEFAULT }, user: { punted: [], pinned: [], requested: [] } });
   });
 

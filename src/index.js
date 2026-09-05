@@ -44,12 +44,22 @@ async function loadState(db) {
     else (notThisDay[m.venue_id] = notThisDay[m.venue_id] || []).push(m.date);
   }
   let placements = {}; try { placements = JSON.parse(trip.placements || "{}"); } catch (e) {}
-  return { id: trip.id, start: trip.start, nights: trip.nights, version: trip.version, updated_at: trip.updated_at, venues, preferences, completed, fixed, notThisDay, placements };
+  const travelers = (await db.prepare("SELECT id FROM travelers").all()).results.map((t) => t.id);
+  return { id: trip.id, start: trip.start, nights: trip.nights, version: trip.version, updated_at: trip.updated_at, venues, preferences, completed, fixed, notThisDay, placements, travelers };
 }
 
-async function travelerFor(db, identity) {
+async function travelerFor(db, identity, env) {
   if (!identity || !identity.email) return null;
-  return db.prepare("SELECT t.id, t.name, t.role, t.is_admin FROM traveler_identities i JOIN travelers t ON t.id = i.traveler_id WHERE i.email = ?").bind(identity.email).first();
+  const row = await db.prepare("SELECT t.id, t.name, t.role, t.is_admin FROM traveler_identities i JOIN travelers t ON t.id = i.traveler_id WHERE i.email = ?").bind(identity.email).first();
+  if (row) return row;
+  // Local dev only: DEV_IDENTITY may name a traveler id directly (e.g. "bart").
+  if (identity.sub === "dev" && env && env.DEV_IDENTITY) return db.prepare("SELECT id, name, role, is_admin FROM travelers WHERE id = ?").bind(env.DEV_IDENTITY.split("@")[0].toLowerCase()).first();
+  return null;
+}
+
+// Family state is behind sign-in. Public gets the pitch, not the game.
+async function requireTraveler(request, env, db) {
+  return (await travelerFor(db, await identify(request, env), env)) || null;
 }
 
 async function decisions(db, limit = 12) {
@@ -83,7 +93,7 @@ async function evaluateAchievements(env, db, s, plan) {
   const fresh = [];
   const now = new Date().toISOString();
   for (const t of travelers) {
-    const facts = { travelerId: t.id, isAdmin: !!t.is_admin, completed: s.completed, bundles: planner.catalog.bundles, decisions: allDecisions, preferences: s.preferences, phase: plan.phase, hadHiHi, unlockedByTraveler: have.byTraveler };
+    const facts = { travelerId: t.id, isAdmin: !!t.is_admin, completed: s.completed, bundles: planner.catalog.bundles, decisions: allDecisions, preferences: s.preferences, phase: plan.phase, hadHiHi, unlockedByTraveler: have.byTraveler, travelerIds: travelers.map((x) => x.id) };
     for (const id of achievements.evaluate(facts)) {
       const def = achievements.byId[id];
       if (def.scope === "trip") { if (!have.group.includes(id)) { await kv.put(akey("trip", null, id), JSON.stringify({ unlockedAt: now, source: "evaluate", version: 1 })); have.group.push(id); fresh.push({ scope: "trip", id, name: def.name }); } continue; }
@@ -116,12 +126,13 @@ export default {
     const db = env.DB;
 
     if (url.pathname === "/api/me") {
-      const traveler = await travelerFor(db, await identify(request, env));
+      const traveler = await travelerFor(db, await identify(request, env), env);
       const all = (await db.prepare("SELECT id, name, role, is_admin FROM travelers ORDER BY rowid").all()).results;
       return json(traveler ? { traveler, travelers: all } : { traveler: null, travelers: all });
     }
 
     if (url.pathname === "/api/achievements") {
+      if (!(await requireTraveler(request, env, db))) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       // Trip-level trophies can come due with time alone (the trip ending), so check here too.
       try { const s = await loadState(db); const ext = external(env); const cur = planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext); await evaluateAchievements(env, db, s, cur); } catch (e) {}
       const have = await unlocked(env.KV);
@@ -130,6 +141,7 @@ export default {
     }
 
     if (url.pathname === "/api/today") {
+      if (!(await requireTraveler(request, env, db))) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       const s = await loadState(db);
       const ext = external(env);
       const current = planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext);
@@ -147,13 +159,14 @@ export default {
     }
 
     if (url.pathname === "/api/trip" && request.method === "GET") {
+      if (!(await requireTraveler(request, env, db))) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       const s = await loadState(db);
       if (!s) return json({ error: "No trip yet. Run the migrations." }, 500);
       return json({ trip: publicState(s), decisions: await decisions(db), today: todayISO(env) });
     }
 
     if (url.pathname === "/api/intent" && request.method === "POST") {
-      const traveler = await travelerFor(db, await identify(request, env));
+      const traveler = await travelerFor(db, await identify(request, env), env);
       if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       let body; try { body = await request.json(); } catch (e) { return json({ error: "Bad JSON." }, 400); }
       const s = await loadState(db);
@@ -177,7 +190,9 @@ export default {
 
       const now = new Date().toISOString();
       const stmts = [
-        db.prepare("UPDATE trips SET start = ?, nights = ?, placements = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?").bind(r.state.start, r.state.nights, JSON.stringify(after.placements), now, TRIP_ID, s.version),
+        // The guard: a stale writer collides on (trip_id, version) and the whole batch rolls back.
+        db.prepare("INSERT INTO trip_versions (trip_id, version, at) VALUES (?, ?, ?)").bind(TRIP_ID, s.version + 1, now),
+        db.prepare("UPDATE trips SET start = ?, nights = ?, placements = ?, version = ?, updated_at = ? WHERE id = ? AND version = ?").bind(r.state.start, r.state.nights, JSON.stringify(after.placements), s.version + 1, now, TRIP_ID, s.version),
         db.prepare("DELETE FROM trip_marks WHERE trip_id = ?").bind(TRIP_ID),
         ...Object.entries(r.state.completed).map(([vid, d]) => db.prepare("INSERT INTO trip_marks (trip_id, venue_id, kind, date, set_by, set_at) VALUES (?, ?, 'completed', ?, ?, ?)").bind(TRIP_ID, vid, d, traveler.id, now)),
         ...Object.entries(r.state.fixed).map(([vid, d]) => db.prepare("INSERT INTO trip_marks (trip_id, venue_id, kind, date, set_by, set_at) VALUES (?, ?, 'fixed', ?, ?, ?)").bind(TRIP_ID, vid, d, traveler.id, now)),
@@ -188,8 +203,10 @@ export default {
         ...Object.entries(r.state.preferences).flatMap(([tid, prefs]) => Object.entries(prefs).map(([vid, c]) => db.prepare("INSERT INTO preferences (trip_id, traveler_id, venue_id, choice, set_at) VALUES (?, ?, ?, ?, ?)").bind(TRIP_ID, tid, vid, c, now))),
         db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(TRIP_ID, now, traveler.id, intent.type, JSON.stringify(body.intent), `${r.summary}${consequence ? " " + consequence : ""} Now: ${after.label}.`),
       ];
-      const results = await db.batch(stmts);
-      if (!results[0].meta.changes) { const cur = await loadState(db); return json({ error: "Somebody else changed the trip first.", trip: publicState(cur), decisions: await decisions(db) }, 409); }
+      let results;
+      try { results = await db.batch(stmts); }
+      catch (e) { const cur = await loadState(db); return json({ error: "Somebody else changed the trip first.", trip: publicState(cur), decisions: await decisions(db) }, 409); }
+      if (!results[1].meta.changes) { const cur = await loadState(db); return json({ error: "Somebody else changed the trip first.", trip: publicState(cur), decisions: await decisions(db) }, 409); }
       const cur = await loadState(db);
       let fresh = [];
       try { fresh = await evaluateAchievements(env, db, cur, after); } catch (e) { fresh = []; }
