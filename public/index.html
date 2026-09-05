@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Washington, for Christmas</title>
   <meta name="description" content="Bart, Jess, Sam, and Nanny take the Crescent to Washington, DC for seven nights, Nov 28 – Dec 7, 2026.">
-  <meta name="theme-color" content="#0f1b33">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f1b33'/%3E%3Cpolygon points='32,8 12,52 52,52' fill='%23e3b04b'/%3E%3Ccircle cx='32' cy='30' r='4' fill='%23c8402f'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#f4f1ea">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23f4f1ea'/%3E%3Crect x='6' y='6' width='52' height='52' fill='none' stroke='%231c2a4a' stroke-width='3'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='%23a8322c' font-family='Georgia,serif'%3EW%3C/text%3E/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap">
   <link rel="stylesheet" href="/style.css">
   <script>
     // Photo slots are optional: drop a file into /img with the expected name and it
@@ -21,19 +21,25 @@
       var fig = img.closest("figure");
       (fig || img).remove();
     }, true);
+    // Frames and captions stay invisible until the photo has actually loaded.
+    document.addEventListener("load", function (e) {
+      var img = e.target;
+      if (img instanceof HTMLImageElement && img.classList.contains("photo")) img.classList.add("ready");
+    }, true);
   </script>
 </head>
 <body>
-<canvas id="snow" aria-hidden="true"></canvas>
-
 <header class="hero">
-  <img class="hero-photo photo" src="/img/hero-capitol-night.jpg" alt="" fetchpriority="high">
   <p class="eyebrow">
     <span>Sat&nbsp;Nov&nbsp;28 → Mon&nbsp;Dec&nbsp;7, 2026</span>
-    <span class="dot" aria-hidden="true"></span>
+    <span class="star" aria-hidden="true">✦</span>
     <span>Anniston&nbsp;⇄&nbsp;Washington via the Crescent</span>
   </p>
   <h1>Washington,<br><em>for Christmas.</em></h1>
+  <div class="ornament" aria-hidden="true"><span></span><i>✦</i><span></span></div>
+  <figure class="plate">
+    <img class="photo" src="/img/hero-capitol-night.jpg" alt="The U.S. Capitol at night" fetchpriority="high">
+  </figure>
   <p class="lede">
     Seven nights in the capital. Sleeper cars there and back. The Capitol lit up at night,
     dinosaurs, the Hope Diamond, the actual Declaration of Independence, and a whole city
@@ -61,7 +67,7 @@
   <!-- ───────────── THE TRAIN ───────────── -->
   <section id="train" class="section">
     <div class="section-head">
-      <p class="kicker">Getting there</p>
+      <p class="kicker">I. &nbsp;Getting there</p>
       <h2>The train <em>is</em> the trip.</h2>
       <p class="intro">
         No airport. No rental car. We board the Amtrak Crescent in Anniston after Bart gets off work,
@@ -102,16 +108,16 @@
     </figure>
 
     <ul class="perks">
-      <li><b>Your own room on a train.</b> Beds fold down, the window is yours, and somebody brings dinner to you.</li>
-      <li><b>Evening boarding.</b> Anniston lets us leave at a civilized hour instead of waiting up past midnight in Atlanta.</li>
-      <li><b>Home base on the Mall.</b> We're aiming for L'Enfant Plaza, a short walk from Air &amp; Space, Natural History, and the Washington Monument, with a one-seat Metro ride to Arlington.</li>
+      <li><span class="star" aria-hidden="true">✦</span> <b>Your own room on a train.</b> Beds fold down, the window is yours, and somebody brings dinner to you.</li>
+      <li><span class="star" aria-hidden="true">✦</span> <b>Evening boarding.</b> Anniston lets us leave at a civilized hour instead of waiting up past midnight in Atlanta.</li>
+      <li><span class="star" aria-hidden="true">✦</span> <b>Home base on the Mall.</b> We're aiming for L'Enfant Plaza, a short walk from Air &amp; Space, Natural History, and the Washington Monument, with a one-seat Metro ride to Arlington.</li>
     </ul>
   </section>
 
   <!-- ───────────── THE WEEK ───────────── -->
   <section id="week" class="section">
     <div class="section-head">
-      <p class="kicker">Nine days, one big thing a day</p>
+      <p class="kicker">II. &nbsp;Nine days, one big thing a day</p>
       <h2>The week.</h2>
       <p class="intro">
         Every day gets one real adventure, and the day and night are balanced so nobody gets wrecked.
@@ -286,7 +292,7 @@
   <!-- ───────────── THE LIST ───────────── -->
   <section id="list" class="section">
     <div class="section-head">
-      <p class="kicker">Why this trip</p>
+      <p class="kicker">III. &nbsp;Why this trip</p>
       <h2>We're doing it properly.</h2>
       <p class="intro">
         We're probably only doing this once, so we picked the A-list and gave every one of them the time it deserves.
@@ -294,7 +300,7 @@
       </p>
     </div>
 
-    <ul class="canon">
+    <ol class="canon">
       <li>U.S. Capitol</li>
       <li>Library of Congress</li>
       <li>Air and Space Museum</li>
@@ -308,10 +314,10 @@
       <li>World War II Memorial</li>
       <li>Arlington National Cemetery</li>
       <li>Christmas in Washington</li>
-    </ul>
+    </ol>
 
     <details class="bonus">
-      <summary>The bonus round <span>if weather, tickets, or energy open a door</span></summary>
+      <summary><span class="plus" aria-hidden="true">+</span> The bonus round <span>if weather, tickets, or energy open a door</span></summary>
       <p>None of these are obligations. If a slot opens up, we pick from here. If not, we leave DC without regret.</p>
       <ul>
         <li>Washington Monument observation deck</li>
@@ -332,30 +338,31 @@
   <!-- ───────────── HOUSE RULES ───────────── -->
   <section id="rules" class="section">
     <div class="section-head">
-      <p class="kicker">How we keep it fun</p>
+      <p class="kicker">IV. &nbsp;How we keep it fun</p>
       <h2>House rules.</h2>
     </div>
 
     <div class="rules">
       <article class="rule">
-        <h3>Cold can shorten an outing. It can't ruin the vacation.</h3>
+        <h3><span class="art">Art. I</span>Cold can shorten an outing. It can't ruin the vacation.</h3>
         <p>If it's 28° and windy at the Korean War Memorial, we call an Uber XL, get warm, and reshuffle. Nobody pushes through misery to check a box.</p>
       </article>
       <article class="rule">
-        <h3>This is not a death march.</h3>
+        <h3><span class="art">Art. II</span>This is not a death march.</h3>
         <p>One big thing a day. Museum closing time is not a challenge to be defeated. When the family is full, we leave, and the day still counts as a win.</p>
       </article>
       <article class="rule">
-        <h3>Spend the twenty bucks.</h3>
+        <h3><span class="art">Art. III</span>Spend the twenty bucks.</h3>
         <p>Metro when it's convenient, walking when the walk is nice, and a car the second it saves a thousand cold steps at the end of the day. We're not here to win a transit efficiency contest.</p>
       </article>
       <article class="rule">
-        <h3>We stay together.</h3>
+        <h3><span class="art">Art. IV</span>We stay together.</h3>
         <p>One family unit, the whole week. Every day has something worth doing, and the difficulty is budgeted across the whole day so all four of us can do all of it.</p>
       </article>
     </div>
 
     <blockquote class="thesis">
+      <span class="stars" aria-hidden="true">✦ ✦ ✦</span>
       <p>Leave Washington feeling like we actually saw Washington, without needing a vacation from the vacation.</p>
     </blockquote>
   </section>
