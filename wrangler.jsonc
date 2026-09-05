@@ -9,6 +9,10 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/family"]
   },
+  "kv_namespaces": [
+    // Achievement unlocks and the cached forecast. Create with: wrangler kv namespace create KV
+    { "binding": "KV", "id": "REPLACE_WITH_KV_ID" }
+  ],
   "d1_databases": [
     { "binding": "DB", "database_name": "dc-christmas", "database_id": "9bc10751-d877-405e-b5fe-63f07c8d7f6f", "migrations_dir": "migrations" }
   ],

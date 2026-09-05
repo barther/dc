@@ -70,6 +70,10 @@
   let prevPlan = null;
   let shared = null;   // { trip, decisions } from the Worker, or null in local mode
   let me = null;       // signed-in traveler, or null
+  let travelers = [];  // everyone on the trip
+  let today = null;    // ISO, from the Worker (or the browser in local mode)
+  let live = null;     // /api/today: weather, fits, suggestion
+  let trophies = null; // /api/achievements
   let whatIf = false;  // anonymous visitor exploring locally on top of the shared trip
   const signedIn = () => !!me;
   const isAdmin = () => !!(me && me.is_admin);
@@ -105,9 +109,31 @@
     return `<div class="halves">${h("day", day)}${h("night", night)}</div>`;
   }
 
-  function unitControls(u) {
+  const CHOICES = [["must", "Must do"], ["good", "Sounds good"], ["meh", "Meh"], ["punt", "Punt"]];
+  const initials = (t) => t.name[0];
+
+  // Personal opinions, not mutations. Everyone's shown; yours is clickable.
+  function prefRow(u) {
+    if (!shared || !signedIn()) return "";
+    const prefs = shared.trip.preferences || {};
+    const mine = (prefs[me.id] || {})[u.members[0]] || null;
+    const others = travelers.filter((t) => t.id !== me.id && (prefs[t.id] || {})[u.members[0]]).map((t) => `<span class="vote ${(prefs[t.id] || {})[u.members[0]]}" title="${esc(t.name)}: ${(prefs[t.id] || {})[u.members[0]]}">${esc(initials(t))}</span>`).join("");
+    return `<div class="prefs"><span class="prefs-you">You</span>${CHOICES.map(([c, l]) => `<button type="button" class="ctl pref${mine === c ? " on " + c : ""}" data-act="prefer" data-choice="${mine === c ? "" : c}" data-ids="${u.members.join(",")}">${l}</button>`).join("")}${others ? `<span class="votes">${others}</span>` : ""}</div>`;
+  }
+
+  function doneRow(u, d) {
+    if (!shared || !signedIn() || !d) return "";
+    const ids = u.members.join(","), date = iso(d.date);
+    if (u.completedOn) return `<span class="done-state">✓ Done</span><button type="button" class="ctl" data-act="uncomplete" data-ids="${ids}">Undo</button>`;
+    if (d.past || d.isToday) return `<button type="button" class="ctl" data-act="complete" data-ids="${ids}" data-date="${date}">Mark done</button>${d.isToday ? `<button type="button" class="ctl" data-act="bail" data-ids="${ids}" data-date="${date}" title="We were there, it was miserable, we called the car">We bailed</button>` : ""}`;
+    return `<button type="button" class="ctl" data-act="not_this_day" data-ids="${ids}" data-date="${date}" title="Keep it, move it">Not this day</button>`;
+  }
+
+  function unitControls(u, d) {
     if (!u) return "";
+    if (shared && signedIn() && !isAdmin()) return `<span class="unit-controls">${doneRow(u, d)}</span>`;
     const ids = u.members.join(",");
+    const override = shared && signedIn() ? `<span class="ctl-state override">Override</span>` : "";
     const state = u.pinned ? `<span class="ctl-state">✦ Must-do</span>` : u.requested ? `<span class="ctl-state">Added by you</span>` : "";
     const pin = u.pinned
       ? `<button type="button" class="ctl" data-act="unpin" data-ids="${ids}" title="Back to an ordinary recommendation">Relax</button>`
@@ -115,7 +141,7 @@
     const off = u.requested && !u.pinned
       ? `<button type="button" class="ctl" data-act="unask" data-ids="${ids}" title="Back to the board">Remove</button>`
       : `<button type="button" class="ctl" data-act="punt" data-ids="${ids}" title="Take this off the trip">Punt</button>`;
-    return `<span class="unit-controls">${state}${pin}${off}</span>`;
+    return `<span class="unit-controls">${override}${state}${pin}${off}${doneRow(u, d)}</span>`;
   }
 
   // Ranked suggestions for an open slot. Recommended, never imposed.
@@ -127,8 +153,12 @@
       <span class="suggest-or">or leave it open.</span></div>`;
   }
 
+  // Family photos replace the promotional ones when they exist: /img/done-<file>.
   function figure(photo, cls) {
-    return photo ? `<figure class="${cls}"><img class="photo" src="/img/${photo[0]}" alt="${esc(photo[1])}" loading="lazy"><figcaption>${esc(photo[1])}</figcaption></figure>` : "";
+    if (!photo) return "";
+    const done = prevPlan && prevPlan.phase === "after";
+    const src = done ? `/img/done-${photo[0]}` : `/img/${photo[0]}`;
+    return `<figure class="${cls}"><img class="photo" src="${src}" ${done ? `data-fallback="/img/${photo[0]}"` : ""} alt="${esc(photo[1])}" loading="lazy"><figcaption>${esc(photo[1])}</figcaption></figure>`;
   }
 
   function renderFull(p, d) {
@@ -147,7 +177,7 @@
     const dayHalf = du ? { label: du.short, load: du.load } : C.structural.open;
     const nightHalf = nu ? { label: nu.short, load: nu.load } : C.structural.rest;
     return card(d, title, body, photo, halves(dayHalf, nightHalf), featured, false,
-      (du ? `<div class="ctl-row"><span>Day</span>${unitControls(du)}</div>` : suggestions(d, "day")) + (nu ? `<div class="ctl-row"><span>Night</span>${unitControls(nu)}</div>` : (du && du.load !== "hi" ? suggestions(d, "night") : "")));
+      (du ? `<div class="ctl-row"><span>Day</span>${unitControls(du, d)}</div>${prefRow(du)}` : (d.past ? "" : suggestions(d, "day"))) + (nu ? `<div class="ctl-row"><span>Night</span>${unitControls(nu, d)}</div>${prefRow(nu)}` : (du && du.load !== "hi" && !d.past ? suggestions(d, "night") : "")));
   }
 
   function renderDeparture(p, d) {
@@ -160,11 +190,11 @@
     const title = d.day.shortened ? `${cap(c.title)}, shortened, then home.` : `${cap(c.title)}, then home.`;
     const body = c.short ? c.short.slice() : [...c.body, NARRATIVE.departureTail];
     return card(d, title, body, c.photo || null, halves({ label: d.day.shortened ? `${du.short}, a couple of hours` : du.short, load: d.day.shortened ? "mid" : du.load }, C.structural.departure.night), false, false,
-      `<div class="ctl-row"><span>Morning</span>${unitControls(du)}</div>`);
+      `<div class="ctl-row"><span>Morning</span>${unitControls(du, d)}</div>${prefRow(du)}`);
   }
 
   function card(d, title, body, photo, halvesHtml, featured, late, controls) {
-    const cls = ["stop", featured ? "featured" : "", d.kind === "home" ? "last" : "", late ? "late" : ""].filter(Boolean).join(" ");
+    const cls = ["stop", featured ? "featured" : "", d.kind === "home" ? "last" : "", late ? "late" : "", d.past ? "past" : "", d.isToday ? "today" : ""].filter(Boolean).join(" ");
     return `<li class="${cls}"><div class="stop-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span></div>
       <div class="stop-body"><h3>${esc(title)}</h3>${figure(photo, "stop-photo")}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${controls}</div></li>`;
   }
@@ -192,11 +222,12 @@
       const ex = p.excluded.find((e) => e.unit.id === u.id);
       const note = u.pinned ? `<em class="bench-note">Marked must-do, but there's ${ex ? ex.why : "no room"}.</em>`
         : u.requested ? `<em class="bench-note">Doesn't fit without changing the current trip. <button type="button" class="link" data-act="options" data-ids="${u.members[0]}">See the options</button></em>` : "";
-      const btn = u.pinned
+      const btn = shared && signedIn() && !isAdmin() ? "" : u.pinned
         ? `<button type="button" class="ctl" data-act="unpin" data-ids="${u.members.join(",")}">Let it go</button>`
         : u.requested
         ? `<button type="button" class="ctl" data-act="unask" data-ids="${u.members.join(",")}">Never mind</button>`
         : `<button type="button" class="ctl" data-act="ask" data-ids="${u.members.join(",")}">Add to trip</button>`;
+      if (shared && signedIn()) return `<li><span class="bench-meta">#${u.seed} · ${u.load.toUpperCase()} · ${u.period.toUpperCase()}</span><span class="bench-name">${esc(u.name)}${note}${prefRow(u)}</span>${btn}</li>`;
       return `<li><span class="bench-meta">#${u.seed} · ${u.load.toUpperCase()} · ${u.period.toUpperCase()}</span><span class="bench-name">${esc(u.name)}${note}</span>${btn}</li>`;
     };
     const puntRow = (v) => `<li class="punted"><span class="bench-meta">#${v.seed} · ${v.load.toUpperCase()} · ${v.period.toUpperCase()}</span><span class="bench-name">${esc(v.name)}</span><button type="button" class="ctl" data-act="unpunt" data-ids="${v.id}">Bring back</button></li>`;
@@ -208,7 +239,7 @@
   /* ───────────── Page ───────────── */
 
   function render() {
-    const p = P.plan(cfg, user, prevPlan);
+    const p = P.plan(cfg, user, prevPlan, { today: today || (shared ? null : localToday()) });
     const s = P.summarize(p);
     prevPlan = p;
 
@@ -243,6 +274,10 @@
     $("b-back-from").textContent = `${fmtDMD(p.depart)} · ${TRAIN.departLabel}`;
     $("b-back-to").textContent = `${fmtDMD(p.home)} · ${TRAIN.homeLabel}`;
 
+    // Today in Washington, and the trophy case
+    renderToday(p);
+    renderTrophies();
+
     // Week
     const WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
     const nDays = p.days.length + 1;
@@ -263,6 +298,12 @@
     // Bench + footer
     renderBench(p);
     $("foot-dates").textContent = `${fmtMD(p.trainOut)} – ${fmtMD(p.home)}, ${p.home.getFullYear()}`;
+  }
+
+  function localToday() {
+    const q = new URLSearchParams(location.search).get("today");
+    if (q && parseISO(q)) return q;
+    return iso(new Date());
   }
 
   function update(next, live) {
@@ -289,11 +330,79 @@
       }
     }
     if (next.cfg) cfg = { ...cfg, ...next.cfg };
-    if (next.user) user = { punted: [...(next.user.punted || [])], pinned: [...(next.user.pinned || [])], requested: [...(next.user.requested || [])] };
+    if (next.user) user = { ...user, punted: [...(next.user.punted || [])], pinned: [...(next.user.pinned || [])], requested: [...(next.user.requested || [])] };
     cfg.nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights));
-    if (shared && !signedIn() && !live) whatIf = !(cfg.start === shared.trip.start && cfg.nights === shared.trip.nights && JSON.stringify(user) === JSON.stringify({ punted: shared.trip.planner.punted, pinned: shared.trip.planner.pinned, requested: shared.trip.planner.requested }));
+    if (shared && !signedIn() && !live) { const pl = shared.trip.planner; whatIf = !(cfg.start === shared.trip.start && cfg.nights === shared.trip.nights && JSON.stringify([user.punted, user.pinned, user.requested]) === JSON.stringify([pl.punted, pl.pinned, pl.requested])); }
     if (!live && !shared) writeHash();
     render();
+  }
+
+  /* ───────────── Today in Washington ───────────── */
+
+  function renderToday(p) {
+    const el = $("today");
+    renderRecord(p);
+    if (p.phase !== "live") { el.hidden = true; return; }
+    const d = p.days.find((x) => x.isToday);
+    if (!d) { el.hidden = true; return; }
+    el.hidden = false;
+    if (live && live.weather && !d.weather) d.weather = live.weather[iso(d.date)] || null;
+    if (live && live.fits) d.fit = live.fits;
+    const line = (slot, x) => {
+      if (!x) return `<p class="today-line"><span class="today-slot">${slot}</span> ${slot === "Day" ? (d.kind === "arrival" ? esc(C.structural.arrival.day.label) : "Open") : (d.kind === "arrival" ? esc(C.structural.arrival.night.label) : d.kind === "departure" ? esc(C.structural.departure.night.label) : "Dinner, nothing scheduled")}</p>`;
+      const u = p.units[x.id], fit = d.fit[slot.toLowerCase()];
+      return `<p class="today-line"><span class="today-slot">${slot}</span> ${loadBadge(u.load)} <b>${esc(u.name)}</b>${x.shortened ? ", shortened" : ""}${u.completedOn ? ' <span class="done-state">✓ Done</span>' : ""}${fit ? ` <span class="fit ${fit}">${fit}</span>` : ""}</p>`;
+    };
+    const w = d.weather ? `<p class="today-weather">${esc(d.weather.summary || "")}</p>` : "";
+    const sug = live && live.suggestion ? `<div class="better"><p class="kicker-sm">Better plan available</p><p>${esc(live.suggestion.summary)}</p>${signedIn() ? `<button type="button" class="ctl on" data-swap="1">Make the swap</button>` : ""}</div>` : "";
+    $("today-body").innerHTML = `<p class="today-date">${esc(fmtDMDY(d.date))}</p>${w}${line("Day", d.day)}${line("Night", d.night)}${sug}`;
+  }
+
+  // After the trip: the record, not dead infrastructure.
+  function renderRecord(p) {
+    const el = $("record");
+    if (p.phase !== "after") { el.hidden = true; return; }
+    el.hidden = false;
+    const doneCount = C.headlines.filter((h) => (user.completed || {})[h]).length;
+    const swaps = (shared && shared.decisions || []).filter((d) => d.type === "swap").length;
+    const punts = (shared && shared.decisions || []).filter((d) => d.type === "punt" || /punt/.test(d.summary)).length;
+    const total = trophies ? Object.values(trophies.byTraveler).reduce((n, l) => n + l.length, 0) + trophies.group.length : null;
+    $("record-body").innerHTML = `<p class="today-date">${esc(fmtMD(p.trainOut))} – ${esc(fmtDMDY(p.home))}</p>
+      <ul class="record-list"><li><b>${doneCount}</b> of ${C.headlines.length} headline experiences</li>${total != null ? `<li><b>${total}</b> achievements</li>` : ""}<li><b>${swaps}</b> weather-driven ${swaps === 1 ? "swap" : "swaps"}</li><li><b>${punts}</b> strategic ${punts === 1 ? "punt" : "punts"}</li><li><b>0</b> HI/HI days</li></ul>
+      ${trophies && trophies.group.includes("wally-world") ? `<p class="record-trophy">Wally World Was Open.</p>` : ""}`;
+  }
+
+  /* ───────────── Trophies: personal, and the standings ───────────── */
+
+  function renderTrophies() {
+    const el = $("trophies");
+    if (!shared || !trophies || !signedIn()) { el.hidden = true; return; }
+    el.hidden = false;
+    const defs = Object.fromEntries(trophies.defs.map((d) => [d.id, d]));
+    const mine = (trophies.byTraveler[me.id] || []).map((id) => defs[id]).filter(Boolean);
+    const musts = Object.entries((shared.trip.preferences || {})[me.id] || {}).filter(([, c]) => c === "must").map(([v]) => (C.venues.find((x) => x.id === v) || {}).name).filter(Boolean);
+    const doneMine = C.headlines.filter((h) => (user.completed || {})[h]).length;
+    const standings = travelers.map((t) => ({ t, n: (trophies.byTraveler[t.id] || []).length })).sort((a, b) => b.n - a.n || a.t.name.localeCompare(b.t.name));
+    const bartFirst = standings[0] && standings[0].t.is_admin;
+    $("trophies-body").innerHTML = `
+      <div class="mine"><p class="kicker-sm">${esc(me.name)}'s Washington</p>
+        <p><b>${mine.length}</b> ${mine.length === 1 ? "achievement" : "achievements"} · <b>${doneMine}</b> of ${C.headlines.length} headline experiences done${musts.length ? ` · must do: ${esc(musts.join(", "))}` : ""}</p>
+        ${mine.length ? `<ul class="trophy-list">${mine.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span></li>`).join("")}</ul>` : `<p class="muted">Nothing yet. Go see something.</p>`}
+      </div>
+      <div class="standings"><p class="kicker-sm">Current standings</p>
+        <ol>${standings.map((s) => `<li><span>${esc(s.t.name)}</span><b>${s.n}</b></li>`).join("")}</ol>
+        ${!bartFirst && standings.length ? `<p class="muted">Bart has appealed the results.</p>` : ""}
+        ${trophies.group.length ? `<p class="muted">Trip: ${trophies.group.map((id) => (defs[id] || {}).name).filter(Boolean).join(", ")}</p>` : ""}
+      </div>`;
+  }
+
+  async function fetchLive() {
+    if (!shared) return;
+    try {
+      const [t, a] = await Promise.all([fetch("/api/today"), signedIn() ? fetch("/api/achievements") : Promise.resolve(null)]);
+      live = t.ok ? await t.json() : null;
+      trophies = a && a.ok ? await a.json() : null;
+    } catch (_) { live = null; trophies = null; }
   }
 
   /* ───────────── Who's here, what's been decided ───────────── */
@@ -321,14 +430,17 @@
       const [t, m] = await Promise.all([fetch("/api/trip", { headers: { accept: "application/json" } }), fetch("/api/me", { headers: { accept: "application/json" }, redirect: "manual" })]);
       if (!t.ok) return false;
       shared = await t.json();
-      try { const mj = m.ok ? await m.json() : null; me = mj && mj.traveler ? mj.traveler : null; } catch (_) { me = null; }
+      today = shared.today || null;
+      try { const mj = m.ok ? await m.json() : null; me = mj && mj.traveler ? mj.traveler : null; travelers = (mj && mj.travelers) || []; } catch (_) { me = null; }
       return true;
     } catch (_) { return false; }
   }
 
   function adoptShared() {
     cfg = { start: shared.trip.start, nights: shared.trip.nights };
-    user = { punted: [...shared.trip.planner.punted], pinned: [...shared.trip.planner.pinned], requested: [...shared.trip.planner.requested] };
+    const pl = shared.trip.planner;
+    user = { punted: [...pl.punted], pinned: [...pl.pinned], requested: [...pl.requested], completed: pl.completed || {}, fixed: pl.fixed || {}, notThisDay: pl.notThisDay || {} };
+    prevPlan = { placements: shared.trip.placements || {} };
   }
 
   // Send intent. Returns { ok, preview } — a preview means the Worker wants a confirmation.
@@ -339,7 +451,10 @@
     if (res.status === 409 && body && body.trip) { shared = body; adoptShared(); render(); toast("Somebody else changed the trip first. Here's the latest."); return { ok: false }; }
     if (!res.ok) { toast((body && body.error) || "That didn't take."); return { ok: false }; }
     if (body.preview) return { ok: true, preview: body };
-    shared = { trip: body.trip, decisions: body.decisions }; adoptShared(); render();
+    shared = { trip: body.trip, decisions: body.decisions, today: body.today }; adoptShared();
+    await fetchLive(); render();
+    const mine = (body.unlocked || []).filter((u) => u.scope === "trip" || u.traveler === (me && me.id));
+    if (mine.length) toast(`Achievement unlocked: ${mine.map((u) => u.name).join(", ")}`);
     return { ok: true };
   }
 
@@ -407,7 +522,7 @@
   /* ───────────── Wire up ───────────── */
 
   (async () => {
-    if (await fetchShared()) { adoptShared(); if (location.hash === "#signed-in") history.replaceState(null, "", location.pathname); }
+    if (await fetchShared()) { adoptShared(); await fetchLive(); if (location.hash === "#signed-in") history.replaceState(null, "", location.pathname); }
     else readHash();
     render();
     document.addEventListener("visibilitychange", async () => { if (!document.hidden && shared && !whatIf && !pending && await fetchShared()) { adoptShared(); render(); } });
@@ -451,7 +566,7 @@
     el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
-  const INTENT_OF = { punt: "punt", unpunt: "unpunt", pin: "pin", unpin: "unpin", ask: "ask", unask: "unask" };
+  const INTENT_OF = { punt: "punt", unpunt: "unpunt", pin: "pin", unpin: "unpin", ask: "ask", unask: "unask", complete: "complete", uncomplete: "uncomplete", not_this_day: "not_this_day", bail: "bail", prefer: "prefer" };
 
   function nameOf(ids) {
     const unit = Object.values(prevPlan.units).find((x) => x.members.some((m) => ids.includes(m)));
@@ -460,10 +575,19 @@
     return bundle ? bundle[1].name : (C.venues.find((v) => v.id === ids[0]) || {}).name || "this";
   }
 
-  async function actShared(action, ids) {
+  async function actShared(action, ids, extra = {}) {
     const unit = Object.values(prevPlan.units).find((x) => x.members.some((m) => ids.includes(m)));
     const name = nameOf(ids);
-    const intent = { type: INTENT_OF[action], venue: ids[0], members: ids };
+    const intent = { type: INTENT_OF[action], venue: ids[0], members: ids, ...extra };
+    if (action === "prefer" && unit && extra.choice === "good") {
+      // Would the group reading land it? If not, record the opinion and show the trades up front.
+      const trial = { ...user, requested: [...user.requested, ...ids] };
+      const after = P.plan(cfg, trial, prevPlan, { today });
+      if (!after.placements[unit.id]) {
+        await send(intent, true);
+        pending = { kind: "options", name: unit.name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return;
+      }
+    }
     if (action === "unpin" && ids.some((id) => user.requested.includes(id))) intent.backTo = "requested";
     if (action === "ask" && unit) {
       // Would it land? Ask the planner locally first so the options panel can offer the trades.
@@ -484,9 +608,10 @@
     } else if (r.ok) $("week").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function act(action, ids) {
+  function act(action, ids, extra) {
     pending = null;
-    if (shared && signedIn()) { actShared(action, ids); return; }
+    if (shared && signedIn()) { actShared(action, ids, extra); return; }
+    if (!["punt", "unpunt", "pin", "unpin", "ask", "unask"].includes(action)) return;
     const before = prevPlan;
     const u = nextUser(action, ids);
     if (action === "punt" || action === "unpunt" || action === "unask" || action === "unpin") {
@@ -515,6 +640,11 @@
   }
 
   document.addEventListener("click", (e) => {
+    const sw = e.target.closest("button[data-swap]");
+    if (sw && live && live.suggestion) {
+      send({ type: "swap", moves: live.suggestion.moves.map((m) => ({ venue: m.venue, date: m.date, name: m.name })), reason: live.weather && live.weather[today] ? live.weather[today].summary : "weather" }, true);
+      return;
+    }
     const pb = e.target.closest("button[data-panel]");
     if (pb) {
       const k = pb.dataset.panel;
@@ -546,6 +676,8 @@
     }
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const ids = b.dataset.ids.split(","), a = b.dataset.act;
+    if (a === "prefer") { act(a, ids, { choice: b.dataset.choice || null }); return; }
+    if (["complete", "not_this_day", "bail"].includes(a)) { act(a, ids, { date: b.dataset.date }); return; }
     if (a === "options") { pending = { kind: "options", name: prevPlan.units[Object.values(prevPlan.units).find((x) => x.members.includes(ids[0])).id].name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
     act(a, ids);
   });

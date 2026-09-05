@@ -5,7 +5,7 @@ const P = require("../public/planner.js");
 const C = require("../public/venues.js");
 
 const D = { start: "2026-11-29", nights: 7 };
-const plan = (cfg, state, prev) => P.plan({ ...D, ...cfg }, state || {}, prev || null);
+const plan = (cfg, state, prev, external) => P.plan({ ...D, ...cfg }, state || {}, prev || null, external || {});
 const fullDays = (p) => p.days.filter((d) => d.kind === "full");
 const dayIds = (p) => fullDays(p).map((d) => [d.day && d.day.id, d.night && d.night.id]);
 const included = (p, id) => p.includedVenues.has(id);
@@ -224,4 +224,49 @@ test("standing venue rules and trip-specific closures are separate inputs", () =
   const mon = p.days.find((d) => P.iso(d.date) === "2026-11-30");
   assert.notEqual(mon.day && mon.day.id, "air-space");
   assert.ok(included(p, "air-space"), "a one-day closure moves it, not cuts it");
+});
+
+/* ───── Live trip ───── */
+
+test("completed venues never move; the past is closed; the rest is re-planned", () => {
+  const before = plan();
+  const live = plan({}, { completed: { "air-space": "2026-11-30", "us-capitol": "2026-12-01", "library-of-congress": "2026-12-01" } }, before, { today: "2026-12-03" });
+  assert.equal(live.phase, "live");
+  assert.equal(live.placements["air-space"], "2026-11-30");
+  assert.equal(live.placements["capitol-hill"], "2026-12-01");
+  // Wed Dec 2 (Archives + memorials) passed without a completion: it is re-planned into the days left, or honestly cut.
+  for (const d of live.days) if (d.past) for (const slot of ["day", "night"]) if (d[slot]) assert.ok(live.units[d[slot].id].completedOn, `${P.fmtDMD(d.date)} ${slot} holds an uncompleted unit`);
+  const arch = live.placements["national-archives"];
+  assert.ok(!arch || arch >= "2026-12-03");
+});
+
+test("not this day moves it; put it here pins the date", () => {
+  const p = plan({}, { notThisDay: { arlington: ["2026-12-04"] } });
+  assert.ok(included(p, "arlington") && p.placements["arlington"] !== "2026-12-04");
+  const q = plan({}, { fixed: { "natural-history": "2026-11-30" } });
+  assert.equal(q.placements["natural-history"], "2026-11-30");
+  assert.ok(included(q, "air-space"), "Air & Space finds another day");
+});
+
+test("weather is venue-specific and only moves things for a real win", () => {
+  const done = { completed: { "air-space": "2026-11-30", "us-capitol": "2026-12-01", "library-of-congress": "2026-12-01", "national-archives": "2026-12-02", "lincoln-memorial": "2026-12-02", "vietnam-memorial": "2026-12-02", "wwii-memorial": "2026-12-02", "korean-memorial": "2026-12-02" } };
+  const current = plan({}, done, null, { today: "2026-12-03" });
+  const cold = { rain: true, wind: true, cold: true, summary: "38°, rain, 25 mph wind" }, nice = { rain: false, wind: false, cold: false, summary: "51°, dry, calm" };
+  assert.equal(P.weatherFit(current.units["arlington"], cold), "poor");
+  assert.equal(P.weatherFit(current.units["natural-history"], cold), "excellent");
+  // Arlington's day is miserable, Natural History's day is lovely: swap them.
+  const weather = { "2026-12-04": cold, "2026-12-03": nice };
+  const s = P.suggestSwap(D, done, current, { today: "2026-12-03", weather });
+  assert.ok(s, "a swap should be suggested");
+  assert.ok(s.moves.some((m) => m.id === "arlington" && m.to === "2026-12-03"));
+  assert.ok(s.moves.some((m) => m.id === "natural-history" && m.to === "2026-12-04"));
+  // Trivial differences produce nothing.
+  const meh = { "2026-12-04": { ...nice, cold: true }, "2026-12-03": nice };
+  assert.equal(P.suggestSwap(D, done, current, { today: "2026-12-03", weather: meh }), null);
+});
+
+test("the accepted placements are the stability anchor across reloads", () => {
+  const first = plan({}, { punted: ["natural-history"] });
+  const reloaded = plan({}, { punted: ["natural-history"] }, { placements: first.placements });
+  assert.deepEqual(reloaded.placements, first.placements);
 });

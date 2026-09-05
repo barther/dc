@@ -18,12 +18,19 @@ records what the family decided; identity says who did it.
 - `src/intents.js` is the pure intent reducer and the permission boundary: anyone can operate
   the vacation, Bart administers it (dates, nights, reset, overriding a preference).
 - `src/access.js` verifies Cloudflare Access identity. No family password table.
-- `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, decisions.
+- `src/weather.js` reads the National Weather Service forecast for the Mall (free, no key), caches
+  it in KV for an hour, and reduces each day to categorical conditions. The planner turns those
+  into venue-specific fit; `/api/today` proposes a swap only when the win is real.
+- `public/achievements.js` is the achievement catalog and a pure evaluator. Unlocks are written
+  to KV once and never removed. `/api/achievements` feeds the trophy case and the standings.
+- `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, marks
+  (completed, fixed, not-this-day), accepted placements, decisions.
 
 ### Setting up the shared trip
 
 ```sh
 npx wrangler d1 create dc-christmas          # paste the id into wrangler.jsonc
+npx wrangler kv namespace create KV          # paste the id into wrangler.jsonc
 npx wrangler d1 migrations apply dc-christmas
 # map the family's tenant addresses to travelers
 npx wrangler d1 execute dc-christmas --command "UPDATE traveler_identities SET email='bart@yourtenant.com' WHERE traveler_id='bart'"
@@ -36,7 +43,16 @@ login method and a policy allowing the four addresses. Then set `ACCESS_TEAM_DOM
 The pitch stays public; "Sign in" goes through `/family`, and the Access cookie covers the API.
 
 Locally, `wrangler dev` uses a local D1 (`npx wrangler d1 migrations apply dc-christmas --local`)
-and `.dev.vars` stands in for a signed-in identity (see `.dev.vars.example`).
+and a local KV; `.dev.vars` stands in for a signed-in identity, can pin "today" for live mode,
+and can supply a weather fixture instead of the live forecast (see `.dev.vars.example`).
+
+### The trip's phases
+
+The same page is the pitch before the trip, "Today in Washington" during it, and the record after.
+Before: plan, vote, punt, pin. During: the day's plan with weather fit, mark things done, bail,
+"not this day", and a "Better plan available" swap when the forecast justifies it. After: the
+record (experiences, achievements, swaps, punts, zero HI/HI days) and family photos in the venue
+slots, dropped into `public/img/` as `done-<original filename>`.
 
 No build step. No framework. Fonts come from Google Fonts; everything else is in `public/`.
 
