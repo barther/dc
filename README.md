@@ -1,7 +1,7 @@
 # Washington, for Christmas
 
 A one-page promo site for the family's DC trip (Sat Nov 28 → Mon Dec 7, 2026), built to get
-Jess, Sam, and Mom excited. Content comes from the trip docs in this repo
+Jess, Sam, and Nanny excited. Content comes from the trip docs in this repo
 (`dc-trip-nov-dec-2026.md`, `dc-trip-nov29-dec6-2026.md`).
 
 ## Architecture
