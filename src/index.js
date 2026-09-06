@@ -126,9 +126,13 @@ export default {
     const db = env.DB;
 
     if (url.pathname === "/api/me") {
-      const traveler = await travelerFor(db, await identify(request, env), env);
+      const identity = await identify(request, env);
+      const traveler = await travelerFor(db, identity, env);
       const all = (await db.prepare("SELECT id, name, role, is_admin FROM travelers ORDER BY rowid").all()).results;
-      return json(traveler ? { traveler, travelers: all } : { traveler: null, travelers: all });
+      if (traveler) return json({ traveler, travelers: all });
+      // Not mapped: say why, so a sign-in that goes nowhere is diagnosable from the page.
+      const why = !identity ? "not_signed_in" : identity.error ? identity.error : `unknown_email: ${identity.email} is not on the trip`;
+      return json({ traveler: null, travelers: all, why, email: identity && identity.email ? identity.email : undefined });
     }
 
     if (url.pathname === "/api/achievements") {

@@ -87,6 +87,7 @@
   let prevPlan = null;
   let shared = null;   // { trip, decisions } from the Worker, or null in local mode
   let me = null;       // signed-in traveler, or null
+  let signinWhy = null; // why a sign-in did not map to a traveler, from /api/me
   let travelers = [];  // everyone on the trip
   let today = null;    // ISO, from the Worker (or the browser in local mode)
   let live = null;     // /api/today: weather, fits, suggestion
@@ -453,6 +454,7 @@
     el.hidden = false;
     if (me && isAdmin()) el.innerHTML = `<span class="who">You're <b>${esc(me.name)}</b>, ${esc(me.role)}.</span><span class="can">You can change dates and nights, override any vote, and do everything the others can.</span>`;
     else if (me) el.innerHTML = `<span class="who">You're <b>${esc(me.name)}</b>, ${esc(me.role)}.</span><span class="can">Vote on anything, mark things done, move things to another day. Dates and nights are Bart's.</span>`;
+    else if (signinWhy) el.innerHTML = `<span class="who">Signed in, but not on the trip.</span><span class="can">${esc(signinWhy)}. Bart can fix the address in the family list.</span>`;
     else el.innerHTML = `<span class="who">This is the pitch.</span><span class="can">Try a shorter trip below; nothing here changes the family's plan.</span> <a href="/family" class="signin">Family, sign in</a>`;
   }
 
@@ -481,6 +483,7 @@
       let mj = null; try { mj = m.ok ? await m.json() : null; } catch (_) {}
       hasWorker = m.ok || m.type === "opaqueredirect" || m.status === 401 || m.status === 403;
       me = mj && mj.traveler ? mj.traveler : null; travelers = (mj && mj.travelers) || [];
+      signinWhy = mj && !mj.traveler && mj.why && mj.why !== "not_signed_in" ? mj.why : null;
       if (!me) return false; // the pitch, locally; family state stays behind sign-in
       const t = await fetch("/api/trip", { headers: { accept: "application/json" } });
       if (!t.ok) { me = null; return false; }
