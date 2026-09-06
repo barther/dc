@@ -341,9 +341,11 @@ export default {
     }
     if (url.pathname.startsWith("/family/")) return json({ error: "Not found." }, 404);
 
+    // The family's trip. Access gates this path in production; the page itself works out
+    // who you are from /api/me and shows the banner, or the bracket, the week, and the list.
     if (url.pathname === "/family") {
-      // Access gates this path; once through, the Access cookie covers the API. Back to the page.
-      return new Response(null, { status: 302, headers: { location: "/#signed-in", ...SECURITY_HEADERS } });
+      const page = await env.ASSETS.fetch(new Request(`${url.origin}/family/trip.html`));
+      return new Response(page.body, { status: page.status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store", ...SECURITY_HEADERS } });
     }
 
     if (url.pathname.startsWith("/api/")) return json({ error: "Not found." }, 404);

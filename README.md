@@ -9,7 +9,10 @@ Jess, Sam, and Nanny excited. Content comes from the trip docs in this repo
 Static data describes Washington; the planner decides what should happen; shared state
 records what the family decided; identity says who did it.
 
-- `public/` is the site: the pitch, the recommended itinerary, and the planner UI.
+- `public/` is the site. Two pages: `index.html` with `pitch.js` is the public pitch at `/`
+  (the reel of every contender, the train, the house rules, no schedule); `family/trip.html`
+  with `ui.js` is the family's trip at `/family` (the bracket, the week, the list, the log, the
+  trophy case), served by the Worker behind Cloudflare Access.
 - `src/index.js` is the Worker. It serves the site, reads the shared trip from D1, and accepts
   **intents** from signed-in travelers (`POST /api/intent`). The planner is authoritative about
   whether a state is valid; D1 is authoritative about which valid state the family accepted.
@@ -55,7 +58,8 @@ allowing the four addresses. The Worker enforces the same boundary itself: every
 is the pitch and the recommended itinerary only. Family state, the decision log, live mode, and
 the trophy case are behind sign-in. Then set `ACCESS_TEAM_DOMAIN` in
 `wrangler.jsonc` and the application's AUD tag as a secret: `npx wrangler secret put ACCESS_AUD`.
-The pitch stays public; "Sign in" goes through `/family`, and the Access cookie covers the API.
+The pitch stays public; "Sign in" goes to `/family`, which is the family's page, and the Access
+cookie covers the API.
 
 Writes are guarded transactionally: each accepted change inserts the next version into
 `trip_versions` first, so a stale writer collides on the primary key and D1 rolls the whole batch
@@ -107,15 +111,13 @@ runs on the recommended trip. Three files, one direction of data flow:
 - `public/planner.js` is the scheduler. Pure, no DOM, runs under node. It takes dates and user
   state (punts, pins) and returns a plan: each day's day and night assignment, what was cut or
   shortened, the tradeoffs worth explaining, and a label derived from what survived.
-- `public/ui.js` renders the plan and owns the controls: the reel, the bracket screens (one
+- `public/ui.js` renders the plan on `/family` and owns the controls: the bracket screens (one
   matchup at a time, your ballot, the family's order), the calendar strip, the leave-home and
   back-home dates (both travel days are the train's, so hotel nights = home − leave − 2), Must-do
   and Punt on each day, Add to trip on the bench and on open slots, and the preview panel that
   names a consequence before a change lands.
 
-Trip-design state (dates, nights, punts, pins) lives in the URL hash, so a configured trip can
-be sent around: `/#start=2026-12-05&nights=5&punt=natural-history&ask=fords-theatre`. The doctrine is in
-`PLANNER.md`; `npm test` checks the behavioral invariants.
+The doctrine is in `PLANNER.md`; `npm test` checks the behavioral invariants.
 
 ## Editing the plan
 

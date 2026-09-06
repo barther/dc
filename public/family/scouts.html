@@ -64,8 +64,9 @@
 
   /* Checklists */
   ol.check, ul.check { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
-  .check li { display: grid; grid-template-columns: 22px 1fr; gap: 12px; color: var(--ink-2); }
-  .check li::before { content: ""; width: 16px; height: 16px; margin-top: 5px; border: 1px solid var(--ink); }
+  /* The box is positioned, not a grid cell: a grid made every text run its own item and stacked the words. */
+  .check li { position: relative; padding-left: 34px; color: var(--ink-2); }
+  .check li::before { content: ""; position: absolute; left: 0; top: 5px; width: 16px; height: 16px; border: 1px solid var(--ink); }
   .check b { color: var(--ink); font-weight: 600; }
 
   /* Legend and trophies */
