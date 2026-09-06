@@ -63,7 +63,12 @@ async function requireTraveler(request, env, db) {
 }
 
 async function decisions(db, limit = 12) {
-  const rows = (await db.prepare("SELECT d.at, d.type, d.summary, t.name AS who, t.is_admin AS admin FROM decisions d JOIN travelers t ON t.id = d.traveler_id WHERE d.trip_id = ? ORDER BY d.id DESC LIMIT ?").bind(TRIP_ID, limit).all()).results;
+  const rows = (await db.prepare("SELECT d.id, d.at, d.type, d.summary, t.id AS who_id, t.name AS who, t.is_admin AS admin FROM decisions d JOIN travelers t ON t.id = d.traveler_id WHERE d.trip_id = ? ORDER BY d.id DESC LIMIT ?").bind(TRIP_ID, limit).all()).results;
+  if (!rows.length) return rows;
+  // Everyone's take on each entry, oldest first.
+  const ids = rows.map((r) => r.id);
+  const ops = (await db.prepare(`SELECT o.decision_id, o.traveler_id, t.name, o.stance, o.note, o.at FROM decision_opinions o JOIN travelers t ON t.id = o.traveler_id WHERE o.decision_id IN (${ids.map(() => "?").join(",")}) ORDER BY o.at`).bind(...ids).all()).results;
+  for (const r of rows) r.opinions = ops.filter((o) => o.decision_id === r.id).map((o) => ({ traveler: o.traveler_id, name: o.name, stance: o.stance, note: o.note, at: o.at }));
   return rows;
 }
 
@@ -215,6 +220,22 @@ export default {
       let fresh = [];
       try { fresh = await evaluateAchievements(env, db, cur, after); } catch (e) { fresh = []; }
       return json({ trip: publicState(cur), decisions: await decisions(db), label: after.label, today: todayISO(env), unlocked: fresh });
+    }
+
+    // An opinion on a log entry. Not a trip change: no version bump, no planner run.
+    if (url.pathname === "/api/opinion" && request.method === "POST") {
+      const traveler = await travelerFor(db, await identify(request, env), env);
+      if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      let body; try { body = await request.json(); } catch (e) { return json({ error: "Bad JSON." }, 400); }
+      const id = Number(body.decision);
+      if (!Number.isInteger(id)) return json({ error: "Which decision?" }, 400);
+      const exists = await db.prepare("SELECT id FROM decisions WHERE id = ? AND trip_id = ?").bind(id, TRIP_ID).first();
+      if (!exists) return json({ error: "No such decision." }, 404);
+      const stance = body.stance === "fine" || body.stance === "object" ? body.stance : null;
+      const note = String(body.note || "").trim().slice(0, 200);
+      if (stance) await db.prepare("INSERT INTO decision_opinions (decision_id, traveler_id, stance, note, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(decision_id, traveler_id) DO UPDATE SET stance = excluded.stance, note = excluded.note, at = excluded.at").bind(id, traveler.id, stance, note, new Date().toISOString()).run();
+      else await db.prepare("DELETE FROM decision_opinions WHERE decision_id = ? AND traveler_id = ?").bind(id, traveler.id).run();
+      return json({ decisions: await decisions(db) });
     }
 
     if (url.pathname === "/family") {

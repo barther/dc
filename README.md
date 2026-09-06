@@ -24,7 +24,7 @@ records what the family decided; identity says who did it.
 - `public/achievements.js` is the achievement catalog and a pure evaluator. Unlocks are written
   to KV once and never removed. `/api/achievements` feeds the trophy case and the standings.
 - `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, marks
-  (completed, fixed, not-this-day), accepted placements, decisions.
+  (completed, fixed, not-this-day), accepted placements, decisions, and opinions on decisions.
 
 ### Setting up the shared trip
 

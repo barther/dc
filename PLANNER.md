@@ -229,6 +229,12 @@ removes it; sounds good with no objection asks the planner to find room; a split
 to seed and capacity; silence is neutral. An administrator's explicit shared state wins over the
 vote. A must-do still goes through the preview when honoring it costs something.
 
+**The log is a conversation, not a receipt.** Every entry in "What's been decided" opens on a
+tap: who did it, when, and everyone's take. Any traveler can file *Fine by me* or *I object* with
+a short note, change it, or withdraw it. An opinion never changes the trip and never bumps the
+version; it tells the person who acted how the family feels about it. Until someone files, the
+entry says "No objections filed."
+
 **Identity is Cloudflare Access with Entra ID.** The Worker trusts only a verified Access
 identity and maps the tenant address to an internal traveler id, so a changed email never
 rewrites trip history. The pitch is public; the family layer is behind sign-in.

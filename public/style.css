@@ -186,6 +186,9 @@ main { display: grid; gap: 64px; padding-top: 64px; }
   letter-spacing: 0.14em; color: var(--muted); font-weight: 400;
 }
 
+/* hidden means hidden, whatever display: the element otherwise has. */
+[hidden] { display: none !important; }
+
 /* ───────────── Departure board ───────────── */
 
 .board {
@@ -656,6 +659,24 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .decisions ul { list-style: none; padding: 0; }
 .decisions .when { font-family: var(--text); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-right: 8px; }
 .decisions .quip { color: var(--muted); }
+/* Each log entry opens on a tap: who did it, who's weighed in, your own take. */
+.decisions li { padding: 2px 0; }
+.log-entry { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; width: 100%; cursor: pointer; line-height: inherit; }
+.log-entry::after { content: " ›"; color: var(--gold); font-weight: 600; }
+.log-entry[aria-expanded="true"]::after { content: " ‹"; }
+.log-open { margin: 8px 0 10px; padding: 10px 0 10px 14px; border-left: 2px solid var(--gold); display: grid; gap: 8px; }
+.log-open .who { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.log-open .takes { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 16px; color: var(--ink-2); }
+.log-open .takes b { font-weight: 600; color: var(--ink); }
+.log-open .takes .object b { color: var(--red); }
+.log-open .takes q { font-style: italic; }
+.opine { display: grid; gap: 8px; }
+.opine .kicker-sm { color: var(--ink); }
+.opine-note { font: inherit; font-size: 16px; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); padding: 6px 10px; width: 100%; max-width: 44ch; }
+.opine-note:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.opine .hint { margin-top: -2px; }
+.opine .unit-controls { flex-wrap: wrap; }
+.opine .ctl { white-space: nowrap; }
 .structural-locked .block { cursor: default; opacity: 0.85; }
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
