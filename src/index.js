@@ -50,7 +50,7 @@ async function loadState(db) {
 
 async function travelerFor(db, identity, env) {
   if (!identity || !identity.email) return null;
-  const row = await db.prepare("SELECT t.id, t.name, t.role, t.is_admin FROM traveler_identities i JOIN travelers t ON t.id = i.traveler_id WHERE i.email = ?").bind(identity.email).first();
+  const row = await db.prepare("SELECT t.id, t.name, t.role, t.is_admin FROM traveler_identities i JOIN travelers t ON t.id = i.traveler_id WHERE lower(i.email) = ?").bind(identity.email.toLowerCase()).first();
   if (row) return row;
   // Local dev only: DEV_IDENTITY may name a traveler id directly (e.g. "bart").
   if (identity.sub === "dev" && env && env.DEV_IDENTITY) return db.prepare("SELECT id, name, role, is_admin FROM travelers WHERE id = ?").bind(env.DEV_IDENTITY.split("@")[0].toLowerCase()).first();
