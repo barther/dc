@@ -239,6 +239,15 @@
 
   /* ───────────── The bracket ───────────── */
 
+  // What we're in for: every stop, about how long, tickets or not. So nobody misses the White House inside a night.
+  const hoursText = (h) => h >= 1 ? `about ${Number.isInteger(h) ? h : h.toFixed(1).replace(/\.0$/, "")} ${h === 1 ? "hour" : "hours"}` : `about ${Math.round(h * 60)} minutes`;
+  const TICKETS = { none: "no tickets", recommended: "tickets recommended", required: "timed tickets required" };
+  function inFor(c) {
+    const stops = c.stops.map((s) => `<li${s.rides ? ' class="ride"' : ""}><b>${esc(s.name)}</b><span>${s.rides ? `rides along by ${s.period}` : hoursText(s.hours)}</span></li>`).join("");
+    return `<div class="in-for"><span class="in-for-head">What we're in for</span><ul class="stops">${stops}</ul>
+      <p class="in-for-line">${c.period === "day" ? "A day" : "A night"} · ${LOAD_NAME[c.load]} · ${hoursText(c.hours)} on the ground · ${TICKETS[c.reservation] || TICKETS.none}</p></div>`;
+  }
+
   function contenderCard(c, game) {
     const cp = C.copy[c.id] || { title: c.name, body: [] };
     return `<button type="button" class="contender" data-pick="${c.id}" data-game="${game}" aria-label="Pick ${esc(c.name)}">
@@ -247,6 +256,7 @@
       <span class="c-title">${esc(cap(cp.title))}</span>
       ${c.bundle ? `<span class="c-short">${esc(c.short)}</span>` : ""}
       <span class="c-body">${esc(cp.body[0] || "")}</span>
+      ${inFor(c)}
       <span class="c-go">This one</span>
     </button>`;
   }
@@ -275,7 +285,7 @@
       ? `<div class="actions"><span class="ctl-state">Sure? Your week disappears until the new ballot is finished.</span><button type="button" class="ctl on" data-bracket="reset">Yes, rerun it</button><button type="button" class="ctl" data-bracket="keep">Keep it</button></div>`
       : `<div class="actions"><button type="button" class="ctl" data-bracket="rerun">Rerun my bracket</button></div>`;
     el.innerHTML = `<div class="ballot">
-      <ol class="ballot-list">${mine.map((id, i) => `<li><b>${i + 1}</b><span>${esc(byId[id].name)}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
+      <ol class="ballot-list">${mine.map((id, i) => `<li><b>${i + 1}</b><span>${esc(byId[id].name)}${byId[id].bundle ? `<small>${esc(byId[id].short)}</small>` : ""}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
       ${rerun}
     </div>`;
   }
@@ -288,7 +298,7 @@
     const byId = Object.fromEntries(br.contenders.map((c) => [c.id, c]));
     const head = travelers.map((t) => `<th title="${esc(t.name)}">${esc(t.name[0])}</th>`).join("");
     const rows = fam.order.map((row, i) => `<tr class="${row.protected ? "champ" : ""}${i === 12 ? " must-see-line" : ""}">
-      <td class="n">${i + 1}</td><td class="name">${row.protected ? '<span class="star" aria-label="champion">✦</span> ' : ""}${esc(byId[row.id] ? byId[row.id].name : row.id)}</td>
+      <td class="n">${i + 1}</td><td class="name">${row.protected ? '<span class="star" aria-label="champion">✦</span> ' : ""}${esc(byId[row.id] ? byId[row.id].name : row.id)}${byId[row.id] && byId[row.id].bundle ? `<small>${esc(byId[row.id].short)}</small>` : ""}</td>
       ${travelers.map((t) => `<td class="r">${row.ranks[t.id] || "–"}</td>`).join("")}<td class="avg">${row.mean.toFixed(1)}</td></tr>`).join("");
     el.innerHTML = `<p class="kicker-sm">The family's order</p>
       <div class="table-wrap"><table class="fam-table"><thead><tr><th>#</th><th>Thing</th>${head}<th>Avg</th></tr></thead><tbody>${rows}</tbody></table></div>

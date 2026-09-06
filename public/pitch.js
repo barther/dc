@@ -27,6 +27,16 @@
   $("b-back-to").textContent = `${fmtDMD(p.home)} · ${TRAIN.homeLabel}`;
   $("foot-dates").textContent = `${fmtMD(p.trainOut)} – ${fmtMD(p.home)}, ${p.home.getFullYear()}`;
 
+
+  // What we're in for: every stop, about how long, tickets or not. So nobody misses the White House inside a night.
+  const hoursText = (h) => h >= 1 ? `about ${Number.isInteger(h) ? h : h.toFixed(1).replace(/\.0$/, "")} ${h === 1 ? "hour" : "hours"}` : `about ${Math.round(h * 60)} minutes`;
+  const TICKETS = { none: "no tickets", recommended: "tickets recommended", required: "timed tickets required" };
+  function inFor(c) {
+    const stops = c.stops.map((s) => `<li${s.rides ? ' class="ride"' : ""}><b>${esc(s.name)}</b><span>${s.rides ? `rides along by ${s.period}` : hoursText(s.hours)}</span></li>`).join("");
+    return `<div class="in-for"><span class="in-for-head">What we're in for</span><ul class="stops">${stops}</ul>
+      <p class="in-for-line">${c.period === "day" ? "A day" : "A night"} · ${LOAD_NAME[c.load]} · ${hoursText(c.hours)} on the ground · ${TICKETS[c.reservation] || TICKETS.none}</p></div>`;
+  }
+
   // The reel: every contender, seeded, with its copy. Sizzle, not schedule.
   const figure = (photo) => photo ? `<figure class="reel-photo"><img class="photo" src="/img/${photo[0]}" alt="${esc(photo[1])}" loading="lazy"><figcaption>${esc(photo[1])}</figcaption></figure>` : "";
   $("reel-list").innerHTML = B.contenders(C).map((c) => {
@@ -37,6 +47,7 @@
       ${c.bundle ? `<p class="reel-short">${esc(c.short)}</p>` : ""}
       ${figure(cp.photo || null)}
       ${cp.body.map((t) => `<p>${esc(t)}</p>`).join("")}
+      ${inFor(c)}
     </li>`;
   }).join("");
 

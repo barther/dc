@@ -3,7 +3,7 @@
  * ranking out; ballots in, the family's order out. No DOM, no Worker. Shared by
  * the browser and the Worker the same way the planner is.
  *
- *   contenders(catalog)      → [{ id, name, short, seed, members, load, period, bundle }]
+ *   contenders(catalog)      → [{ id, name, short, seed, members, load, period, bundle, stops, hours, reservation }]
  *   structure(n)             → { games, slots, picksNeeded }
  *   resolve(struct, ids, picks) → { games, next, complete, picksMade, picksNeeded }
  *   valid(struct, ids, picks, game, winner) → bool
@@ -19,18 +19,26 @@
   const ROUND_NAME = { playin: "Play-in", r16: "Round of 16", r8: "Quarterfinals", r4: "Semifinals", third: "Third place", final: "The final" };
 
   // Units, seeded. A bundle takes its best member's seed; accessories never stand alone.
+  // Every contender says what it is: its stops, about how long, and whether tickets are involved.
+  const RES_RANK = { none: 0, recommended: 1, required: 2 };
   function contenders(catalog) {
     const venueById = Object.fromEntries(catalog.venues.map((v) => [v.id, v]));
+    const stop = (id, rides) => { const v = venueById[id]; return { id, name: v.name, hours: v.ideal_hours, period: v.period, rides: !!rides }; };
+    const describe = (core, accessory) => {
+      const vs = core.map((id) => venueById[id]);
+      const res = vs.reduce((r, v) => RES_RANK[v.reservation || "none"] > RES_RANK[r] ? v.reservation : r, "none");
+      return { stops: core.map((id) => stop(id, false)).concat(accessory.map((id) => stop(id, true))), hours: vs.reduce((h, v) => h + (v.ideal_hours || 0), 0), reservation: res };
+    };
     const taken = new Set();
     const out = [];
     for (const [bid, b] of Object.entries(catalog.bundles)) {
       const members = b.core.map((id) => venueById[id]).filter(Boolean);
       b.core.forEach((id) => taken.add(id)); (b.accessory || []).forEach((id) => taken.add(id));
-      out.push({ id: bid, bundle: true, name: b.name, short: b.short, period: b.period, load: b.load, members: b.core.slice(), accessory: (b.accessory || []).slice(), seed: Math.min(...members.map((v) => v.seed)) });
+      out.push({ id: bid, bundle: true, name: b.name, short: b.short, period: b.period, load: b.load, members: b.core.slice(), accessory: (b.accessory || []).slice(), seed: Math.min(...members.map((v) => v.seed)), ...describe(b.core, b.accessory || []) });
     }
     for (const v of catalog.venues) {
       if (taken.has(v.id)) continue;
-      out.push({ id: v.id, bundle: false, name: v.name, short: v.name, period: v.period, load: v.load, members: [v.id], accessory: [], seed: v.seed });
+      out.push({ id: v.id, bundle: false, name: v.name, short: v.name, period: v.period, load: v.load, members: [v.id], accessory: [], seed: v.seed, ...describe([v.id], []) });
     }
     out.sort((a, b) => a.seed - b.seed);
     out.forEach((c, i) => { c.seed = i + 1; });

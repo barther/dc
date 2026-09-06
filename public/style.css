@@ -923,3 +923,16 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .dates-line b { color: var(--ink); font-weight: 600; }
 .trophies-inside { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px 40px; }
 #family-order { border-top: 3px double var(--ink); padding-top: 18px; margin-top: 0; }
+
+/* What we're in for: the stops inside every contender, so a bundle hides nothing */
+.in-for { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 10px; margin-top: 2px; }
+.in-for-head { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red); font-weight: 600; }
+.stops { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.stops li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: 15px; border-bottom: 1px dotted var(--rule); padding-bottom: 3px; }
+.stops li b { font-weight: 600; color: var(--ink); }
+.stops li span { color: var(--muted); font-style: italic; }
+.stops li.ride b { font-weight: 400; color: var(--ink-2); }
+.in-for-line { font-size: 13px; letter-spacing: 0.06em; color: var(--ink-2); max-width: none; }
+.contender .in-for { text-align: left; }
+.contender .stops li { font-size: 14px; }
+.ballot-list li span small, .fam-table td.name small { display: block; font-family: var(--text); font-size: 13px; color: var(--muted); font-style: italic; line-height: 1.3; }
