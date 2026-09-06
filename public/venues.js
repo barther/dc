@@ -136,6 +136,7 @@
       title: "The founding documents",
       body: ["A short daytime visit to the National Archives to stand in front of the Declaration of Independence, the Constitution, and the Bill of Rights. The real ones. Then back to the hotel to warm up and rest."],
       short: ["Check out, leave the bags with the hotel, and give the morning to the Archives: the Declaration, the Constitution, and the Bill of Rights, and not much else. Lunch, luggage, Union Station, and the Crescent south."],
+      photo: ["unit-national-archives.webp", "The National Archives"],
     },
     "main-memorial-loop": {
       title: "the big memorial night", featured: true,
@@ -179,42 +180,51 @@
       title: "African American History & Culture",
       body: ["The National Museum of African American History and Culture, top to bottom: start underground in the history galleries and climb toward the culture floors. It's big, it's heavy in places, and it's one of the best museums in the country. Leave when everyone's full."],
       short: ["Check out, leave the bags, and give the morning to the history galleries at the African American History museum. Lunch, luggage, Union Station, and the Crescent south."],
+      photo: ["unit-african-american-history.webp", "National Museum of African American History and Culture"],
     },
     "washington-monument": {
       title: "the Washington Monument",
       body: ["Up the Washington Monument, if the timed tickets come through. The view from the top is the whole trip laid out at once: the Capitol one way, Lincoln the other, Arlington across the river."],
+      photo: ["unit-washington-monument.webp", "The Washington Monument from the Mall"],
     },
     "tidal-basin-loop": {
       title: "the Tidal Basin after dark",
       body: ["The quieter memorial walk: Jefferson across the water, the FDR memorial's waterfalls and rooms, and Dr. King looking out over the basin. Less crowded than the Mall, just as good under lights."],
+      photo: ["unit-tidal-basin-loop.webp", "The Jefferson Memorial across the Tidal Basin"],
     },
     "national-gallery": {
       title: "the National Gallery",
       body: ["The National Gallery of Art, at whatever pace the family has left. The West Building for the old masters, the East Building for the strange and modern, and the underground walkway between them."],
       short: ["Check out, leave the bags, and give the morning to the National Gallery's greatest hits. Lunch, luggage, Union Station, and the Crescent south."],
+      photo: ["unit-national-gallery.webp", "National Gallery of Art"],
     },
     "georgetown": {
       title: "Georgetown",
       body: ["A wander through Georgetown: the old brick streets, the canal, the shops, and lunch somewhere warm. Not a museum. That's the point."],
+      photo: ["unit-georgetown.webp", "Georgetown in December"],
     },
     "national-cathedral": {
       title: "the National Cathedral",
       body: ["The Washington National Cathedral, up on its hill: the stained glass, the gargoyles, the Darth Vader grotesque if you can find it, and the quietest hour of the trip."],
       short: ["Check out, leave the bags, and take a slow morning at the National Cathedral. Lunch, luggage, Union Station, and the Crescent south."],
+      photo: ["unit-national-cathedral.webp", "Washington National Cathedral"],
     },
     "fords-theatre": {
       title: "Ford's Theatre",
       body: ["Ford's Theatre and the Petersen House across the street. An hour or two, and it lands harder than you expect."],
       short: ["Check out, leave the bags, and spend an hour at Ford's Theatre. Lunch, luggage, Union Station, and the Crescent south."],
+      photo: ["unit-fords-theatre.webp", "Ford's Theatre"],
     },
     "zoolights": {
       title: "ZooLights",
       body: ["ZooLights at the National Zoo: the whole place strung with lights, hot drinks, and a lot of walking downhill and then, regrettably, back up."],
+      photo: ["unit-zoolights.webp", "ZooLights at the National Zoo"],
     },
     "spy-museum": {
       title: "the Spy Museum",
       body: ["The International Spy Museum. Not free, not on the Mall, and Sam will talk about it for a month."],
       short: ["Check out, leave the bags, and give the morning to the Spy Museum. Lunch, luggage, Union Station, and the Crescent south."],
+      photo: ["unit-spy-museum.webp", "The International Spy Museum"],
     },
   };
 
