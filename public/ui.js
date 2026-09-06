@@ -85,11 +85,17 @@
   const cfg = () => ({ start: shared.trip.start, nights: shared.trip.nights });
   const userState = () => { const pl = shared.trip.planner; return { punted: [...pl.punted], pinned: [...pl.pinned], requested: [...pl.requested], completed: pl.completed || {}, fixed: pl.fixed || {}, notThisDay: pl.notThisDay || {} }; };
   // A week from an order: the same planner the Worker runs, told who ranked what.
-  const planFrom = (order, champions, prev) => P.plan(cfg(), userState(), prev || null, { today, familyRank: order, champions });
+  const planFrom = (order, champions, prev, whose) => { const p = P.plan(cfg(), userState(), prev || null, { today, familyRank: order, champions }); p.champions = whose || {}; return p; };
 
   /* ───────────── Day cards ───────────── */
 
   const unitCopy = (u) => C.copy[u.id] || { title: u.name, body: [] };
+  // A champion on this week: somebody's number one, locked to the top. The red rule and the mark say whose.
+  function champion(p, u) {
+    if (!u || u.tier !== "protected" || !p.champions) return null;
+    const names = p.champions[u.id]; if (!names || !names.length) return null;
+    return names[0] === "you" ? "Your champion" : `${names.join(" and ")}'s champion`;
+  }
   function halves(day, night) {
     const h = (slot, x) => `<div class="half${slot === "night" ? " night" : ""}"><small>${slot === "day" ? "Day" : "Night"}</small>${loadBadge(x.load)}<span>${esc(x.label)}</span></div>`;
     return `<div class="halves">${h("day", day)}${h("night", night)}</div>`;
@@ -112,7 +118,7 @@
 
   function card(p, d, title, body, photo, halvesHtml, featured, late, controls) {
     const cls = ["stop", featured ? "featured" : "", d.kind === "home" ? "last" : "", late ? "late" : "", d.past ? "past" : "", d.isToday ? "today" : ""].filter(Boolean).join(" ");
-    return `<li class="${cls}"><div class="stop-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span></div>
+    return `<li class="${cls}"><div class="stop-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span>${featured ? `<em class="champ-mark">✦ ${esc(featured)}</em>` : ""}</div>
       <div class="stop-body"><h3>${esc(title)}</h3>${figure(photo, "stop-photo", p)}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${controls}</div></li>`;
   }
 
@@ -127,7 +133,7 @@
     if (dc) body.push(...dc.body); if (nc) body.push(...nc.body);
     if (!du && !nu) body.push(NARRATIVE.open.body[0]);
     if (du && !nu) body.push(du.load === "hi" ? "After a Big day, we keep the night empty on purpose." : "Dinner. Nothing scheduled after.");
-    const featured = (dc && dc.featured) || (nc && nc.featured);
+    const featured = champion(p, du) || champion(p, nu);
     const photo = (dc && dc.photo) || (nc && nc.photo) || null;
     const controls = (du ? doneRow(du, d, liveMode) : "") + (nu ? doneRow(nu, d, liveMode) : "");
     return card(p, d, title, body, photo, halves(du ? { label: du.short, load: du.load } : C.structural.open, nu ? { label: nu.short, load: nu.load } : C.structural.rest), featured, false, controls);
@@ -139,7 +145,7 @@
     const c = unitCopy(du);
     const title = d.day.shortened ? `${cap(c.title)}, shortened, then home.` : `${cap(c.title)}, then home.`;
     const body = c.short ? c.short.slice() : [...c.body, NARRATIVE.departureTail];
-    return card(p, d, title, body, c.photo || null, halves({ label: d.day.shortened ? `${du.short}, a couple of hours` : du.short, load: d.day.shortened ? "mid" : du.load }, C.structural.departure.night), false, false, doneRow(du, d, liveMode));
+    return card(p, d, title, body, c.photo || null, halves({ label: d.day.shortened ? `${du.short}, a couple of hours` : du.short, load: d.day.shortened ? "mid" : du.load }, C.structural.departure.night), champion(p, du), false, doneRow(du, d, liveMode));
   }
 
   function renderWeek(p, liveMode) {
@@ -171,7 +177,8 @@
     const waiting = travelers.filter((t) => !(status[t.id] && status[t.id].complete));
 
     // The family's week is the trip: planned from every finished ballot, or from the seeds until there is one.
-    familyPlan = planFrom(fam.familyRank || [], fam.champions || [], { placements: shared.trip.placements || {} });
+    const whose = {}; for (const t of travelers) { const st = status[t.id]; if (st && st.champion) (whose[st.champion] = whose[st.champion] || []).push(t.name); }
+    familyPlan = planFrom(fam.familyRank || [], fam.champions || [], { placements: shared.trip.placements || {} }, whose);
     const p = familyPlan;
     const s = P.summarize(p);
 
@@ -196,7 +203,7 @@
     // Your week: only once your ballot is done, and only from your ballot.
     $("mine").hidden = !mine; $("nav-mine").hidden = !mine;
     if (mine) {
-      const my = planFrom(mine, [mine[0]], null);
+      const my = planFrom(mine, [mine[0]], null, { [mine[0]]: ["you"] });
       $("mine-intro").innerHTML = `Your ranking, packed into ${my.nights} ${my.nights === 1 ? "night" : "nights"}. One <i class="load hi">Big</i> thing a day, and a Big day gets an <i class="load lo">Easy</i> night.${my.headline.kept < my.headline.total ? ` ${my.headline.total - my.headline.kept} of your top thirteen didn't fit.` : ""}`;
       $("line-mine").innerHTML = renderWeek(my, false);
     }
@@ -403,7 +410,7 @@
       <div class="standings"><p class="kicker-sm">Standings</p>
         <ol>${standings.map((s) => `<li><span>${esc(s.t.name)}</span><b>${s.n}</b></li>`).join("")}</ol>
         ${!bartFirst && standings.length ? `<p class="muted">Bart has appealed the results.</p>` : ""}
-        ${trophies.group.length ? `<p class="muted">Trip: ${trophies.group.map((id) => (defs[id] || {}).name).filter(Boolean).join(", ")}</p>` : ""}
+        ${trophies.group.length ? `<p class="kicker-sm cards-head">The trip's</p><ul class="trophy-list">${trophies.group.map((id) => defs[id]).filter(Boolean).map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span></li>`).join("")}</ul>` : ""}
         ${samTotal && me.id !== "sam" ? `<p class="muted">Sam's blue cards: ${samCards} of ${samTotal}. They don't count here. <a href="/family/scouts">The map.</a></p>` : ""}
       </div>`;
   }

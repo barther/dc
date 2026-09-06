@@ -129,7 +129,7 @@
   const copy = {
     "capitol-hill": {
       title: "Capitol Hill",
-      body: ["Morning tour inside the U.S. Capitol, under the dome. Lunch. Then across the street to the Library of Congress, where the Great Hall of the Jefferson Building is the single most beautiful room in the country. Argue with us after you've seen it."],
+      body: ["Morning tour inside the U.S. Capitol, under the dome. Lunch. Then across the street to the Library of Congress, where the Great Hall of the Jefferson Building is gilded and painted floor to ceiling."],
       photo: ["day-1201-loc-great-hall.webp", "The Great Hall, Library of Congress"],
     },
     "national-archives": {
@@ -139,8 +139,8 @@
       photo: ["unit-national-archives.webp", "The National Archives"],
     },
     "main-memorial-loop": {
-      title: "the big memorial night", featured: true,
-      body: ["Reach the Vietnam Wall at dusk while the names are still easy to read. Then let it get dark: World War II Memorial, up the steps to Lincoln, and finally the Korean War Memorial, where the statues come alive under the lights. Bundle up. Hot chocolate after. This is the night we'll talk about for years."],
+      title: "the big memorial night",
+      body: ["Reach the Vietnam Wall at dusk while the names are still easy to read. Then let it get dark: World War II Memorial, up the steps to Lincoln, and finally the Korean War Memorial, where the statues come alive under the lights. Bundle up. Hot chocolate after."],
       photo: ["day-1202-lincoln-night.webp", "Lincoln Memorial after dark"],
     },
     "air-space": {
@@ -151,12 +151,12 @@
     },
     "arlington": {
       title: "Arlington",
-      body: ["One Metro ride across the river to Arlington National Cemetery. The Tomb of the Unknown Soldier and the Changing of the Guard, which we build the whole day around. President Kennedy's gravesite and the eternal flame. Arlington House on the hill, looking back over the whole city. Quiet, cold, and unforgettable."],
+      body: ["One Metro ride across the river to Arlington National Cemetery. The Tomb of the Unknown Soldier and the Changing of the Guard, which we build the whole day around. President Kennedy's gravesite and the eternal flame. Arlington House on the hill, looking back over the whole city. Quiet and cold."],
       photo: ["day-1204-arlington-guard.webp", "Changing of the Guard, Tomb of the Unknown Soldier"],
     },
     "christmas-washington": {
-      title: "Christmas Washington", featured: true,
-      body: ["After dark: the White House, the Ellipse, and the National Christmas Tree if this year's lighting has happened by then, with the state and territory trees around it. This night isn't for learning anything. It's for lights, cocoa, and seasonal nonsense."],
+      title: "Christmas Washington",
+      body: ["After dark: the White House, the Ellipse, and the National Christmas Tree if this year's lighting has happened by then, with the state and territory trees around it. No tour and no tickets. Lights, and something warm to drink."],
       photo: ["day-1205-national-christmas-tree.webp", "The National Christmas Tree on the Ellipse"],
     },
     "holiday-market": {
@@ -166,7 +166,7 @@
     },
     "natural-history": {
       title: "Natural History",
-      body: ["Dinosaurs. The Hope Diamond. The elephant in the rotunda. The ocean hall, the mammals, the giant squid. Sam, this is your day. We stay until everyone has seen the thing they came for."],
+      body: ["Dinosaurs. The Hope Diamond. The elephant in the rotunda. The ocean hall, the mammals, the giant squid. We stay until everyone has seen the thing they came for."],
       short: ["Check out, leave the bags with the hotel, and give the morning to Natural History: the elephant, the dinosaurs, the Hope Diamond, and not much else. The greatest-hits version. Lunch, luggage, Union Station, and the Crescent south."],
       photo: ["day-1203-natural-history.webp", "National Museum of Natural History"],
     },
@@ -178,7 +178,7 @@
     },
     "african-american-history": {
       title: "African American History & Culture",
-      body: ["The National Museum of African American History and Culture, top to bottom: start underground in the history galleries and climb toward the culture floors. It's big, it's heavy in places, and it's one of the best museums in the country. Leave when everyone's full."],
+      body: ["The National Museum of African American History and Culture, top to bottom: start underground in the history galleries and climb toward the culture floors. It's big, and it's heavy in places. Leave when everyone's full."],
       short: ["Check out, leave the bags, and give the morning to the history galleries at the African American History museum. Lunch, luggage, Union Station, and the Crescent south."],
       photo: ["unit-african-american-history.webp", "National Museum of African American History and Culture"],
     },
@@ -189,7 +189,7 @@
     },
     "tidal-basin-loop": {
       title: "the Tidal Basin after dark",
-      body: ["The quieter memorial walk: Jefferson across the water, the FDR memorial's waterfalls and rooms, and Dr. King looking out over the basin. Less crowded than the Mall, just as good under lights."],
+      body: ["The quieter memorial walk: Jefferson across the water, the FDR memorial's waterfalls and rooms, and Dr. King looking out over the basin. Less crowded than the Mall, and lit the same way after dark."],
       photo: ["unit-tidal-basin-loop.webp", "The Jefferson Memorial across the Tidal Basin"],
     },
     "national-gallery": {
@@ -200,29 +200,29 @@
     },
     "georgetown": {
       title: "Georgetown",
-      body: ["A wander through Georgetown: the old brick streets, the canal, the shops, and lunch somewhere warm. Not a museum. That's the point."],
+      body: ["A wander through Georgetown: the old brick streets, the canal, the shops, and lunch somewhere warm. Not a museum."],
       photo: ["unit-georgetown.webp", "Georgetown in December"],
     },
     "national-cathedral": {
       title: "the National Cathedral",
-      body: ["The Washington National Cathedral, up on its hill: the stained glass, the gargoyles, the Darth Vader grotesque if you can find it, and the quietest hour of the trip."],
+      body: ["The Washington National Cathedral, up on its hill: the stained glass, the gargoyles, and the Darth Vader grotesque if you can find it."],
       short: ["Check out, leave the bags, and take a slow morning at the National Cathedral. Lunch, luggage, Union Station, and the Crescent south."],
       photo: ["unit-national-cathedral.webp", "Washington National Cathedral"],
     },
     "fords-theatre": {
       title: "Ford's Theatre",
-      body: ["Ford's Theatre and the Petersen House across the street. An hour or two, and it lands harder than you expect."],
+      body: ["Ford's Theatre and the Petersen House across the street. An hour or two."],
       short: ["Check out, leave the bags, and spend an hour at Ford's Theatre. Lunch, luggage, Union Station, and the Crescent south."],
       photo: ["unit-fords-theatre.webp", "Ford's Theatre"],
     },
     "zoolights": {
       title: "ZooLights",
-      body: ["ZooLights at the National Zoo: the whole place strung with lights, hot drinks, and a lot of walking downhill and then, regrettably, back up."],
+      body: ["ZooLights at the National Zoo: the whole place strung with lights, hot drinks, and a long walk downhill and back up."],
       photo: ["unit-zoolights.webp", "ZooLights at the National Zoo"],
     },
     "spy-museum": {
       title: "the Spy Museum",
-      body: ["The International Spy Museum. Not free, not on the Mall, and Sam will talk about it for a month."],
+      body: ["The International Spy Museum. Not free, and not on the Mall."],
       short: ["Check out, leave the bags, and give the morning to the Spy Museum. Lunch, luggage, Union Station, and the Crescent south."],
       photo: ["unit-spy-museum.webp", "The International Spy Museum"],
     },

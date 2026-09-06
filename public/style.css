@@ -834,8 +834,6 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 /* The reel: every contender, no schedule */
 .reel { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 28px 32px; counter-reset: reel; }
 .reel-item { display: grid; gap: 8px; align-content: start; border-top: 1px solid var(--ink); padding-top: 14px; }
-.reel-item.featured { border-top: 3px double var(--red); }
-.reel-item.featured h3 { font-style: italic; }
 .reel-item h3 { font-size: 24px; line-height: 1.12; }
 .reel-item p { color: var(--ink-2); font-size: 16px; }
 .reel-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
@@ -936,3 +934,6 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .contender .in-for { text-align: left; }
 .contender .stops li { font-size: 14px; }
 .ballot-list li span small, .fam-table td.name small { display: block; font-family: var(--text); font-size: 13px; color: var(--muted); font-style: italic; line-height: 1.3; }
+
+/* The red rule on a day card means a champion: somebody's number one. The mark under the date says whose. */
+.champ-mark { display: block; margin-top: 6px; font-style: italic; font-size: 12px; line-height: 1.3; color: var(--red); letter-spacing: 0; text-transform: none; font-weight: 400; }
