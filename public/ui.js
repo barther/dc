@@ -465,13 +465,85 @@
     el.hidden = !(shared && signedIn() && (p.phase === "before" || p.phase === "plan") && !seen);
   }
 
+  // The log. Tap an entry to open it: who did it, who's weighed in, and a place for your own take.
+  let openDecision = null; // id of the entry currently open
+  const STANCE = { fine: "Fine by me", object: "I object" };
+
+  function takeLine(o) {
+    return `<li class="${o.stance}"><b>${esc(o.name)}</b>: ${esc(STANCE[o.stance] || o.stance)}${o.note ? ` <q>${esc(o.note)}</q>` : ""}</li>`;
+  }
+
   function renderDecisions() {
     const wrap = $("decisions-wrap");
     if (!shared || !shared.decisions || !shared.decisions.length) { wrap.hidden = true; return; }
     wrap.hidden = false;
     const fmt = (iso) => { const d = new Date(iso); return `${MON[d.getMonth()]} ${d.getDate()}, ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`; };
-    $("decisions").innerHTML = shared.decisions.map((d) => `<li><span class="when">${esc(fmt(d.at))}</span> ${esc(d.summary)}${d.admin ? "" : ' <em class="quip">Bart has filed no objection.</em>'}</li>`).join("");
+    const quip = (d) => {
+      const ops = d.opinions || [];
+      if (!ops.length) return "No objections filed.";
+      const objs = ops.filter((o) => o.stance === "object"), fine = ops.filter((o) => o.stance === "fine");
+      const parts = [];
+      if (objs.length) parts.push(`${objs.map((o) => o.name).join(" and ")} object${objs.length === 1 ? "s" : ""}.`);
+      if (fine.length) parts.push(`${fine.map((o) => o.name).join(" and ")}: fine.`);
+      return parts.join(" ");
+    };
+    $("decisions").innerHTML = shared.decisions.map((d) => {
+      const open = openDecision === d.id;
+      return `<li data-decision="${d.id}"><button type="button" class="log-entry" data-log="${d.id}" aria-expanded="${open}"><span class="when">${esc(fmt(d.at))}</span> ${esc(d.summary)} <em class="quip">${esc(quip(d))}</em></button>${open ? logOpen(d, fmt) : ""}</li>`;
+    }).join("");
   }
+
+  function logOpen(d, fmt) {
+    const ops = d.opinions || [];
+    const mine = me ? ops.find((o) => o.traveler === me.id) : null;
+    const takes = ops.length ? `<ul class="takes">${ops.map(takeLine).join("")}</ul>` : `<p class="hint">Nobody has weighed in on this one.</p>`;
+    let form = "";
+    if (me) {
+      form = `<div class="opine">
+        <span class="kicker-sm">Your take</span>
+        <div class="unit-controls">
+          <button type="button" class="ctl${mine && mine.stance === "fine" ? " on" : ""}" data-opine="fine" data-decision="${d.id}">${STANCE.fine}</button>
+          <button type="button" class="ctl${mine && mine.stance === "object" ? " on" : ""}" data-opine="object" data-decision="${d.id}">${STANCE.object}</button>
+          ${mine ? `<button type="button" class="ctl" data-opine="" data-decision="${d.id}">Withdraw</button>` : ""}
+        </div>
+        <input class="opine-note" type="text" maxlength="200" placeholder="Say why, if you want" value="${esc(mine ? mine.note : "")}" data-note="${d.id}" aria-label="Why">
+        <span class="hint">Filed with your name on it. It doesn't change the trip; it tells ${esc(d.who)} how you feel about it.</span>
+      </div>`;
+    } else {
+      form = `<p class="hint">Family, sign in to weigh in.</p>`;
+    }
+    return `<div class="log-open">
+      <span class="who">${esc(d.who)} · ${esc(fmt(d.at))}</span>
+      ${takes}
+      ${form}
+    </div>`;
+  }
+
+  async function opine(id, stance) {
+    const noteEl = document.querySelector(`.opine-note[data-note="${id}"]`);
+    const note = noteEl ? noteEl.value : "";
+    const res = await fetch("/api/opinion", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ decision: id, stance, note }) });
+    let body = null; try { body = await res.json(); } catch (_) {}
+    if (res.status === 401) { location.href = (body && body.signin) || "/family"; return; }
+    if (!res.ok) { toast((body && body.error) || "That didn't take."); return; }
+    shared.decisions = body.decisions; renderDecisions();
+    toast(stance ? `Filed: ${STANCE[stance]}.` : "Withdrawn.");
+  }
+
+  $("decisions").addEventListener("click", (e) => {
+    const entry = e.target.closest("[data-log]");
+    if (entry) { const id = Number(entry.dataset.log); openDecision = openDecision === id ? null : id; renderDecisions(); return; }
+    const op = e.target.closest("[data-opine]");
+    if (op) opine(Number(op.dataset.decision), op.dataset.opine);
+  });
+  $("decisions").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.matches(".opine-note")) {
+      const id = Number(e.target.dataset.note);
+      const d = (shared.decisions || []).find((x) => x.id === id);
+      const mine = d && me ? (d.opinions || []).find((o) => o.traveler === me.id) : null;
+      opine(id, mine ? mine.stance : "fine");
+    }
+  });
 
   /* ───────────── Talking to the Worker ───────────── */
 
