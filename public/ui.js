@@ -434,14 +434,14 @@
       <div class="mine"><p class="kicker-sm">${esc(me.name)}'s Washington</p>
         <p><b>${mine.length}</b> ${mine.length === 1 ? "achievement" : "achievements"} · <b>${doneMine}</b> of ${C.headlines.length} must-see things done${musts.length ? ` · must do: ${esc(musts.join(", "))}` : ""}</p>
         ${mine.length ? `<ul class="trophy-list">${mine.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span></li>`).join("")}</ul>` : `<p class="muted">Nothing yet. Go see something.</p>`}
-        ${cardTotal ? `<p class="kicker-sm cards-head">Blue cards · ${cards.length} of ${cardTotal}</p>
+        ${cardTotal ? `<p class="kicker-sm cards-head">Blue cards · ${cards.length} of ${cardTotal} · <a href="/family/scouts" class="cards-map">the map</a></p>
         ${cards.length ? `<ul class="trophy-list cards">${cards.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span> <i class="badge-req">${esc(d.badge || "")}</i></li>`).join("")}</ul>` : `<p class="muted">Each one is a merit badge requirement a stop on this trip satisfies. Mark the stop done and it files itself.</p>`}` : ""}
       </div>
       <div class="standings"><p class="kicker-sm">Current standings</p>
         <ol>${standings.map((s) => `<li><span>${esc(s.t.name)}</span><b>${s.n}</b></li>`).join("")}</ol>
         ${!bartFirst && standings.length ? `<p class="muted">Bart has appealed the results.</p>` : ""}
         ${trophies.group.length ? `<p class="muted">Trip: ${trophies.group.map((id) => (defs[id] || {}).name).filter(Boolean).join(", ")}</p>` : ""}
-        ${samTotal && me.id !== "sam" ? `<p class="muted">Sam's blue cards: ${samCards} of ${samTotal}. They don't count here.</p>` : ""}
+        ${samTotal && me.id !== "sam" ? `<p class="muted">Sam's blue cards: ${samCards} of ${samTotal}. They don't count here. <a href="/family/scouts">The map.</a></p>` : ""}
       </div>`;
   }
 

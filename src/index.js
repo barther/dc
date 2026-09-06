@@ -249,6 +249,15 @@ export default {
       return json({ decisions: await decisions(db) });
     }
 
+    // Family-only pages live under /family/ so the same Access application covers them.
+    // The Worker runs first for that prefix, checks the traveler, then serves the asset.
+    if (url.pathname === "/family/scouts") {
+      if (!(await requireTraveler(request, env, db))) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      const page = await env.ASSETS.fetch(new Request(`${url.origin}/family/scouts.html`));
+      return new Response(page.body, { status: page.status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store", ...SECURITY_HEADERS } });
+    }
+    if (url.pathname.startsWith("/family/")) return json({ error: "Not found." }, 404);
+
     if (url.pathname === "/family") {
       // Access gates this path; once through, the Access cookie covers the API. Back to the page.
       return new Response(null, { status: 302, headers: { location: "/#signed-in", ...SECURITY_HEADERS } });

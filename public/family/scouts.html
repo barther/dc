@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sam's Merit Badge Map</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#f4f1ea">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23f4f1ea'/%3E%3Crect x='6' y='6' width='52' height='52' fill='none' stroke='%231c2a4a' stroke-width='3'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='%23a8322c' font-family='Georgia,serif'%3EW%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  /* Same paper as the trip site: cream, navy ink, a red accent, gold hairlines.
+     One committed light theme, painted explicitly. */
+  :root {
+    --paper: #f4f1ea; --ink: #1c2a4a; --ink-2: #3f4658; --muted: #6b6a66;
+    --rule: #cfc9bb; --red: #a8322c; --gold: #b8975a; --blue: #4a6b9c; --wash: #ece7dc;
+    --display: "Libre Caslon Text", Baskerville, Georgia, serif;
+    --text: "EB Garamond", Garamond, Georgia, serif;
+    color-scheme: light;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--text); font-size: 18px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 780px; margin: 0 auto; padding: 56px 24px 80px; display: grid; gap: 44px; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(38px, 6vw, 56px); line-height: 1.05; }
+  h1 em { font-style: normal; color: var(--red); }
+  h2 { font-size: 30px; line-height: 1.15; }
+  h3 { font-size: 21px; }
+  p { margin: 0; max-width: 64ch; text-wrap: pretty; }
+  p + p { margin-top: 0.7em; }
+  a { color: var(--red); text-underline-offset: 3px; }
+  .eyebrow, .kicker, .req, th, .chip, .tag { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; }
+  .eyebrow { color: var(--red); }
+  .kicker { color: var(--red); margin-bottom: 8px; }
+  .lede { font-size: 19px; color: var(--ink-2); }
+  .muted { color: var(--muted); font-style: italic; }
+  header { display: grid; gap: 14px; padding-bottom: 28px; border-bottom: 3px double var(--ink); }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 24px; margin-top: 8px; }
+  .facts div { border-top: 1px solid var(--rule); padding-top: 8px; }
+  .facts b { display: block; font-family: var(--display); font-size: 24px; line-height: 1.1; }
+  .facts span { font-size: 14px; color: var(--muted); }
+
+  /* The blue card: one section per badge, requirement rows inside */
+  section { display: grid; gap: 16px; }
+  .badge-head { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--ink); }
+  .badge-head .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  .tag { color: var(--paper); background: var(--ink); padding: 3px 8px 2px; }
+  .tag.eagle { background: var(--red); }
+  .coverage { font-size: 15px; color: var(--ink-2); max-width: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  th { text-align: left; color: var(--muted); padding: 0 10px 8px 0; border-bottom: 1px solid var(--rule); font-weight: 600; }
+  td { vertical-align: top; padding: 10px 10px 10px 0; border-bottom: 1px solid var(--rule); color: var(--ink-2); }
+  tr:last-child td { border-bottom: 0; }
+  td.req { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: 0.12em; width: 6ch; padding-top: 13px; }
+  td.where { color: var(--ink); font-weight: 500; width: 20ch; }
+  td b { color: var(--ink); font-weight: 600; }
+  .chip { display: inline-block; padding: 2px 7px 1px; border: 1px solid currentColor; line-height: 1.3; white-space: nowrap; font-size: 11px; }
+  .chip.hit { color: var(--red); }
+  .chip.call { color: var(--gold); }
+  .chip.supports { color: var(--blue); }
+  .table-wrap { overflow-x: auto; }
+  .note { border-left: 2px solid var(--gold); padding: 6px 0 6px 14px; color: var(--ink-2); font-size: 16px; }
+  .note b { color: var(--ink); }
+
+  /* Checklists */
+  ol.check, ul.check { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  .check li { display: grid; grid-template-columns: 22px 1fr; gap: 12px; color: var(--ink-2); }
+  .check li::before { content: ""; width: 16px; height: 16px; margin-top: 5px; border: 1px solid var(--ink); }
+  .check b { color: var(--ink); font-weight: 600; }
+
+  /* Legend and trophies */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 15px; color: var(--ink-2); border: 1px solid var(--rule); padding: 10px 14px; }
+  .trophies td.name { color: var(--ink); font-family: var(--display); font-size: 18px; width: 22ch; }
+  .thesis { border-top: 3px double var(--ink); padding-top: 24px; font-family: var(--display); font-style: italic; font-size: 24px; line-height: 1.3; max-width: 30ch; }
+  footer { border-top: 1px solid var(--ink); padding-top: 16px; font-size: 14px; color: var(--muted); display: grid; gap: 6px; }
+  footer p { max-width: none; }
+  .back { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; }
+  .back a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--gold); padding-bottom: 2px; }
+  @media (max-width: 600px) {
+    td.where { width: auto; }
+    .page { padding-top: 40px; }
+  }
+</style>
+
+<div class="page">
+<header>
+  <p class="back"><a href="/">← Washington, for Christmas</a></p>
+  <span class="eyebrow">Scouts BSA · Washington, for Christmas · Nov 28 – Dec 6, 2026</span>
+  <h1>Sam's <em>Merit Badge</em> Map</h1>
+  <p class="lede">The same trip, read as a stack of blue cards. Seven badges have requirements a Scout can only do by going somewhere, and Washington happens to be where most of those somewheres are. Nothing here adds a stop. It tells Sam which stops to pay attention to, what to write down that night, and what the counselor will ask afterward.</p>
+  <div class="facts">
+    <div><b>2 visits</b><span>Citizenship in the Nation needs two site visits. The trip delivers four.</span></div>
+    <div><b>730 mi</b><span>Anniston to Union Station by rail. Railroading asks for 500.</span></div>
+    <div><b>7 badges</b><span>touched, one of them Eagle-required.</span></div>
+    <div><b>0 extra stops</b><span>Every requirement below sits on a venue already on the board.</span></div>
+  </div>
+</header>
+
+<section>
+  <p class="kicker">Before the train</p>
+  <h2>Paperwork that has to happen first</h2>
+  <p>A Scout is supposed to have a counselor and a started blue card before the work counts. Most counselors accept work done in good faith beforehand, but four requirements Sam would be doing on the trip say "with your counselor's approval" right in the text, so those need a yes before Nov 28.</p>
+  <ol class="check">
+    <li><b>Blue cards started</b> in Scoutbook for Citizenship in the Nation, Railroading, Photography, and whichever of American Heritage, Aviation, and Art Sam actually wants. Ask the Scoutmaster now, not the week of.</li>
+    <li><b>Citizenship in the Nation 6, the speech.</b> "With your counselor's approval, choose a speech of national historical importance." Sam picks the Gettysburg Address or "I Have a Dream" and gets the approval before the trip, so he can read it where it was given.</li>
+    <li><b>Art requirement 6 approval.</b> The museum visit must be approved by the Art counselor in advance. Name the National Gallery.</li>
+    <li><b>Railroading Option B approval.</b> Requirement 7b, Railfanning, says "with your parent or guardian's and counselor's approval" before any of its four items. Sam picks Option B and gets the yes before the trip, or the ride doesn't count.</li>
+    <li><b>Photography requirement 7 plan approval.</b> Sam writes a shot list for a visual story called "Washington, for Christmas" and the counselor signs off before the trip. The site's photo hunt list is the shot list.</li>
+    <li><b>Capitol tour through the representative's office</b> (Alabama's 3rd district). Members' offices book constituent tours and are the only source of House and Senate gallery passes. Ask for both. Sam's letter for requirement 8 gets hand-delivered to the office the same morning.</li>
+    <li><b>Supreme Court argument calendar.</b> If the Court sits during the trip, the three-minute public line satisfies Law requirement 6a. Not on the board; only worth it if Sam bites.</li>
+    <li><b>A pocket notebook.</b> Almost every requirement ends "tell your counselor what you learned." Three sentences per site, written that evening, is the whole trick.</li>
+  </ol>
+</section>
+
+<div class="legend">
+  <span><span class="chip hit">Direct hit</span> satisfies the requirement as written</span>
+  <span><span class="chip call">Counselor's call</span> depends on how the counselor reads it</span>
+  <span><span class="chip supports">Supports</span> makes a discussion requirement real, not a visit</span>
+</div>
+
+<!-- ───────── Citizenship in the Nation ───────── -->
+<section>
+  <div class="badge-head">
+    <div class="row"><h2>Citizenship in the Nation</h2><span class="tag eagle">Eagle-required</span></div>
+    <p class="coverage">Requirement 7 says do two of four visits. Washington delivers all four, plus the raw material for 2, 3, 4, 6, and 8. This is the clean sweep you were told about, checked against the official text. What DC can't do is requirement 5, five days of national news, and the counselor conversations themselves. One tie worth making: the issue Sam picks from those five days of news is the "national issue" his requirement 8 letter has to be about, so he does 5 before the trip and delivers 8 on it.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Req</th><th>In Washington</th><th>What Sam does</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="req">7b</td><td class="where">U.S. Capitol</td><td>Tour the Capitol. Note one thing about its function and one about its history. The dome's cast iron and the Statue of Freedom are easy wins.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">7c</td><td class="where">National Archives</td><td>A federal facility. What it does: keeps the nation's records. Why the Rotunda is dim, why the cases are sealed, who is allowed to touch the documents.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">7a</td><td class="where">Library of Congress</td><td>The Jefferson Building is a National Historic Landmark. Ford's Theatre, Union Station, the Cathedral, and Georgetown are all on the Register too. Pick one, write down why it's listed.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">7d</td><td class="where">Lincoln Memorial or Washington Monument</td><td>Choose the monument, read about it before the trip, stand in front of it, then explain to the counselor why it matters to citizens. Only two of the four are needed; four gives Sam a choice of the two best stories.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">6</td><td class="where">Lincoln Memorial</td><td>A speech of national importance, approved by the counselor first. The Gettysburg Address and the Second Inaugural are carved on the walls. "I Have a Dream" was given from the steps; the spot is marked. Read it aloud there, then the six parts: author, context, the nation's difficulties, what was said, why it matters, and the sentence that's his.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">4a, 4b</td><td class="where">National Archives</td><td>The Declaration and the Bill of Rights, the actual sheets. Requirement 4b also names the 14th Amendment; look for it in the Records of Rights gallery downstairs.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">4c</td><td class="where">Everywhere</td><td>E Pluribus Unum. It's on the Great Seal, which turns up carved and painted all over the Capitol, and on every coin in his pocket. Thirteen letters for thirteen colonies is the fact counselors like.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">3</td><td class="where">Capitol, Supreme Court, White House</td><td>Three branches in one afternoon: the Capitol, the Court across First Street, the White House from the fence. Requirement 3 wants function, separation, and checks; the buildings make the diagram physical.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">8</td><td class="where">House office buildings</td><td>Sam names his senators and representative, writes to his representative about a national issue before the trip, and hands the letter to the office that booked the tour. The requirement asks to show the correspondence and any response; a reply on letterhead is the counselor's favorite kind of evidence.</td><td><span class="chip supports">Supports</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────── Railroading ───────── -->
+<section>
+  <div class="badge-head">
+    <div class="row"><h2>Railroading</h2></div>
+    <p class="coverage">The badge's two experience requirements are the trip. Requirement 2a wants a planned rail journey of 500 miles or more from a timetable; requirement 7b, the Railfanning option, wants a trip planned, ticketed, and ridden with two predicted intermediate arrivals. The Crescent is about 730 miles each way.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Req</th><th>In Washington</th><th>What Sam does</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="req">2a</td><td class="where">The Crescent, both ways</td><td>Before leaving, Sam plans the trip from Amtrak's timetable: train numbers (Crescent 20 north, 19 south), departure and arrival times, and the class of service (sleeper). He also explains why Amtrak exists. That is the whole requirement.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">7b(4)</td><td class="where">The Crescent</td><td>Same plan, one step further: predict arrival at two intermediate stations, Atlanta and Charlotte work, then check the prediction against the real thing from the roomette window and report what he saw. Bart buys the tickets; Sam does the planning.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">7b(1)</td><td class="where">American History Museum</td><td>"Visit a railroad museum, historical display, or a prototype railroad-sponsored public event." The America on the Move hall has the 1401 steam locomotive, full size, indoors, which is a historical display by any reading. Photograph or sketch it with permission and describe the photos. Union Station's holiday model trains don't qualify; that event isn't railroad-sponsored.</td><td><span class="chip call">Counselor's call</span></td></tr>
+      <tr><td class="req">2b, 4e</td><td class="where">Metro</td><td>Public transit that runs on rail, and safety on a commuter system. Every Metro ride is a data point; the platform edge lights and the "stand back" rule are the answers.</td><td><span class="chip supports">Supports</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note"><b>The pamphlet's own timetable lesson is the Crescent.</b> The Railfanning chapter teaches timetable reading on Train 19: New York, Mile 0, departing 2:15 p.m., arriving New Orleans, Mile 1377, the next evening. Sam joins the same train at Anniston. Three things the pamphlet wants him to know: southbound and westbound trains carry odd numbers and northbound even, which is why it's 20 up and 19 home; a stop with separate Ar and Dp times is five minutes or longer; and the conductor's seat check has no name on it, so it travels with him. It also says an adult must buy the ticket. That's Bart.</p>
+  <p class="note"><b>Two Option B items complete requirement 7.</b> 7b(4) is certain. If the counselor accepts the museum locomotive for 7b(1), the badge's field work is done on this trip and what remains is book work: freight types, signals, crossings, and Operation Lifesaver.</p>
+</section>
+
+<!-- ───────── Photography ───────── -->
+<section>
+  <div class="badge-head">
+    <div class="row"><h2>Photography</h2></div>
+    <p class="coverage">Three of eight requirements are shooting assignments, and the trip is a better assignment than anything at home. The visual story in requirement 7 needs the counselor's approval of the plan before the first frame.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Req</th><th>In Washington</th><th>What Sam does</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="req">7</td><td class="where">The whole week</td><td>A visual story that documents an event: eight to twelve images, in order, on a board or as a slideshow. The site's photo hunt is already the shot list, one frame per day plus the train. Plan approved before the trip (7b), images chosen after (7c). One rule the official text adds: the story must use images other than the ones shot for 4, 5, and 6. So the Capitol at night for 4b and the Capitol in the story are two different frames, not one photo doing double duty.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">4b</td><td class="where">U.S. Capitol</td><td>One subject, two light sources: the Capitol in daylight during the tour and again lit at night. Natural and artificial, same building, one day apart.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">4a</td><td class="where">Washington Monument</td><td>One subject from two angles: from the base looking up, and from the Lincoln steps across the reflecting pool.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">5</td><td class="where">Arlington, ZooLights, Tidal Basin</td><td>Three of six subjects: an action shot at the Changing of the Guard (no flash, no talking), an animal at the zoo, a nature shot at the Tidal Basin. Nanny for the close-up, Jess and Nanny for people interacting, and a candid of anyone for the sixth. Shoot all six and pick the three best afterward.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">6</td><td class="where">The train home</td><td>Take one photo and crop it, fix its exposure or color, or improve it some other way, then explain what software did. Fourteen hours in a roomette with a phone is the editing session.</td><td><span class="chip supports">Supports</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────── American Heritage ───────── -->
+<section>
+  <div class="badge-head">
+    <div class="row"><h2>American Heritage</h2></div>
+    <p class="coverage">The badge is six requirements now, and the site visits in requirement 4 all say "your area," so none of them point at Washington. What the trip does is put the badge's subjects in the room with Sam: the Declaration, the flag, the anthem, the people, and the Library of Congress's own song collection.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Req</th><th>In Washington</th><th>What Sam does</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="req">1</td><td class="where">National Archives</td><td>Rewrite "We hold these truths" through "new Guards for their future security" in his own words, as easy to understand as possible. Doing the reading in front of the parchment is the version he'll remember.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">3b</td><td class="where">American History Museum</td><td>The flag, the Pledge, the Great Seal, the motto, and the anthem: adoption, changes since, and influence today. The Star-Spangled Banner itself hangs here, the one the anthem is about. The Great Seal is all over the Capitol, and the motto is on every coin in his pocket.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">2a</td><td class="where">Lincoln Memorial, American History Museum</td><td>One of two options Sam needs from requirement 2, and the only one that needs no counselor approval. One political leader and one private citizen. Lincoln, and Mary Pickersgill, the Baltimore flagmaker who sewed the banner upstairs. Or the Wright brothers, two bicycle mechanics, at Air and Space.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">3a</td><td class="where">Before the trip</td><td>A United States topic currently in the news, tied to America's past. Same five days of news Sam is already reading for Citizenship in the Nation 5, and the same issue he writes his representative about. One week of newspapers, three requirements.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">5c</td><td class="where">Library of Congress</td><td>Five popular songs from different periods and what each says about its time. The requirement's own resource is the Library of Congress "Songs of America" collection; Sam picks his five in the building that keeps them.</td><td><span class="chip call">Counselor's call</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────── Citizenship in Society ───────── -->
+<section>
+  <div class="badge-head">
+    <div class="row"><h2>Citizenship in Society</h2></div>
+    <p class="coverage">Mostly conversation, but requirements 7 and 8 ask for a historical figure and an event that changed how society saw a group of people. The best rooms for both are on the Mall. The current scouting.org index lists this badge without the Eagle Required mark that the other three Citizenship badges carry, so it counts toward the elective total, not the required list.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Req</th><th>In Washington</th><th>What Sam does</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="req">8</td><td class="where">Lincoln Memorial, African American History Museum</td><td>The 1963 March on Washington: study it with a parent, stand where the speech was given, then see the museum's account of it. Describe the event and what changed.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">7</td><td class="where">MLK Memorial</td><td>If no one local fits, the requirement allows a historical figure. The memorial's inscription wall is the interview: what inspired him, what he faced, why it worked.</td><td><span class="chip supports">Supports</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note"><b>Sam punted the African American History Museum.</b> That's his call and the planner honors it. If he wants requirement 8 to come from the trip, the MLK Memorial and the Lincoln steps cover it without the museum. If he's willing to bring it back as an idea, the museum makes the strongest version.</p>
+</section>
+
+<!-- ───────── Aviation, Art ───────── -->
+<section>
+  <div class="badge-head">
+    <div class="row"><h2>Aviation and Art</h2></div>
+    <p class="coverage">One visit requirement each, and each one is a venue already on the board. Theater isn't here on purpose: its requirement is a night at a show, and no night on this trip is going to a show.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Req</th><th>In Washington</th><th>What Sam does</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="req">Aviation 4d</td><td class="where">Air and Space Museum</td><td>"Visit an aviation museum or attend an air show. Report on your impressions of the museum or show, and what you learned." Requirement 4 is Airport Operations, do one of four, and this is the one. The Wright Flyer and the Spirit of St. Louis also hand him two of the three notable moments in history for requirement 1b.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">Art 6</td><td class="where">National Gallery of Art</td><td>"Visit a museum, art exhibit, art gallery, artists' co-op, or artist's workshop. Find out about the art displayed or created there." Parent's permission and counselor's approval first. Sam voted Meh on the Gallery; if this badge matters, that vote changes.</td><td><span class="chip hit">Direct hit</span></td></tr>
+      <tr><td class="req">Art 2</td><td class="where">National Gallery of Art</td><td>Show examples of line, value, shape, form, space, color, and texture. One hallway of the West Building covers all seven; Sam photographs an example of each and has the requirement's evidence before he leaves the room.</td><td><span class="chip supports">Supports</span></td></tr>
+      <tr><td class="req">Art 5b</td><td class="where">The whole week</td><td>"Tell a story with a picture or pictures." The same eight to twelve images Sam is already making for Photography 7, if the Art counselor accepts photographs as the pictures. Ask before assuming.</td><td><span class="chip call">Counselor's call</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────── Also worth a look ───────── -->
+<section>
+  <div class="badge-head">
+    <div class="row"><h2>Also on the table</h2></div>
+    <p class="coverage">Real requirements, real venues, but each one needs a stop that isn't on the board or a counselor willing to stretch "your area."</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Req</th><th>In Washington</th><th>What Sam does</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="req">Law 6a</td><td class="where">Supreme Court</td><td>Attend a session of a court and write 250 words. Across the street from the Capitol; the December sitting is usually the first two weeks. Check the calendar, join the three-minute line.</td><td><span class="chip call">Counselor's call</span></td></tr>
+      <tr><td class="req">Geology 5D-6a</td><td class="where">Natural History Museum</td><td>A science museum with fossils on display, with an appointment with a curator or guide. The Deep Time hall qualifies; the appointment is the work. Only if Sam picks the Earth History track.</td><td><span class="chip call">Counselor's call</span></td></tr>
+      <tr><td class="req">Am. Cultures 2e</td><td class="where">American Indian Museum, African American History Museum</td><td>A museum exhibit featuring one group's traditions, twice with different groups. The American Indian Museum is next door to Air and Space and not on the board.</td><td><span class="chip call">Counselor's call</span></td></tr>
+      <tr><td class="req">Cit. World 7e</td><td class="where">Union Station</td><td>"An international event in your area." Norway's Christmas tree in the main hall is an international event; whether Washington counts as Sam's area is not Sam's call.</td><td><span class="chip call">Counselor's call</span></td></tr>
+      <tr><td class="req">Space Exp. 5a, 6</td><td class="where">Air and Space Museum</td><td>No visit is required, but the Apollo 11 command module and the shuttle-era artifacts make the crewed-mission discussion and the orbital-vehicle description first-hand.</td><td><span class="chip supports">Supports</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────── Trophy case ───────── -->
+<section class="trophies">
+  <div class="badge-head">
+    <div class="row"><h2>Sam's trophy case</h2></div>
+    <p class="coverage">Proposed achievements for the site, unlocked for Sam only, each named for the requirement it completes. Same rules as the family set: they unlock when a venue is marked done, never for steps or suffering.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Trophy</th><th>Unlocks when</th><th>Requirement</th></tr></thead>
+    <tbody>
+      <tr><td class="name">Seven-B</td><td>Capitol marked done</td><td>Citizenship in the Nation 7b</td></tr>
+      <tr><td class="name">Federal Facility</td><td>National Archives marked done</td><td>Citizenship in the Nation 7c</td></tr>
+      <tr><td class="name">On the Register</td><td>Library of Congress, Ford's Theatre, the Cathedral, or Georgetown marked done</td><td>Citizenship in the Nation 7a</td></tr>
+      <tr><td class="name">Monumental</td><td>Lincoln Memorial or Washington Monument marked done</td><td>Citizenship in the Nation 7d</td></tr>
+      <tr><td class="name">Clean Sweep</td><td>All four of the above</td><td>Citizenship in the Nation 7, twice over</td></tr>
+      <tr><td class="name">Four Score and Seven</td><td>Lincoln Memorial marked done</td><td>Citizenship in the Nation 6</td></tr>
+      <tr><td class="name">Separation of Powers</td><td>Capitol and White House both marked done</td><td>Citizenship in the Nation 3</td></tr>
+      <tr><td class="name">Five Hundred Miles</td><td>The trip completes</td><td>Railroading 2a and 7b(4)</td></tr>
+      <tr><td class="name">America on the Move</td><td>American History Museum marked done</td><td>Railroading 7b(1), American Heritage 3b</td></tr>
+      <tr><td class="name">Four-D</td><td>Air and Space marked done</td><td>Aviation 4d</td></tr>
+      <tr><td class="name">Gallery Pass</td><td>National Gallery marked done</td><td>Art 6</td></tr>
+      <tr><td class="name">March on Washington</td><td>MLK Memorial or the African American History Museum marked done</td><td>Citizenship in Society 8</td></tr>
+      <tr><td class="name">Eight to Twelve</td><td>Eight family photos on the record</td><td>Photography 7c</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note"><b>Two votes decide two trophies.</b> Gallery Pass needs the National Gallery on the trip; Sam has it at Meh. March on Washington can come from the MLK Memorial alone, which is on the Tidal Basin loop, so the museum punt costs nothing there.</p>
+</section>
+
+<p class="thesis">Same trip. Sam just leaves with a notebook that his counselor signs.</p>
+
+<footer>
+  <p>Requirement text checked September 2026 against ScoutSmarts and Boy Scout Trail, which mirror the official Scouting America wording; Citizenship in the Nation was last revised in 2022, Photography in 2024, Aviation in January 2025. Citizenship in the Nation, Railroading, Aviation, Art, American Heritage, and Photography were checked against the official scouting.org requirements pages themselves, so their numbering is exact. American Heritage was renumbered to six requirements; the older fifteen-requirement numbering the mirrors carry no longer applies. The 2026 printings of the Aviation and Railroading pamphlets on the repo's main branch no longer print the requirements at all; they point to Scoutbook, which is the copy that counts. Verify against Scoutbook and the counselor before counting anything.</p>
+  <p>Sources: <a href="https://www.scouting.org/merit-badges/citizenship-in-the-nation/">Citizenship in the Nation</a> · <a href="https://scoutsmarts.com/citizenship-in-society-merit-badge-guide/">Citizenship in Society</a> · <a href="https://scoutsmarts.com/citizenship-in-the-world-merit-badge-guide/">Citizenship in the World</a> · <a href="https://www.scouting.org/merit-badges/railroading/">Railroading</a> · <a href="https://www.scouting.org/merit-badges/photography/">Photography</a> · <a href="https://www.scouting.org/merit-badges/american-heritage/">American Heritage</a> · <a href="https://www.scouting.org/merit-badges/aviation/">Aviation</a> · <a href="https://www.scouting.org/merit-badges/art/">Art</a> · <a href="https://boyscouttrail.com/boy-scouts/meritbadges/law.asp">Law</a> · <a href="https://www.boyscouttrail.com/boy-scouts/meritbadges/geology-merit-badge.asp">Geology</a> · <a href="https://scoutsmarts.com/american-cultures-merit-badge-guide/">American Cultures</a> · <a href="https://scoutsmarts.com/space-exploration-merit-badge-guide/">Space Exploration</a></p>
+</footer>
+</div>
+
+</body>
+</html>
