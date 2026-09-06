@@ -257,7 +257,10 @@ seventeen contenders. A finished ballot is a ranking; the family's order is the 
 protected, ties to the seed; partial ballots count for nothing; a rerun replaces the ballot and the
 log says who. Dates are Bart's: leave home and back home, with the train eating both travel days.
 The front page is the sizzle: the reel, the train, the rules, and a door. The steak is inside the
-gate at `/family`: the bracket, the week, the list, the log, the trophy case.
+gate at `/family`, and less is more there: no schedule until your ballot is finished, then your
+week built from your ranking, then the family's week built from every finished ballot, then the
+trophy case. No recommended trip on display, no log, no ideas, no skips. The Worker keeps every
+intent and the decision log; the page shows the vote and what it built.
 
 **Identity is Cloudflare Access with Entra ID.** The Worker trusts only a verified Access
 identity and maps the tenant address to an internal traveler id, so a changed email never

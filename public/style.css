@@ -916,3 +916,10 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .planner-wrap { display: contents; }
 .identity .signin + .signin { margin-left: 10px; }
 @media (max-width: 560px) { .hero.inside { padding: 60px 24px 24px; } }
+
+/* ───────────── Inside, pared down: the dates block and the trophy case section ───────────── */
+.dates-block { display: grid; gap: 8px; justify-items: center; width: 100%; max-width: 460px; }
+.dates-line { font-size: 16px; color: var(--ink-2); max-width: none; }
+.dates-line b { color: var(--ink); font-weight: 600; }
+.trophies-inside { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px 40px; }
+#family-order { border-top: 3px double var(--ink); padding-top: 18px; margin-top: 0; }
