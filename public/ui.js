@@ -542,7 +542,7 @@
     const late = p.trainOut < workOff || p.home > workBack;
     strip.style.setProperty("--n", n);
     strip.innerHTML = cells + `<div class="block${late ? " late" : ""}" id="block" style="grid-column:${a} / ${b + 1}" tabindex="0" role="slider" aria-label="Trip dates" aria-valuetext="${esc(fmtDMD(p.trainOut))} to ${esc(fmtDMD(p.home))}">
-        <span class="seg train"><i class="grip" aria-hidden="true">⋮</i></span><span class="seg nights">Your trip · ${p.nights} ${p.nights === 1 ? "night" : "nights"}</span><span class="seg train"><i class="grip" aria-hidden="true">⋮</i></span></div>`;
+        <span class="seg train"><i class="grip" aria-hidden="true">⋮</i></span><span class="seg nights"><span class="lbl">Your trip · </span>${p.nights}<span class="unit"> ${p.nights === 1 ? "night" : "nights"}</span></span><span class="seg train"><i class="grip" aria-hidden="true">⋮</i></span></div>`;
     bindBlock();
   }
 

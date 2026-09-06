@@ -773,6 +773,16 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 /* Strip: the block is labeled and has grips */
 .block .grip { font-style: normal; font-size: 14px; letter-spacing: -3px; color: var(--ink); opacity: 0.8; }
 .block .seg.train { display: grid; place-items: center; min-width: 14px; }
+/* The label gives way before the grips do: "Your trip · 7 nights" → "7 nights" → "7" as the block narrows */
+.block { grid-template-columns: minmax(14px, 1fr) minmax(0, max-content) minmax(14px, 1fr); container-type: inline-size; }
+.block .seg.nights { display: block; min-width: 0; line-height: 28px; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 190px) { .block .lbl { display: none; } }
+@container (max-width: 110px) { .block .unit { display: none; } }
+/* Countdown tiles on the narrowest phones: "SECONDS" was wider than its tile */
+@media (max-width: 400px) {
+  .tile { padding: 12px 3px 8px; }
+  .tile span { font-size: 10px; letter-spacing: 0.12em; }
+}
 
 @media (max-width: 560px) {
   .hint { font-size: 13px; }
