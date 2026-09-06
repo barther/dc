@@ -40,17 +40,20 @@ test("Four Score counts every traveler on the trip, not just those already on th
 });
 
 test("Sam's blue cards evaluate for Sam alone, and never count toward the standings rules", () => {
-  const done = { "us-capitol": "2026-12-01", "national-archives": "2026-12-02", "library-of-congress": "2026-12-01", "lincoln-memorial": "2026-12-02" };
+  const done = { "us-capitol": "2026-12-01", "washington-monument": "2026-12-02", "arlington": "2026-12-04" };
   const sam = A.evaluate(facts({ completed: done }));
-  assert.ok(["seven-b", "federal-facility", "on-the-register", "monumental", "clean-sweep", "four-score-and-seven"].every((id) => sam.includes(id)));
-  assert.ok(!sam.includes("separation-of-powers"), "the White House is not done yet");
+  assert.ok(["day-and-night", "two-angles"].every((id) => sam.includes(id)));
+  assert.ok(!sam.includes("three-of-six"), "one of the subject stops is not three of six");
+  assert.ok(A.evaluate(facts({ completed: { ...done, zoolights: "2026-12-05" } })).includes("three-of-six"));
   const bart = A.evaluate(facts({ travelerId: "bart", completed: done }));
   assert.ok(bart.every((id) => !A.byId[id].track), "no blue cards for anyone but Sam");
-  // Clean Sweep needs all four; three is not a sweep
-  assert.ok(!A.evaluate(facts({ completed: { "us-capitol": "d", "national-archives": "d", "lincoln-memorial": "d" } })).includes("clean-sweep"));
   // Photos are a fact of their own
+  assert.ok(!A.evaluate(facts({ photos: 0 })).includes("first-frame"));
+  assert.ok(A.evaluate(facts({ photos: 1 })).includes("first-frame"));
   assert.ok(!A.evaluate(facts({ photos: 7 })).includes("eight-to-twelve"));
   assert.ok(A.evaluate(facts({ photos: 8 })).includes("eight-to-twelve"));
+  // Nothing on the track is a badge Sam already holds or turned down
+  for (const d of A.defs.filter((d) => d.track)) assert.ok(!/Citizenship in the Nation|Art \d/.test(d.badge), d.id);
   // Four Score counts family trophies only: thirteen blue cards do not make four achievements
   const cards = A.defs.filter((d) => d.track).map((d) => d.id);
   const u = { bart: ["a", "b", "c", "d"], jess: ["a", "b", "c", "d"], nanny: ["a", "b", "c", "d"], sam: cards };

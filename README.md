@@ -11,8 +11,9 @@ records what the family decided; identity says who did it.
 
 - `public/` is the site. Two pages: `index.html` with `pitch.js` is the public pitch at `/`
   (the reel of every contender, the train, the house rules, no schedule); `family/trip.html`
-  with `ui.js` is the family's trip at `/family` (the bracket, the week, the list, the log, the
-  trophy case), served by the Worker behind Cloudflare Access.
+  with `ui.js` is the family's page at `/family`, served by the Worker behind Cloudflare
+  Access: your bracket, then your week built from your ballot, then the family's week built
+  from everyone's, then the trophy case. Nothing else is on display.
 - `src/index.js` is the Worker. It serves the site, reads the shared trip from D1, and accepts
   **intents** from signed-in travelers (`POST /api/intent`). The planner is authoritative about
   whether a state is valid; D1 is authoritative about which valid state the family accepted.
@@ -35,7 +36,7 @@ records what the family decided; identity says who did it.
   to KV once and never removed. `/api/achievements` feeds the trophy case and the standings.
   Definitions with `only` evaluate for one traveler (Sam's merit badge blue cards); definitions
   with a `track` stay out of the standings.
-- `public/family/scouts.html` is Sam's merit badge map, served by the Worker at `/family/scouts`
+- `public/family/scouts.html` is Sam's Photography map (the merit badge plan), served by the Worker at `/family/scouts`
   to signed-in travelers only. Everything under `/family/` runs Worker-first for that reason.
 - `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, marks
   (completed, fixed, not-this-day), accepted placements, decisions, opinions on decisions, and
@@ -111,11 +112,11 @@ runs on the recommended trip. Three files, one direction of data flow:
 - `public/planner.js` is the scheduler. Pure, no DOM, runs under node. It takes dates and user
   state (punts, pins) and returns a plan: each day's day and night assignment, what was cut or
   shortened, the tradeoffs worth explaining, and a label derived from what survived.
-- `public/ui.js` renders the plan on `/family` and owns the controls: the bracket screens (one
-  matchup at a time, your ballot, the family's order), the calendar strip, the leave-home and
-  back-home dates (both travel days are the train's, so hotel nights = home − leave − 2), Must-do
-  and Punt on each day, Add to trip on the bench and on open slots, and the preview panel that
-  names a consequence before a change lands.
+- `public/ui.js` renders `/family`: the bracket screens (one matchup at a time, then your
+  ballot), your week from your ranking, the family's week from everyone's, the leave-home and
+  back-home dates for Bart (both travel days are the train's, so hotel nights = home − leave − 2),
+  and, during the trip, Mark done and the weather swap. The planner's other intents (punt, pin,
+  ask, prefer, not this day) are still accepted by the Worker; the page just doesn't offer them.
 
 The doctrine is in `PLANNER.md`; `npm test` checks the behavioral invariants.
 

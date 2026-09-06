@@ -25,6 +25,14 @@ test("contenders are units: four bundles, thirteen standalones, seeded from the 
   assert.ok(!ids.includes("holiday-market") && !ids.includes("lincoln-memorial"));
   assert.deepEqual(cs.map((c) => c.seed), [...Array(17)].map((_, i) => i + 1));
   assert.equal(cs.find((c) => c.id === "main-memorial-loop").members.length, 4);
+  // Every contender says what it holds: the White House is inside Christmas Washington, the market rides along.
+  const xmas = cs.find((c) => c.id === "christmas-washington");
+  assert.deepEqual(xmas.stops.map((s) => s.id), ["white-house", "national-christmas-tree", "holiday-market"]);
+  assert.ok(xmas.stops[2].rides && !xmas.stops[0].rides);
+  assert.equal(xmas.hours, 2);
+  assert.equal(cs.find((c) => c.id === "capitol-hill").reservation, "required");
+  assert.equal(cs.find((c) => c.id === "georgetown").reservation, "none");
+  for (const c of cs) assert.ok(c.stops.length >= 1 && c.hours > 0, c.id);
 });
 
 test("seventeen contenders is a sixteen-bracket with one play-in; the roster can grow", () => {
