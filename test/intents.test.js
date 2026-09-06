@@ -22,6 +22,9 @@ test("Bart administers the vacation", () => {
   }
   assert.equal(I.apply(base(), { type: "set_nights", nights: 5 }, bart, limits).state.nights, 5);
   assert.equal(I.apply(base(), { type: "set_nights", nights: 40 }, bart, limits).status, 400);
+  const both = I.apply(base(), { type: "set_trip", start: "2026-12-02", nights: 4 }, bart, limits);
+  assert.equal(both.state.start, "2026-12-02"); assert.equal(both.state.nights, 4);
+  assert.equal(I.apply(base(), { type: "set_trip", start: "2026-12-02", nights: 40 }, bart, limits).status, 400);
 });
 
 test("bundle members move together", () => {

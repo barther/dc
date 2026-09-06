@@ -11,11 +11,18 @@
   "use strict";
 
   // Structural mutations. Only a Trip Administrator.
-  const ADMIN_ONLY = new Set(["set_dates", "set_nights", "reset", "override_preference"]);
+  const ADMIN_ONLY = new Set(["set_dates", "set_nights", "set_trip", "reset", "override_preference"]);
   // Everything else any authenticated traveler may do.
   const ANYONE = new Set(["punt", "unpunt", "pin", "unpin", "ask", "unask", "prefer", "complete", "uncomplete", "not_this_day", "place", "unplace", "bail", "swap"]);
 
   const VENUE_STATES = ["punted", "pinned", "requested"];
+
+  // "Fri Nov 27" from an ISO date plus a day offset, for log lines a person reads.
+  function dmd(isoDate, offset) {
+    const [y, m, d] = isoDate.split("-").map(Number);
+    const dt = new Date(y, m - 1, d + offset);
+    return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dt.getDay()]} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][dt.getMonth()]} ${dt.getDate()}`;
+  }
 
   function can(traveler, type) {
     if (!traveler) return false;
@@ -43,6 +50,14 @@
         const n = intent.nights | 0;
         if (n < MIN_NIGHTS || n > MAX_NIGHTS) return { error: `Nights must be ${MIN_NIGHTS}–${MAX_NIGHTS}.`, status: 400 };
         next.nights = n; summary = `set the trip to ${n} ${n === 1 ? "night" : "nights"}.`; break;
+      }
+      // Leave-home and back-home dates in one move: the train eats both travel days.
+      case "set_trip": {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(intent.start || "")) return { error: "Bad date.", status: 400 };
+        const n = intent.nights | 0;
+        if (n < MIN_NIGHTS || n > MAX_NIGHTS) return { error: `Nights must be ${MIN_NIGHTS}–${MAX_NIGHTS}.`, status: 400 };
+        next.start = intent.start; next.nights = n;
+        summary = `set the trip: leave home ${dmd(intent.start, -1)}, back home ${dmd(intent.start, n + 1)}, ${n} hotel ${n === 1 ? "night" : "nights"}.`; break;
       }
       case "reset": {
         next.start = intent.start || next.start; next.nights = intent.nights || next.nights; next.venues = {}; next.fixed = {}; next.notThisDay = {};

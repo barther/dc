@@ -60,6 +60,7 @@
   /* ───────────── Units: what the scheduler actually places ───────────── */
 
   const TIER_WEIGHT = { protected: 1000, high: 200, medium: 100, bonus: 20 };
+  const MUST_SEE = 13, FINAL_FOUR = 4; // of the family's order: the must-see things, and the ones a short trip keeps
   const TIER_RANK = { protected: 0, high: 1, medium: 2, bonus: 3 };
   const LOAD = { lo: 0, mid: 1, hi: 2 };
 
@@ -118,6 +119,10 @@
       });
     }
     const accessoryIds = new Set(Object.values(catalog.bundles).flatMap((b) => b.accessory));
+    // The bracket: when the family has ranked the contenders, that order replaces the authored
+    // seeds and tiers. Top four = high, top thirteen = the must-see things, champions protected.
+    const fam = external && Array.isArray(external.familyRank) && external.familyRank.length ? external.familyRank : null;
+    const champions = new Set((external && external.champions) || []);
     for (const u of units) {
       // Live-trip facts: completed is history, fixed is a commitment, notThisDay is an exclusion.
       const doneDates = u.members.map((m) => completed[m]).filter(Boolean);
@@ -127,6 +132,17 @@
       u.value = TIER_WEIGHT[u.tier] - u.seed;
       // The thirteen headline experiences are the trip. They may squeeze; the bench may not.
       u.core = u.members.some((id) => catalog.headlines.includes(id));
+      u.familyRank = null;
+      if (fam) {
+        const pos = fam.indexOf(u.id);
+        if (pos >= 0) {
+          u.familyRank = pos + 1;
+          u.tier = champions.has(u.id) ? "protected" : pos < FINAL_FOUR ? "high" : pos < MUST_SEE ? "medium" : "bonus";
+          u.value = TIER_WEIGHT[u.tier] - u.familyRank;
+          u.core = pos < MUST_SEE;
+        } else if (!accessoryIds.has(u.id)) { u.tier = "bonus"; u.value = TIER_WEIGHT.bonus - 100 - u.seed; u.core = false; }
+      }
+      u.order = u.familyRank || u.seed;
       // The planner owns the core trip; the family owns the extras. Only headline experiences,
       // requests, and must-dos are scheduled without being asked. Accessories ride with their bundle.
       u.auto = u.core || u.requested || u.pinned || !!u.completedOn || !!u.fixedOn;
@@ -187,6 +203,9 @@
 
     const units = buildUnits(state, external);
     const byId = Object.fromEntries(units.map((u) => [u.id, u]));
+    const family = units.some((u) => u.familyRank);
+    // What "must-see" means: the thirteen headline venues, or the family's top thirteen units.
+    const mustSee = family ? units.filter((u) => u.core).sort((a, b) => a.familyRank - b.familyRank).map((u) => u.id) : null;
     const days = frameDays(start, nights);
     for (const d of days) { d.past = !!today && d.date < today; d.isToday = !!today && iso(d.date) === iso(today); d.weather = weather ? weather[iso(d.date)] || null : null; }
     const fixed = Object.fromEntries(units.filter((u) => u.fixedOn).map((u) => [u.id, u.fixedOn]));
@@ -414,6 +433,8 @@
     if (cutTier("protected").some((e) => e.kind === "closed")) label = "These dates don't work";
     else if (!intact) label = "A different kind of trip";
     else if (cutTier("high").length) label = "Minimum recommended";
+    // The family's order: the count line says how many of the top thirteen fit; the label doesn't rung.
+    else if (family) label = nights > DEFAULT.nights && !cutTier("medium").filter((e) => e.unit.core).length ? "Extended" : "The family's version";
     else if (cutTier("medium").filter((e) => e.unit.core).length >= 2) label = "Highlights version";
     else if (cutTier("medium").filter((e) => e.unit.core).length === 1) label = "First real cut";
     else if (avoidPairs || shortenedHigh) label = "Compressed full trip";
@@ -428,7 +449,8 @@
       start, nights, trainOut, depart: days[days.length - 1].date, home, days, units: byId, today, phase,
       placements: Object.fromEntries(Object.entries(placed).map(([id, p]) => [id, iso(days[p.dayIdx].date)])),
       includedVenues, identity, intact, excluded, reasons, label, openDays, avoidPairs,
-      headline: { kept: catalog.headlines.filter(has).length, total: catalog.headlines.length },
+      headline: mustSee ? { kept: mustSee.filter((id) => placed[id]).length, total: mustSee.length } : { kept: catalog.headlines.filter(has).length, total: catalog.headlines.length },
+      family, mustSee: mustSee || units.filter((u) => u.core).map((u) => u.id),
       work: { status: workStatus(home), buffer: workBuffer(home), early: workEarly(trainOut) },
     };
   }
@@ -458,6 +480,7 @@
       case "Compressed full trip": s.why = "Same major sights, less breathing room."; break;
       case "Extended": s.why = p.openDays ? `Everything we'd recommend is already in. ${p.openDays === 1 ? "One day is open" : `${p.openDays} days are open`}, on purpose. The bench has ideas if the weather's right.` : "Everything from the recommended week, with room for more."; break;
       case "Your version": s.why = "The recommended trip, minus what you punted."; break;
+      case "The family's version": s.why = p.headline.kept === p.headline.total ? "The family's bracket set the order, and everything it ranked as must-see fits without turning the week into a death march." : `The family's bracket set the order. ${p.headline.total - p.headline.kept === 1 ? "One of its top thirteen doesn't" : `${p.headline.total - p.headline.kept} of its top thirteen don't`} fit at a sane pace; more nights bring them back in order.`; break;
       default: s.why = "Everything fits without turning the week into a death march. Best pacing.";
     }
     return s;
@@ -477,7 +500,7 @@
     const avoidDays = (p) => new Set(p.days.filter((d) => d.day && d.night && pairScore(p.units[d.day.id].load, p.units[d.night.id].load) === -8).map((d) => iso(d.date)));
     const beforeAvoid = avoidDays(before);
     const newAvoid = after.days.filter((d) => avoidDays(after).has(iso(d.date)) && !beforeAvoid.has(iso(d.date)));
-    const cutHeadlines = catalog.headlines.filter((id) => before.includedVenues.has(id) && !after.includedVenues.has(id) && !acted.includes(id)).map((id) => venueById[id].name);
+    const cutHeadlines = before.mustSee.filter((id) => before.placements[id] && !after.placements[id] && !actedUnits.has(id)).map((id) => before.units[id].name);
     const cutProtected = Object.values(before.units).filter((u) => u.tier === "protected" && before.placements[u.id] && !after.placements[u.id] && !actedUnits.has(u.id)).map((u) => u.name);
     const identityChanged = before.intact && !after.intact;
     const depOf = (p) => { const d = p.days[p.days.length - 1].day; return d ? d.id : null; };

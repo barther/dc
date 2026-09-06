@@ -13,7 +13,7 @@
 (function () {
   "use strict";
 
-  const P = window.DCPlanner, C = window.DCVenues;
+  const P = window.DCPlanner, C = window.DCVenues, B = window.DCBracket;
   const { DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON } = P;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -31,7 +31,8 @@
     whatIf: "A what-if. Nothing here changes the family's plan.",
     add: "Asks the planner to find room. Never bumps a must-see thing.",
     suggest: "Open on purpose. Add one of these, or leave it open.",
-    nights: "Fewer nights cut the least-missed things first. More nights come back open.",
+    nights: "Both travel days are the train's. Fewer nights cut from the bottom of the family's order; more nights bring things back.",
+    bracket: "Tap the one you'd rather not miss. Saved as you go. You can rerun the whole thing later.",
     strip: "Drag the block to move the whole trip. Shaded days, Bart's at work.",
   };
   const MISS = ["We'd miss it a lot", "We'd miss it some", "We'd miss it a little"];
@@ -92,9 +93,16 @@
   let today = null;    // ISO, from the Worker (or the browser in local mode)
   let live = null;     // /api/today: weather, fits, suggestion
   let trophies = null; // /api/achievements
+  let br = null;       // /api/bracket: contenders, structure, my picks, the family's standing
+  let brConfirm = false; // "rerun my bracket" asked once, waiting for a yes
   let whatIf = false;  // anonymous visitor exploring locally on top of the shared trip
   const signedIn = () => !!me;
   const isAdmin = () => !!(me && me.is_admin);
+  // The family layer: signed in, on the trip. Everyone else gets the pitch.
+  const family = () => !!(shared && signedIn());
+  // What the planner is told from outside: the date, and the family's order when there is one.
+  const ext = () => { const bk = shared && shared.trip.bracket; return { today: today || (shared ? null : localToday()), familyRank: bk ? bk.familyRank : [], champions: bk ? bk.champions : [] }; };
+  const venueName = (id) => (C.venues.find((v) => v.id === id) || {}).name || id;
 
   function readHash() {
     const h = location.hash.replace(/^#/, "");
@@ -240,7 +248,7 @@
   /* ───────────── Bench ───────────── */
 
   function renderBench(p) {
-    const units = Object.values(p.units).filter((u) => !p.placements[u.id]).sort((a, b) => a.seed - b.seed);
+    const units = Object.values(p.units).filter((u) => !p.placements[u.id]).sort((a, b) => a.order - b.order);
     const puntedVenues = user.punted.map((id) => C.venues.find((v) => v.id === id)).filter(Boolean);
     const tier = (i) => MISS[Math.min(2, Math.floor((i / Math.max(1, units.length)) * 3))];
     const meta = (u, i) => `<span class="bench-meta">${esc(tier(i))} · ${LOAD_NAME[u.load]} · ${u.period === "day" ? "Day" : "Night"}</span>`;
@@ -260,6 +268,9 @@
     };
     const puntRow = (v) => `<li class="punted"><span class="bench-meta">${LOAD_NAME[v.load]} · ${v.period === "day" ? "Day" : "Night"}</span><span class="bench-name">${esc(v.name)}</span><span class="bench-act"><button type="button" class="ctl" data-act="unpunt" data-ids="${v.id}">Bring back</button>${hint("Puts it back on the ideas list. The planner decides if it fits.")}</span></li>`;
     $("bench").innerHTML = units.map(row).join("") || `<li class="empty">Every idea we have is already in the trip.</li>`;
+    $("bench-intro").textContent = p.family
+      ? "Everything below the family's top thirteen, in the family's order, plus anything that didn't fit. Ask for one and the planner finds room if it can, or tells you what it would cost."
+      : "Everything else worth doing, in the order we'd miss it. The planner fills the must-see things on its own; these are yours to add. Ask for one and it finds room if it can, or tells you what it would cost.";
     $("punted-wrap").hidden = !puntedVenues.length;
     $("punted").innerHTML = puntedVenues.map(puntRow).join("");
   }
@@ -269,9 +280,11 @@
   function render() {
     // Park the panel before anything it might be mounted in gets re-rendered.
     $("panel-home").appendChild($("panel"));
-    const p = P.plan(cfg, user, prevPlan, { today: today || (shared ? null : localToday()) });
+    const p = P.plan(cfg, user, prevPlan, ext());
     const s = P.summarize(p);
     prevPlan = p;
+    // The family layer shows only to the family. The pitch is the reel.
+    document.querySelectorAll("[data-family]").forEach((el) => { el.hidden = !family(); });
 
     // Hero
     $("eyebrow-dates").innerHTML = `${esc(fmtDMD(p.trainOut))} → ${esc(fmtDMDY(p.home))}`.replace(/ /g, "&nbsp;");
@@ -281,10 +294,9 @@
     window.DCTrip = { depart: p.trainOut, arrive: new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate(), 14, 12), home: new Date(p.home.getFullYear(), p.home.getMonth(), p.home.getDate(), 10, 30) };
     window.dispatchEvent(new CustomEvent("trip:change"));
 
-    $("cfg-nights").textContent = String(p.nights);
+    $("cfg-nights").textContent = String(p.nights); $("cfg-nights-word").textContent = p.nights === 1 ? "hotel night" : "hotel nights";
+    $("cfg-leave").value = iso(p.trainOut); $("cfg-home").value = iso(p.home);
     const structural = shared && signedIn() && !isAdmin();
-    $("cfg-minus").disabled = p.nights <= MIN_NIGHTS;
-    $("cfg-plus").disabled = p.nights >= MAX_NIGHTS;
     $("cfg-reset").hidden = isDefault() && !(structural && whatIf);
     $("admin-note").hidden = !structural;
     $("nights-hint").textContent = HINT.nights;
@@ -293,7 +305,7 @@
     renderDecisions();
     const warn = s.label === "A different kind of trip" || s.label === "These dates don't work" || s.label === "Runs into work";
     $("verdict").innerHTML = [`<b>${p.nights} ${p.nights === 1 ? "night" : "nights"}</b>`, `<span class="verdict-label${warn ? " warn" : ""}">${esc(s.label)}</span>`, `<span>${esc(s.count.replace("headline experiences", "must-see things fit"))}</span>`].join('<span class="sep">·</span>');
-    $("change-summary-text").textContent = shared && signedIn() && isAdmin() ? "Change dates or nights" : shared && signedIn() ? "Try a shorter trip (a what-if)" : "Try a shorter trip";
+    $("change-summary-text").textContent = shared && signedIn() && isAdmin() ? "Change the dates" : shared && signedIn() ? "Try other dates (a what-if)" : "Try other dates";
     renderExplainer(p);
     $("verdict-why").innerHTML = [s.cuts ? `<b>${esc(s.cuts)}</b>` : "", esc(s.why)].filter(Boolean).join(" ");
     const ws = p.work.early > 0 ? "late" : p.work.status;
@@ -308,33 +320,184 @@
     $("b-back-from").textContent = `${fmtDMD(p.depart)} · ${TRAIN.departLabel}`;
     $("b-back-to").textContent = `${fmtDMD(p.home)} · ${TRAIN.homeLabel}`;
 
-    // Today in Washington, and the trophy case
+    // Today in Washington, the trophy case, the bracket, the reel
     renderToday(p);
     renderTrophies();
+    renderBracket();
+    renderReel(p);
 
     // Week
     const WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen"];
     const nDays = p.days.length + 1;
-    $("week-kicker").textContent = `II.  ${WORDS[nDays] || nDays} days, one big thing a day`;
+    $("week-kicker").dataset.base = `${cap(WORDS[nDays] || String(nDays))} days, one big thing a day`;
     $("line").innerHTML = renderWeek(p);
     $("tradeoffs-wrap").hidden = !p.reasons.length;
     $("tradeoffs").innerHTML = p.reasons.map((r) => `<li>${esc(r)}</li>`).join("");
 
     // The list
-    document.querySelectorAll("#canon li[data-v]").forEach((li) => {
-      const id = li.dataset.v;
-      li.classList.toggle("cut", !p.includedVenues.has(id));
-      li.classList.toggle("punted", user.punted.includes(id));
-    });
-    const kept = p.headline.kept, total = p.headline.total;
-    $("canon-note").textContent = kept === total ? "All on the schedule." : `${kept} of thirteen fit this version. The rest are marked.`;
+    renderCanon(p);
     $("whatif-banner").hidden = !(shared && signedIn() && whatIf);
 
     // Ideas + footer, then put the panel back next to its cause.
     renderBench(p);
     $("foot-dates").textContent = `${fmtMD(p.trainOut)} – ${fmtMD(p.home)}, ${p.home.getFullYear()}`;
+    numberSections();
     renderPanel(true);
   }
+
+  // Roman numerals follow whatever sections are showing.
+  function numberSections() {
+    const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII"];
+    let n = 0;
+    document.querySelectorAll("main > section").forEach((sec) => {
+      if (sec.hidden) return;
+      const k = sec.querySelector("[data-kicker]"); if (!k) return;
+      if (!k.dataset.base) k.dataset.base = k.textContent.trim();
+      k.innerHTML = `${ROMAN[n++] || n}. &nbsp;${esc(k.dataset.base)}`;
+    });
+  }
+
+  /* ───────────── The list: the thirteen must-see things ───────────── */
+
+  const CANON_NAME = { "national-archives": "Declaration, Constitution & Bill of Rights", "national-christmas-tree": "Christmas in Washington" };
+
+  function renderCanon(p) {
+    const items = p.family
+      ? p.mustSee.map((id) => ({ id, name: p.units[id].name, cut: !p.placements[id], punted: p.units[id].members.every((m) => user.punted.includes(m)) }))
+      : C.headlines.map((id) => ({ id, name: CANON_NAME[id] || venueName(id), cut: !p.includedVenues.has(id), punted: user.punted.includes(id) }));
+    $("canon").innerHTML = items.map((x) => `<li data-v="${x.id}" class="${x.cut ? "cut" : ""}${x.punted ? " punted" : ""}">${esc(x.name)}</li>`).join("");
+    $("canon-lead").textContent = p.family
+      ? "The family's bracket picked these, and the planner gives every one of them the time it deserves."
+      : "We're probably only doing this once, so we picked the A-list and gave every one of them the time it deserves.";
+    const kept = p.headline.kept, total = p.headline.total;
+    $("canon-note").textContent = kept === total ? "All on the schedule." : `${kept} of thirteen fit this version. The rest are marked.`;
+  }
+
+  /* ───────────── The reel: every contender, no schedule ───────────── */
+
+  function renderReel(p) {
+    const cs = B.contenders(C);
+    $("reel-list").innerHTML = cs.map((c) => {
+      const cp = C.copy[c.id] || { title: c.name, body: [] };
+      const u = p.family ? p.units[c.id] : null;
+      const rank = u && u.familyRank ? `<span class="reel-rank">Family's No. ${u.familyRank}</span>` : "";
+      return `<li class="reel-item${cp.featured ? " featured" : ""}" id="reel-${c.id}">
+        <div class="reel-meta"><span class="reel-seed">${c.seed}</span>${loadBadge(c.load)}<span class="reel-when">${c.period === "day" ? "Day" : "Night"}</span>${rank}</div>
+        <h3>${esc(cap(cp.title))}</h3>
+        ${c.bundle ? `<p class="reel-short">${esc(c.short)}</p>` : ""}
+        ${figure(cp.photo || null, "reel-photo")}
+        ${cp.body.map((t) => `<p>${esc(t)}</p>`).join("")}
+      </li>`;
+    }).join("");
+    $("reel-cta").hidden = family();
+    $("reel-intro").querySelector(".reel-easy").hidden = false;
+  }
+
+  /* ───────────── The bracket ───────────── */
+
+  function contenderCard(c, side, game) {
+    const cp = C.copy[c.id] || { title: c.name, body: [] };
+    return `<button type="button" class="contender" data-pick="${c.id}" data-game="${game}" aria-label="Pick ${esc(c.name)}">
+      <span class="c-meta"><span class="c-seed">${c.seed} seed</span>${loadBadge(c.load)}<span>${c.period === "day" ? "Day" : "Night"}</span></span>
+      ${figure(cp.photo || null, "c-photo")}
+      <span class="c-title">${esc(cap(cp.title))}</span>
+      ${c.bundle ? `<span class="c-short">${esc(c.short)}</span>` : ""}
+      <span class="c-body">${esc(cp.body[0] || "")}</span>
+      <span class="c-go">This one</span>
+    </button>`;
+  }
+
+  function renderBracket() {
+    const el = $("bracket-body");
+    if (!family() || !br) { el.innerHTML = ""; return; }
+    const ids = br.contenders.map((c) => c.id);
+    const byId = Object.fromEntries(br.contenders.map((c) => [c.id, c]));
+    const r = B.resolve(br.structure, ids, br.picks);
+    let mine;
+    if (!r.complete) {
+      const g = r.next;
+      const sofar = r.picksMade ? `<p class="matchup-sofar">${r.picksMade} of ${r.picksNeeded} picked. <button type="button" class="link" data-bracket="restart">Start over</button></p>` : "";
+      mine = `<div class="matchup">
+        <p class="matchup-round"><span class="round">${esc(B.ROUND_NAME[g.round])}</span><span class="sep">·</span><span>pick ${r.picksMade + 1} of ${r.picksNeeded}</span></p>
+        <div class="versus">${contenderCard(byId[g.a], "a", g.id)}<span class="vs">or</span>${contenderCard(byId[g.b], "b", g.id)}</div>
+        ${hint(HINT.bracket)}${sofar}
+      </div>`;
+    } else {
+      const order = B.ranking(br.structure, ids, br.picks);
+      const rerun = brConfirm
+        ? `<div class="actions"><span class="ctl-state">Sure? The old ballot is gone until the new one is finished.</span><button type="button" class="ctl on" data-bracket="reset">Yes, rerun it</button><button type="button" class="ctl" data-bracket="keep">Keep it</button></div>`
+        : `<div class="actions"><button type="button" class="ctl" data-bracket="rerun">Rerun my bracket</button>${hint("Replaces your ballot. The log will say you did.")}</div>`;
+      mine = `<div class="ballot">
+        <p class="kicker-sm">Your ballot</p>
+        <ol class="ballot-list">${order.map((id, i) => `<li><b>${i + 1}</b><span>${esc(byId[id].name)}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
+        ${rerun}
+      </div>`;
+    }
+    el.innerHTML = mine + familyStandings(byId);
+  }
+
+  function familyStandings(byId) {
+    const fam = (shared.trip.bracket) || br.family;
+    const status = fam.status || {};
+    const done = travelers.filter((t) => status[t.id] && status[t.id].complete);
+    const waiting = travelers.filter((t) => !(status[t.id] && status[t.id].complete));
+    const line = done.length === travelers.length ? "Every ballot is in." : `${done.length} of ${travelers.length} ballots in.${waiting.length ? ` Waiting on ${waiting.map((t) => t.name).join(waiting.length === 2 ? " and " : ", ")}.` : ""}`;
+    if (!fam.order || !fam.order.length) {
+      return `<div class="family-order"><p class="kicker-sm">The family's order</p><p class="muted">${esc(line)} Until a ballot is finished, the week runs on the pitch order.</p></div>`;
+    }
+    const head = travelers.map((t) => `<th title="${esc(t.name)}">${esc(t.name[0])}</th>`).join("");
+    const rows = fam.order.map((row, i) => `<tr class="${row.protected ? "champ" : ""}${i === 12 ? " must-see-line" : ""}">
+      <td class="n">${i + 1}</td><td class="name">${row.protected ? '<span class="star" aria-label="champion">✦</span> ' : ""}${esc(byId[row.id] ? byId[row.id].name : row.id)}</td>
+      ${travelers.map((t) => `<td class="r">${row.ranks[t.id] || "–"}</td>`).join("")}<td class="avg">${row.mean.toFixed(1)}</td></tr>`).join("");
+    return `<div class="family-order">
+      <p class="kicker-sm">The family's order</p>
+      <p class="ballots-in">${esc(line)}</p>
+      <div class="table-wrap"><table class="fam-table"><thead><tr><th>#</th><th>Thing</th>${head}<th>Avg</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${hint("✦ A champion: somebody's number one, locked to the top. Lower average is better; ties go to the seed. The top thirteen are the must-see things; the planner schedules in this order.")}
+    </div>`;
+  }
+
+  async function bracketPost(path, body) {
+    const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(body || {}) });
+    let data = null; try { data = await res.json(); } catch (_) {}
+    if (res.status === 401) { location.href = (data && data.signin) || "/family"; return null; }
+    if (!res.ok) { toast((data && data.error) || "That didn't take."); if (data && data.picks) { br.picks = data.picks; renderBracket(); } return null; }
+    return data;
+  }
+
+  async function bracketPick(game, winner) {
+    const data = await bracketPost("/api/bracket/pick", { game, winner });
+    if (!data) return;
+    br.picks = data.picks; br.family = data.family;
+    shared = { ...shared, trip: data.trip, decisions: data.decisions }; adoptShared();
+    const st = data.family.status[me.id];
+    render();
+    if (st && st.complete) {
+      const champ = (br.contenders.find((c) => c.id === st.champion) || {}).name || "";
+      toast(`Ballot in. ${champ} is your champion.`);
+      const mine = (data.unlocked || []).filter((u) => u.scope === "trip" || u.traveler === me.id);
+      if (mine.length) setTimeout(() => toast(`Achievement unlocked: ${mine.map((u) => u.name).join(", ")}`), 4200);
+    }
+  }
+
+  async function bracketReset() {
+    const data = await bracketPost("/api/bracket/reset", {});
+    if (!data) return;
+    brConfirm = false;
+    br.picks = {}; br.family = data.family;
+    shared = { ...shared, trip: data.trip, decisions: data.decisions }; adoptShared();
+    render();
+  }
+
+  $("bracket-body").addEventListener("click", (e) => {
+    const pick = e.target.closest("[data-pick]");
+    if (pick) { bracketPick(pick.dataset.game, pick.dataset.pick); return; }
+    const b = e.target.closest("[data-bracket]"); if (!b) return;
+    const k = b.dataset.bracket;
+    if (k === "rerun" || k === "restart") { brConfirm = true; if (k === "restart") { bracketReset(); return; } renderBracket(); }
+    else if (k === "keep") { brConfirm = false; renderBracket(); }
+    else if (k === "reset") bracketReset();
+  });
 
   function localToday() {
     const q = new URLSearchParams(location.search).get("today");
@@ -354,14 +517,17 @@
       if (next.cfg) {
         const c = { ...cfg, ...next.cfg };
         let intent = null;
-        if (next.cfg.start && next.cfg.start !== shared.trip.start) intent = { type: "set_dates", start: c.start };
-        else if (next.cfg.nights != null && next.cfg.nights !== shared.trip.nights) intent = { type: "set_nights", nights: Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, c.nights)) };
+        const startMoved = next.cfg.start && next.cfg.start !== shared.trip.start, nightsMoved = next.cfg.nights != null && next.cfg.nights !== shared.trip.nights;
+        const n = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, c.nights));
+        if (startMoved && nightsMoved) intent = { type: "set_trip", start: c.start, nights: n };
+        else if (startMoved) intent = { type: "set_dates", start: c.start };
+        else if (nightsMoved) intent = { type: "set_nights", nights: n };
         else if (next.user && next.user.reset) intent = { type: "reset", start: DEFAULT.start, nights: DEFAULT.nights };
         if (!intent) { render(); return; }
         send(intent, false).then((r) => {
           if (r.ok && r.preview) {
             pending = { kind: "confirm", intent, messages: [...r.preview.messages, ...r.preview.notes],
-              title: intent.type === "set_nights" ? `${intent.nights} nights: ${r.preview.label}.` : intent.type === "set_dates" ? `Arriving ${fmtDMD(parseISO(intent.start))}: ${r.preview.label}.` : "Back to the recommended trip.",
+              title: intent.type === "set_nights" ? `${intent.nights} nights: ${r.preview.label}.` : intent.type === "set_dates" ? `Arriving ${fmtDMD(parseISO(intent.start))}: ${r.preview.label}.` : intent.type === "set_trip" ? `Leave ${fmtDMD(addDays(parseISO(intent.start), -1))}, home ${fmtDMD(addDays(parseISO(intent.start), intent.nights + 1))}: ${r.preview.label}.` : "Back to the recommended trip.",
               go: "Make the change" };
             renderPanel();
           }
@@ -448,10 +614,11 @@
   async function fetchLive() {
     if (!shared) return;
     try {
-      const [t, a] = await Promise.all([fetch("/api/today"), signedIn() ? fetch("/api/achievements") : Promise.resolve(null)]);
+      const [t, a, bk] = await Promise.all([fetch("/api/today"), signedIn() ? fetch("/api/achievements") : Promise.resolve(null), signedIn() ? fetch("/api/bracket") : Promise.resolve(null)]);
       live = t.ok ? await t.json() : null;
       trophies = a && a.ok ? await a.json() : null;
-    } catch (_) { live = null; trophies = null; }
+      br = bk && bk.ok ? await bk.json() : null;
+    } catch (_) { live = null; trophies = null; br = null; }
   }
 
   /* ───────────── Who's here, what's been decided ───────────── */
@@ -464,7 +631,7 @@
     if (me && isAdmin()) el.innerHTML = `<span class="who">You're <b>${esc(me.name)}</b>, ${esc(me.role)}.</span><span class="can">You can change dates and nights, override any vote, and do everything the others can.</span>`;
     else if (me) el.innerHTML = `<span class="who">You're <b>${esc(me.name)}</b>, ${esc(me.role)}.</span><span class="can">Vote on anything, mark things done, move things to another day. Dates and nights are Bart's.</span>`;
     else if (signinWhy) el.innerHTML = `<span class="who">Signed in, but not on the trip.</span><span class="can">${esc(signinWhy)}. Bart can fix the address in the family list.</span>`;
-    else el.innerHTML = `<span class="who">This is the pitch.</span><span class="can">Try a shorter trip below; nothing here changes the family's plan.</span> <a href="/family" class="signin">Family, sign in</a>`;
+    else el.innerHTML = `<span class="who">This is the pitch.</span><span class="can">The family votes with a bracket, and the week follows the vote.</span> <a href="/family" class="signin">Family, sign in</a>`;
   }
 
   // One explainer, four points, pacing first. Signed-in, before the trip, dismissable once.
@@ -663,11 +830,19 @@
     if (await fetchShared()) { adoptShared(); await fetchLive(); if (location.hash === "#signed-in") history.replaceState(null, "", location.pathname); }
     else readHash();
     render();
-    document.addEventListener("visibilitychange", async () => { if (!document.hidden && shared && !whatIf && !pending && await fetchShared()) { adoptShared(); render(); } });
+    document.addEventListener("visibilitychange", async () => { if (!document.hidden && shared && !whatIf && !pending && await fetchShared()) { adoptShared(); await fetchLive(); render(); } });
   })();
   $("whatif-back").addEventListener("click", () => { pending = null; adoptShared(); whatIf = false; render(); });
-  $("cfg-minus").addEventListener("click", () => update({ cfg: { nights: cfg.nights - 1 } }));
-  $("cfg-plus").addEventListener("click", () => update({ cfg: { nights: cfg.nights + 1 } }));
+  // Leave home and back home. The train eats both travel days: nights = home − leave − 2.
+  function datesChanged() {
+    const leave = parseISO($("cfg-leave").value), home = parseISO($("cfg-home").value);
+    if (!leave || !home) return;
+    const nights = Math.round((home - leave) / 86400000) - 2;
+    if (nights < MIN_NIGHTS || nights > MAX_NIGHTS) { toast(nights < MIN_NIGHTS ? `That's ${nights < 1 ? "no" : nights} hotel ${nights === 1 ? "night" : "nights"}. Both travel days are the train's; it needs at least ${MIN_NIGHTS}.` : `That's ${nights} hotel nights. ${MAX_NIGHTS} is the most this planner will do.`); render(); return; }
+    update({ cfg: { start: iso(addDays(leave, 1)), nights } });
+  }
+  $("cfg-leave").addEventListener("change", datesChanged);
+  $("cfg-home").addEventListener("change", datesChanged);
   $("cfg-reset").addEventListener("click", () => {
     pending = null; renderPanel();
     if (shared && signedIn() && !isAdmin()) { adoptShared(); whatIf = false; render(); return; }
@@ -738,17 +913,17 @@
     if (action === "prefer" && unit && extra.choice === "good") {
       // Would the group reading land it? If not, record the opinion and show the trades up front.
       const trial = { ...user, requested: [...user.requested, ...ids] };
-      const after = P.plan(cfg, trial, prevPlan, { today });
+      const after = P.plan(cfg, trial, prevPlan, ext());
       if (!after.placements[unit.id]) {
         await send(intent, true);
-        pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return;
+        pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], prevPlan, ext()) }; renderPanel(); return;
       }
     }
     if (action === "unpin" && ids.some((id) => user.requested.includes(id))) intent.backTo = "requested";
     if (action === "ask" && unit) {
       // Would it land? Ask the planner locally first so the options panel can offer the trades.
-      const after = P.plan(cfg, nextUser("ask", ids), prevPlan);
-      if (!after.placements[unit.id]) { pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
+      const after = P.plan(cfg, nextUser("ask", ids), prevPlan, ext());
+      if (!after.placements[unit.id]) { pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], prevPlan, ext()) }; renderPanel(); return; }
     }
     const r = await send(intent, false);
     if (r.ok && r.preview) {
@@ -776,10 +951,10 @@
       if (action === "punt" && d.notes.length) { $("tradeoffs-wrap").hidden = false; $("tradeoffs").insertAdjacentHTML("afterbegin", d.notes.map((n) => `<li>${esc(n)}</li>`).join("")); }
       return;
     }
-    const after = P.plan(cfg, u, before);
+    const after = P.plan(cfg, u, before, ext());
     const unit = Object.values(after.units).find((x) => x.members.some((m) => ids.includes(m)));
     if (action === "ask" && unit && !after.placements[unit.id]) {
-      pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], before) };
+      pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], before, ext()) };
       renderPanel(); return;
     }
     const d = P.diff(before, after, ids);
@@ -832,7 +1007,7 @@
     const ids = b.dataset.ids.split(","), a = b.dataset.act;
     if (a === "prefer") { act(a, ids, { choice: b.dataset.choice || null }); return; }
     if (["complete", "not_this_day", "bail"].includes(a)) { act(a, ids, { date: b.dataset.date }); return; }
-    if (a === "options") { const u = Object.values(prevPlan.units).find((x) => x.members.includes(ids[0])); pending = { kind: "options", name: u.name, id: ids[0], anchor: u.id, options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
+    if (a === "options") { const u = Object.values(prevPlan.units).find((x) => x.members.includes(ids[0])); pending = { kind: "options", name: u.name, id: ids[0], anchor: u.id, options: P.fitOptions(cfg, user, ids[0], prevPlan, ext()) }; renderPanel(); return; }
     if (a === "explained") { try { localStorage.setItem("dc.explained", "1"); } catch (_) {} $("explainer").hidden = true; return; }
     act(a, ids);
   });
