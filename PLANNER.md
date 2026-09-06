@@ -240,8 +240,9 @@ vote. A must-do still goes through the preview when honoring it costs something.
 
 **Sam's blue cards ride beside the trophies, not in the standings.** A second track of achievements
 evaluates for one traveler only. Each is a merit badge requirement that a stop on this trip
-satisfies (the Capitol tour is Citizenship in the Nation 7b, Air and Space is Aviation 4d, the
-whole ride is Railroading 2a), and it files itself when that stop is marked done. Blue cards
+satisfies (the Capitol by day and lit at night is Photography 4b, Air and Space is Aviation 4d,
+the whole ride is Railroading 2a), and it files itself when that stop is marked done or the photo
+lands on the record. Photography is the badge; Sam already holds Citizenship in the Nation. Blue cards
 never count toward the family standings or toward "everyone has four"; the game stays fair and
 the counselor still gets a timestamped record.
 

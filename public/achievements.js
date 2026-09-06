@@ -39,23 +39,22 @@
     { id: "cinderella", name: "Cinderella", description: "A 13-seed or lower made the family's top eight.", scope: "trip", rule: { type: "bracket", fact: "cinderella" } },
     { id: "clark-griswold", name: "Clark Griswold Distinguished Service Medal", description: "Administer a whole family vacation and get everyone home.", scope: "user", hidden: true, rule: { type: "trip_complete", admin: true } },
 
-    // Sam's blue cards. One traveler, one track: each unlocks when the venue that
-    // satisfies a merit badge requirement is marked done. They live beside the
-    // family trophies, never in the standings. Requirement numbers are from the
-    // official scouting.org pages, checked September 2026.
-    { id: "seven-b", name: "Seven-B", description: "Tour the U.S. Capitol.", badge: "Citizenship in the Nation 7b", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "us-capitol" } },
-    { id: "federal-facility", name: "Federal Facility", description: "Tour the National Archives and say what it does for the nation.", badge: "Citizenship in the Nation 7c", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "national-archives" } },
-    { id: "on-the-register", name: "On the Register", description: "Visit a place on the National Register of Historic Places.", badge: "Citizenship in the Nation 7a", only: "sam", track: "scouts", scope: "user", rule: { type: "count_complete", venues: ["library-of-congress", "fords-theatre", "national-cathedral", "georgetown"], count: 1 } },
-    { id: "monumental", name: "Monumental", description: "Stand at the national monument you chose.", badge: "Citizenship in the Nation 7d", only: "sam", track: "scouts", scope: "user", rule: { type: "count_complete", venues: ["lincoln-memorial", "washington-monument"], count: 1 } },
-    { id: "clean-sweep", name: "Clean Sweep", description: "All four site visits, when the badge asks for two.", badge: "Citizenship in the Nation 7, twice over", only: "sam", track: "scouts", scope: "user", rule: { type: "all_of", rules: [{ type: "venue_complete", venue: "us-capitol" }, { type: "venue_complete", venue: "national-archives" }, { type: "count_complete", venues: ["library-of-congress", "fords-theatre", "national-cathedral", "georgetown"], count: 1 }, { type: "count_complete", venues: ["lincoln-memorial", "washington-monument"], count: 1 }] } },
-    { id: "four-score-and-seven", name: "Four Score and Seven", description: "Read the speech where it's carved.", badge: "Citizenship in the Nation 6", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "lincoln-memorial" } },
-    { id: "separation-of-powers", name: "Separation of Powers", description: "The Capitol and the White House, two branches on foot.", badge: "Citizenship in the Nation 3", only: "sam", track: "scouts", scope: "user", rule: { type: "venues_complete", venues: ["us-capitol", "white-house"] } },
-    { id: "five-hundred-miles", name: "Five Hundred Miles", description: "Plan the rail trip from a timetable, then ride it. About 730, actually.", badge: "Railroading 2a and 7b(4)", only: "sam", track: "scouts", scope: "user", rule: { type: "trip_complete" } },
-    { id: "america-on-the-move", name: "America on the Move", description: "The 1401 locomotive and the flag the anthem is about, one building.", badge: "Railroading 7b(1), American Heritage 3b", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "american-history" } },
-    { id: "four-d", name: "Four-D", description: "Visit an aviation museum and report what you learned.", badge: "Aviation 4d", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "air-space" } },
-    { id: "gallery-pass", name: "Gallery Pass", description: "Visit an art museum, with the counselor's approval first.", badge: "Art 6", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "national-gallery" } },
-    { id: "march-on-washington", name: "March on Washington", description: "Stand where an event changed how the country saw a group of people.", badge: "Citizenship in Society 8", only: "sam", track: "scouts", scope: "user", rule: { type: "count_complete", venues: ["mlk-memorial", "african-american-history", "lincoln-memorial"], count: 1 } },
+    // Sam's blue cards. One traveler, one track: Photography is the badge this trip is
+    // for (Sam already holds Citizenship in the Nation; Art is a no). Railroading and
+    // Aviation ride along because the train and Air & Space satisfy them for free. Each
+    // unlocks when the stop that satisfies a requirement is marked done, or when the
+    // family's photos land on the record. They live beside the family trophies, never in
+    // the standings. Requirement numbers are from the official scouting.org pages,
+    // checked September 2026.
+    { id: "first-frame", name: "First Frame", description: "The first family photo lands on the record.", badge: "Photography 7, the shot list", only: "sam", track: "scouts", scope: "user", rule: { type: "photos", count: 1 } },
+    { id: "two-angles", name: "Two Angles", description: "One subject from two angles: the Monument from the base and from Lincoln's steps.", badge: "Photography 4a", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "washington-monument" } },
+    { id: "day-and-night", name: "Day and Night", description: "The Capitol by daylight on the tour and lit after dark, the same subject under two lights.", badge: "Photography 4b", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "us-capitol" } },
+    { id: "three-of-six", name: "Three of Six", description: "Action at the Guard, an animal at the zoo, nature at the basin: two of those stops done.", badge: "Photography 5", only: "sam", track: "scouts", scope: "user", rule: { type: "count_complete", venues: ["arlington", "zoolights", "jefferson-memorial", "fdr-memorial", "mlk-memorial"], count: 2 } },
+    { id: "post-production", name: "Post-Production", description: "Fourteen hours in a roomette with one photo and an editor.", badge: "Photography 6", only: "sam", track: "scouts", scope: "user", rule: { type: "trip_complete" } },
     { id: "eight-to-twelve", name: "Eight to Twelve", description: "Eight family photos on the record, the visual story's raw material.", badge: "Photography 7c", only: "sam", track: "scouts", scope: "user", rule: { type: "photos", count: 8 } },
+    { id: "five-hundred-miles", name: "Five Hundred Miles", description: "Plan the rail trip from a timetable, then ride it. About 730, actually.", badge: "Railroading 2a and 7b(4)", only: "sam", track: "scouts", scope: "user", rule: { type: "trip_complete" } },
+    { id: "america-on-the-move", name: "America on the Move", description: "The 1401 locomotive, full size, indoors: a railroad historical display.", badge: "Railroading 7b(1)", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "american-history" } },
+    { id: "four-d", name: "Four-D", description: "Visit an aviation museum and report what you learned.", badge: "Aviation 4d", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "air-space" } },
   ];
 
   // The photo hunt: the family's own shots replace the promotional ones as /img/done-<file>.

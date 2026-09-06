@@ -35,7 +35,7 @@ records what the family decided; identity says who did it.
   to KV once and never removed. `/api/achievements` feeds the trophy case and the standings.
   Definitions with `only` evaluate for one traveler (Sam's merit badge blue cards); definitions
   with a `track` stay out of the standings.
-- `public/family/scouts.html` is Sam's merit badge map, served by the Worker at `/family/scouts`
+- `public/family/scouts.html` is Sam's Photography map (the merit badge plan), served by the Worker at `/family/scouts`
   to signed-in travelers only. Everything under `/family/` runs Worker-first for that reason.
 - `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, marks
   (completed, fixed, not-this-day), accepted placements, decisions, opinions on decisions, and
