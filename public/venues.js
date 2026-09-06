@@ -139,7 +139,7 @@
       photo: ["unit-national-archives.webp", "The National Archives"],
     },
     "main-memorial-loop": {
-      title: "the big memorial night", featured: true,
+      title: "the big memorial night",
       body: ["Reach the Vietnam Wall at dusk while the names are still easy to read. Then let it get dark: World War II Memorial, up the steps to Lincoln, and finally the Korean War Memorial, where the statues come alive under the lights. Bundle up. Hot chocolate after. This is the night we'll talk about for years."],
       photo: ["day-1202-lincoln-night.webp", "Lincoln Memorial after dark"],
     },
@@ -155,7 +155,7 @@
       photo: ["day-1204-arlington-guard.webp", "Changing of the Guard, Tomb of the Unknown Soldier"],
     },
     "christmas-washington": {
-      title: "Christmas Washington", featured: true,
+      title: "Christmas Washington",
       body: ["After dark: the White House, the Ellipse, and the National Christmas Tree if this year's lighting has happened by then, with the state and territory trees around it. This night isn't for learning anything. It's for lights, cocoa, and seasonal nonsense."],
       photo: ["day-1205-national-christmas-tree.webp", "The National Christmas Tree on the Ellipse"],
     },
