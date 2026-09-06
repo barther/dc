@@ -420,20 +420,28 @@
     if (!shared || !trophies || !signedIn()) { el.hidden = true; return; }
     el.hidden = false;
     const defs = Object.fromEntries(trophies.defs.map((d) => [d.id, d]));
-    const mine = (trophies.byTraveler[me.id] || []).map((id) => defs[id]).filter(Boolean);
+    const all = (trophies.byTraveler[me.id] || []).map((id) => defs[id]).filter(Boolean);
+    const mine = all.filter((d) => !d.track);
+    const cards = all.filter((d) => d.track === "scouts");
+    const cardTotal = trophies.defs.filter((d) => d.track === "scouts" && d.only === me.id).length;
     const musts = Object.entries((shared.trip.preferences || {})[me.id] || {}).filter(([, c]) => c === "must").map(([v]) => (C.venues.find((x) => x.id === v) || {}).name).filter(Boolean);
     const doneMine = C.headlines.filter((h) => (user.completed || {})[h]).length;
-    const standings = travelers.map((t) => ({ t, n: (trophies.byTraveler[t.id] || []).length })).sort((a, b) => b.n - a.n || a.t.name.localeCompare(b.t.name));
+    const standings = travelers.map((t) => ({ t, n: (trophies.byTraveler[t.id] || []).filter((id) => !(defs[id] || {}).track).length })).sort((a, b) => b.n - a.n || a.t.name.localeCompare(b.t.name));
+    const samCards = (trophies.byTraveler.sam || []).filter((id) => (defs[id] || {}).track === "scouts").length;
+    const samTotal = trophies.defs.filter((d) => d.track === "scouts" && d.only === "sam").length;
     const bartFirst = standings[0] && standings[0].t.is_admin;
     $("trophies-body").innerHTML = `
       <div class="mine"><p class="kicker-sm">${esc(me.name)}'s Washington</p>
         <p><b>${mine.length}</b> ${mine.length === 1 ? "achievement" : "achievements"} · <b>${doneMine}</b> of ${C.headlines.length} must-see things done${musts.length ? ` · must do: ${esc(musts.join(", "))}` : ""}</p>
         ${mine.length ? `<ul class="trophy-list">${mine.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span></li>`).join("")}</ul>` : `<p class="muted">Nothing yet. Go see something.</p>`}
+        ${cardTotal ? `<p class="kicker-sm cards-head">Blue cards · ${cards.length} of ${cardTotal}</p>
+        ${cards.length ? `<ul class="trophy-list cards">${cards.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span> <i class="badge-req">${esc(d.badge || "")}</i></li>`).join("")}</ul>` : `<p class="muted">Each one is a merit badge requirement a stop on this trip satisfies. Mark the stop done and it files itself.</p>`}` : ""}
       </div>
       <div class="standings"><p class="kicker-sm">Current standings</p>
         <ol>${standings.map((s) => `<li><span>${esc(s.t.name)}</span><b>${s.n}</b></li>`).join("")}</ol>
         ${!bartFirst && standings.length ? `<p class="muted">Bart has appealed the results.</p>` : ""}
         ${trophies.group.length ? `<p class="muted">Trip: ${trophies.group.map((id) => (defs[id] || {}).name).filter(Boolean).join(", ")}</p>` : ""}
+        ${samTotal && me.id !== "sam" ? `<p class="muted">Sam's blue cards: ${samCards} of ${samTotal}. They don't count here.</p>` : ""}
       </div>`;
   }
 

@@ -34,14 +34,39 @@
     { id: "full-party-capitol", name: "Full Party Clear", description: "All four travelers completed Capitol Hill.", scope: "trip", rule: { type: "bundle_complete", bundle: "capitol-hill" } },
     { id: "four-score", name: "Four Score", description: "Every traveler unlocked at least four achievements.", scope: "trip", rule: { type: "everyone_has", count: 4 } },
     { id: "clark-griswold", name: "Clark Griswold Distinguished Service Medal", description: "Administer a whole family vacation and get everyone home.", scope: "user", hidden: true, rule: { type: "trip_complete", admin: true } },
+
+    // Sam's blue cards. One traveler, one track: each unlocks when the venue that
+    // satisfies a merit badge requirement is marked done. They live beside the
+    // family trophies, never in the standings. Requirement numbers are from the
+    // official scouting.org pages, checked September 2026.
+    { id: "seven-b", name: "Seven-B", description: "Tour the U.S. Capitol.", badge: "Citizenship in the Nation 7b", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "us-capitol" } },
+    { id: "federal-facility", name: "Federal Facility", description: "Tour the National Archives and say what it does for the nation.", badge: "Citizenship in the Nation 7c", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "national-archives" } },
+    { id: "on-the-register", name: "On the Register", description: "Visit a place on the National Register of Historic Places.", badge: "Citizenship in the Nation 7a", only: "sam", track: "scouts", scope: "user", rule: { type: "count_complete", venues: ["library-of-congress", "fords-theatre", "national-cathedral", "georgetown"], count: 1 } },
+    { id: "monumental", name: "Monumental", description: "Stand at the national monument you chose.", badge: "Citizenship in the Nation 7d", only: "sam", track: "scouts", scope: "user", rule: { type: "count_complete", venues: ["lincoln-memorial", "washington-monument"], count: 1 } },
+    { id: "clean-sweep", name: "Clean Sweep", description: "All four site visits, when the badge asks for two.", badge: "Citizenship in the Nation 7, twice over", only: "sam", track: "scouts", scope: "user", rule: { type: "all_of", rules: [{ type: "venue_complete", venue: "us-capitol" }, { type: "venue_complete", venue: "national-archives" }, { type: "count_complete", venues: ["library-of-congress", "fords-theatre", "national-cathedral", "georgetown"], count: 1 }, { type: "count_complete", venues: ["lincoln-memorial", "washington-monument"], count: 1 }] } },
+    { id: "four-score-and-seven", name: "Four Score and Seven", description: "Read the speech where it's carved.", badge: "Citizenship in the Nation 6", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "lincoln-memorial" } },
+    { id: "separation-of-powers", name: "Separation of Powers", description: "The Capitol and the White House, two branches on foot.", badge: "Citizenship in the Nation 3", only: "sam", track: "scouts", scope: "user", rule: { type: "venues_complete", venues: ["us-capitol", "white-house"] } },
+    { id: "five-hundred-miles", name: "Five Hundred Miles", description: "Plan the rail trip from a timetable, then ride it. About 730, actually.", badge: "Railroading 2a and 7b(4)", only: "sam", track: "scouts", scope: "user", rule: { type: "trip_complete" } },
+    { id: "america-on-the-move", name: "America on the Move", description: "The 1401 locomotive and the flag the anthem is about, one building.", badge: "Railroading 7b(1), American Heritage 3b", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "american-history" } },
+    { id: "four-d", name: "Four-D", description: "Visit an aviation museum and report what you learned.", badge: "Aviation 4d", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "air-space" } },
+    { id: "gallery-pass", name: "Gallery Pass", description: "Visit an art museum, with the counselor's approval first.", badge: "Art 6", only: "sam", track: "scouts", scope: "user", rule: { type: "venue_complete", venue: "national-gallery" } },
+    { id: "march-on-washington", name: "March on Washington", description: "Stand where an event changed how the country saw a group of people.", badge: "Citizenship in Society 8", only: "sam", track: "scouts", scope: "user", rule: { type: "count_complete", venues: ["mlk-memorial", "african-american-history", "lincoln-memorial"], count: 1 } },
+    { id: "eight-to-twelve", name: "Eight to Twelve", description: "Eight family photos on the record, the visual story's raw material.", badge: "Photography 7c", only: "sam", track: "scouts", scope: "user", rule: { type: "photos", count: 8 } },
   ];
+
+  // The photo hunt: the family's own shots replace the promotional ones as /img/done-<file>.
+  // The Worker counts which of these exist; that count is the "photos" fact.
+  const HUNT = ["day-1128-anniston-station.webp", "day-1129-union-station.webp", "day-1130-air-space.webp", "day-1201-loc-great-hall.webp", "day-1202-lincoln-night.webp", "day-1203-natural-history.webp", "day-1204-arlington-guard.webp", "day-1205-national-christmas-tree.webp", "day-1206-american-history.webp", "day-1207-home.webp", "train-crescent.webp", "train-roomette.webp", "hero-capitol-night.webp", "family.webp"];
 
   /*
    * facts: {
    *   travelerId, isAdmin, completed: { venue: date }, bundles: { id: { core: [] } },
    *   decisions: [{ type, traveler_id, payload }], preferences: { travelerId: { venue: choice } },
-   *   phase: "plan"|"before"|"live"|"after", hadHiHi: bool, unlockedByTraveler: { travelerId: [ids] }
+   *   phase: "plan"|"before"|"live"|"after", hadHiHi: bool, unlockedByTraveler: { travelerId: [ids] },
+   *   photos: number of family photos on the record
    * }
+   * Definitions with `only` evaluate for that traveler alone. Definitions with a
+   * `track` never count toward the standings or toward "everyone has N".
    */
   function evaluate(facts) {
     const done = (v) => !!facts.completed[v];
@@ -50,9 +75,9 @@
       const wants = Array.isArray(want) ? want : [want];
       return wants.some((w) => w === d.type || (w.startsWith("prefer:") && d.type === "prefer" && d.payload && d.payload.choice === w.slice(7)));
     };
-    const out = [];
-    for (const a of defs) {
-      const r = a.rule; let ok = false;
+    const counted = (ids) => (ids || []).filter((id) => !(byId[id] || {}).track).length;
+    const check = (r) => {
+      let ok = false;
       switch (r.type) {
         case "venue_complete": ok = done(r.venue); break;
         case "venues_complete": ok = r.venues.every(done); break;
@@ -61,15 +86,23 @@
         case "decision": ok = facts.decisions.some((d) => decisionMatches(d, r.decision) && (r.by === "any" || mine(d))); break;
         case "preferences": ok = Object.keys((facts.preferences || {})[facts.travelerId] || {}).length >= r.count; break;
         case "trip_complete": ok = facts.phase === "after" && (!r.no_hihi || !facts.hadHiHi) && (!r.admin || !!facts.isAdmin); break;
-        case "everyone_has": { const u = facts.unlockedByTraveler || {}; const ids = facts.travelerIds || []; ok = ids.length > 0 && ids.every((t) => (u[t] || []).length >= r.count); break; }
+        case "everyone_has": { const u = facts.unlockedByTraveler || {}; const ids = facts.travelerIds || []; ok = ids.length > 0 && ids.every((t) => counted(u[t]) >= r.count); break; }
+        case "photos": ok = (facts.photos || 0) >= r.count; break;
+        case "all_of": ok = r.rules.every(check); break;
         default: ok = false;
       }
-      if (ok) out.push(a.id);
+      return ok;
+    };
+    const out = [];
+    for (const a of defs) {
+      if (a.only && a.only !== facts.travelerId) continue;
+      if (check(a.rule)) out.push(a.id);
     }
     return out;
   }
 
-  const api = { defs, evaluate, byId: Object.fromEntries(defs.map((d) => [d.id, d])) };
+  const byId = Object.fromEntries(defs.map((d) => [d.id, d]));
+  const api = { defs, evaluate, byId, HUNT };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
   root.DCAchievements = api;
 })(typeof window !== "undefined" ? window : globalThis);

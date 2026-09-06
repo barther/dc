@@ -88,8 +88,19 @@ async function unlocked(kv) {
   return { byTraveler, group };
 }
 
-async function evaluateAchievements(env, db, s, plan) {
+// How many of the hunt's family photos exist as /img/done-<file>. Static assets, so a HEAD each.
+async function countPhotos(env, origin) {
+  if (!env.ASSETS || !origin) return 0;
+  const hits = await Promise.all(achievements.HUNT.map(async (f) => {
+    // The assets binding answers misses with the index page (single-page-application fallback), so an image is the only real hit.
+    try { const r = await env.ASSETS.fetch(new Request(`${origin}/img/done-${f}`, { method: "HEAD" })); return r.ok && (r.headers.get("content-type") || "").startsWith("image/") ? 1 : 0; } catch (e) { return 0; }
+  }));
+  return hits.reduce((a, b) => a + b, 0);
+}
+
+async function evaluateAchievements(env, db, s, plan, origin) {
   const kv = env.KV; if (!kv) return [];
+  const photos = await countPhotos(env, origin);
   const travelers = (await db.prepare("SELECT id, name, is_admin FROM travelers").all()).results;
   const allDecisions = (await db.prepare("SELECT type, traveler_id, payload FROM decisions WHERE trip_id = ?").bind(TRIP_ID).all()).results
     .map((d) => ({ type: d.type, traveler_id: d.traveler_id, payload: (() => { try { return JSON.parse(d.payload); } catch (e) { return {}; } })() }));
@@ -98,7 +109,7 @@ async function evaluateAchievements(env, db, s, plan) {
   const fresh = [];
   const now = new Date().toISOString();
   for (const t of travelers) {
-    const facts = { travelerId: t.id, isAdmin: !!t.is_admin, completed: s.completed, bundles: planner.catalog.bundles, decisions: allDecisions, preferences: s.preferences, phase: plan.phase, hadHiHi, unlockedByTraveler: have.byTraveler, travelerIds: travelers.map((x) => x.id) };
+    const facts = { travelerId: t.id, isAdmin: !!t.is_admin, completed: s.completed, bundles: planner.catalog.bundles, decisions: allDecisions, preferences: s.preferences, phase: plan.phase, hadHiHi, unlockedByTraveler: have.byTraveler, travelerIds: travelers.map((x) => x.id), photos };
     for (const id of achievements.evaluate(facts)) {
       const def = achievements.byId[id];
       if (def.scope === "trip") { if (!have.group.includes(id)) { await kv.put(akey("trip", null, id), JSON.stringify({ unlockedAt: now, source: "evaluate", version: 1 })); have.group.push(id); fresh.push({ scope: "trip", id, name: def.name }); } continue; }
@@ -143,10 +154,10 @@ export default {
     if (url.pathname === "/api/achievements") {
       if (!(await requireTraveler(request, env, db))) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       // Trip-level trophies can come due with time alone (the trip ending), so check here too.
-      try { const s = await loadState(db); const ext = external(env); const cur = planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext); await evaluateAchievements(env, db, s, cur); } catch (e) {}
+      try { const s = await loadState(db); const ext = external(env); const cur = planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext); await evaluateAchievements(env, db, s, cur, url.origin); } catch (e) {}
       const have = await unlocked(env.KV);
       const visible = achievements.defs.filter((d) => !d.hidden || have.group.includes(d.id) || Object.values(have.byTraveler).some((l) => l.includes(d.id)));
-      return json({ ...have, defs: visible.map(({ id, name, description, scope, hidden }) => ({ id, name, description, scope, hidden: !!hidden })) });
+      return json({ ...have, defs: visible.map(({ id, name, description, scope, hidden, track, badge, only }) => ({ id, name, description, scope, hidden: !!hidden, track: track || null, badge: badge || null, only: only || null })) });
     }
 
     if (url.pathname === "/api/today") {
@@ -218,7 +229,7 @@ export default {
       if (!results[1].meta.changes) { const cur = await loadState(db); return json({ error: "Somebody else changed the trip first.", trip: publicState(cur), decisions: await decisions(db) }, 409); }
       const cur = await loadState(db);
       let fresh = [];
-      try { fresh = await evaluateAchievements(env, db, cur, after); } catch (e) { fresh = []; }
+      try { fresh = await evaluateAchievements(env, db, cur, after, url.origin); } catch (e) { fresh = []; }
       return json({ trip: publicState(cur), decisions: await decisions(db), label: after.label, today: todayISO(env), unlocked: fresh });
     }
 

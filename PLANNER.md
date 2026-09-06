@@ -229,6 +229,13 @@ removes it; sounds good with no objection asks the planner to find room; a split
 to seed and capacity; silence is neutral. An administrator's explicit shared state wins over the
 vote. A must-do still goes through the preview when honoring it costs something.
 
+**Sam's blue cards ride beside the trophies, not in the standings.** A second track of achievements
+evaluates for one traveler only. Each is a merit badge requirement that a stop on this trip
+satisfies (the Capitol tour is Citizenship in the Nation 7b, Air and Space is Aviation 4d, the
+whole ride is Railroading 2a), and it files itself when that stop is marked done. Blue cards
+never count toward the family standings or toward "everyone has four"; the game stays fair and
+the counselor still gets a timestamped record.
+
 **The log is a conversation, not a receipt.** Every entry in "What's been decided" opens on a
 tap: who did it, when, and everyone's take. Any traveler can file *Fine by me* or *I object* with
 a short note, change it, or withdraw it. An opinion never changes the trip and never bumps the

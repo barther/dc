@@ -7,7 +7,8 @@ const FAMILY = ["bart", "jess", "sam", "nanny"];
 const facts = (over) => ({ travelerId: "sam", isAdmin: false, completed: {}, bundles: C.bundles, decisions: [], preferences: {}, phase: "live", hadHiHi: false, unlockedByTraveler: {}, travelerIds: FAMILY, ...over });
 
 test("discovery achievements come from completion, and a bundle needs every member", () => {
-  assert.deepEqual(A.evaluate(facts({ completed: { "national-archives": "2026-12-02" } })), ["we-the-people"]);
+  const family = (ids) => ids.filter((id) => !A.byId[id].track);
+  assert.deepEqual(family(A.evaluate(facts({ completed: { "national-archives": "2026-12-02" } }))), ["we-the-people"]);
   assert.ok(!A.evaluate(facts({ completed: { "us-capitol": "2026-12-01" } })).includes("checks-and-balances"));
   assert.ok(A.evaluate(facts({ completed: { "us-capitol": "2026-12-01", "library-of-congress": "2026-12-01" } })).includes("checks-and-balances"));
 });
@@ -36,4 +37,24 @@ test("Four Score counts every traveler on the trip, not just those already on th
   const three = { bart: ["a", "b", "c", "d"], jess: ["a", "b", "c", "d"], sam: ["a", "b", "c", "d"] };
   assert.ok(!A.evaluate(facts({ unlockedByTraveler: three })).includes("four-score"), "Nanny has none yet");
   assert.ok(A.evaluate(facts({ unlockedByTraveler: { ...three, nanny: ["a", "b", "c", "d"] } })).includes("four-score"));
+});
+
+test("Sam's blue cards evaluate for Sam alone, and never count toward the standings rules", () => {
+  const done = { "us-capitol": "2026-12-01", "national-archives": "2026-12-02", "library-of-congress": "2026-12-01", "lincoln-memorial": "2026-12-02" };
+  const sam = A.evaluate(facts({ completed: done }));
+  assert.ok(["seven-b", "federal-facility", "on-the-register", "monumental", "clean-sweep", "four-score-and-seven"].every((id) => sam.includes(id)));
+  assert.ok(!sam.includes("separation-of-powers"), "the White House is not done yet");
+  const bart = A.evaluate(facts({ travelerId: "bart", completed: done }));
+  assert.ok(bart.every((id) => !A.byId[id].track), "no blue cards for anyone but Sam");
+  // Clean Sweep needs all four; three is not a sweep
+  assert.ok(!A.evaluate(facts({ completed: { "us-capitol": "d", "national-archives": "d", "lincoln-memorial": "d" } })).includes("clean-sweep"));
+  // Photos are a fact of their own
+  assert.ok(!A.evaluate(facts({ photos: 7 })).includes("eight-to-twelve"));
+  assert.ok(A.evaluate(facts({ photos: 8 })).includes("eight-to-twelve"));
+  // Four Score counts family trophies only: thirteen blue cards do not make four achievements
+  const cards = A.defs.filter((d) => d.track).map((d) => d.id);
+  const u = { bart: ["a", "b", "c", "d"], jess: ["a", "b", "c", "d"], nanny: ["a", "b", "c", "d"], sam: cards };
+  assert.ok(!A.evaluate(facts({ travelerId: "bart", unlockedByTraveler: u })).includes("four-score"));
+  u.sam = ["a", "b", "c", "d", ...cards];
+  assert.ok(A.evaluate(facts({ travelerId: "bart", unlockedByTraveler: u })).includes("four-score"));
 });
