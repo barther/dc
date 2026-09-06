@@ -18,7 +18,7 @@
   ],
   "vars": {
     // Cloudflare Access team domain, e.g. "arther.cloudflareaccess.com". Leave empty for local dev.
-    "ACCESS_TEAM_DOMAIN": ""
+    "ACCESS_TEAM_DOMAIN": "artheracademy.cloudflareaccess.com"
     // ACCESS_AUD is a secret: wrangler secret put ACCESS_AUD
   },
   "observability": { "enabled": true }
