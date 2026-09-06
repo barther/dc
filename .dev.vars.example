@@ -1,6 +1,8 @@
 # Local development only. Copy to .dev.vars (git-ignored).
 # Stands in for a signed-in Access identity when ACCESS_TEAM_DOMAIN is empty.
 DEV_IDENTITY=bart
+# Blank this locally so DEV_IDENTITY is used instead of a real Access token.
+ACCESS_TEAM_DOMAIN=
 
 # Live-mode testing: pretend it is this date in Washington.
 # DEV_TODAY=2026-12-03
