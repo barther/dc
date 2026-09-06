@@ -409,6 +409,11 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .plate { width: 100%; max-width: 560px; padding: 4px; border: 1px solid transparent; }
 .plate:has(.photo.ready) { border-color: var(--rule); }
 .plate .photo { aspect-ratio: 16 / 9; object-fit: cover; object-position: center 35%; }
+/* The hero plate's museum label: tracked caps over an italic line, a gold hairline above. */
+.plate-label { display: grid; gap: 2px; justify-items: center; margin-top: 12px; padding-top: 10px; position: relative; font-style: normal; }
+.plate-label::before { content: ""; position: absolute; top: 0; left: 50%; width: 36px; margin-left: -18px; border-top: 1px solid var(--gold); }
+.plate-title { font-family: var(--text); font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--muted); }
+.plate-sub { font-family: var(--display); font-style: italic; font-size: 17px; color: var(--ink-2); }
 
 .banner .photo { aspect-ratio: 21 / 9; object-fit: cover; }
 .inset { max-width: 420px; }
@@ -722,6 +727,9 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .trophy-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .trophy-list li b { font-family: var(--display); font-weight: 400; font-size: 18px; margin-right: 6px; }
 .trophy-list li span { color: var(--ink-2); font-size: 15px; }
+.cards-head { margin-top: 18px; color: var(--ink); }
+.trophy-list.cards li { display: grid; gap: 2px; }
+.trophy-list .badge-req { font-style: normal; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--red); font-weight: 600; }
 .standings ol { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; max-width: 22ch; }
 .standings li { display: flex; justify-content: space-between; border-bottom: 1px solid var(--rule); padding: 4px 0; font-family: var(--display); font-size: 18px; }
 .muted { color: var(--muted); font-style: italic; font-size: 15px; margin-top: 8px; }
