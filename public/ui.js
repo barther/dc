@@ -6,9 +6,11 @@
  *   shared  — a signed-in traveler's view of the family's canonical trip from
  *             the Worker. Intents go up; the Worker re-runs the planner and
  *             persists the result.
- *   local   — the public pitch: the recommended trip and what-ifs in the URL
- *             hash. Anonymous visitors never see family state. Also the mode
- *             of a static preview with no Worker at all.
+ *   local   — a what-if on top of the shared trip, or a page with no Worker
+ *             behind it. Anonymous visitors never see family state.
+ *
+ * This runs on /family (public/family/trip.html). The public pitch at / is
+ * pitch.js: the reel and the countdown, no schedule.
  */
 (function () {
   "use strict";
@@ -283,14 +285,11 @@
     const p = P.plan(cfg, user, prevPlan, ext());
     const s = P.summarize(p);
     prevPlan = p;
-    // The family layer shows only to the family. The pitch is the reel.
+    // The family layer shows only to the family. Anyone else sees the banner and the door.
     document.querySelectorAll("[data-family]").forEach((el) => { el.hidden = !family(); });
 
     // Hero
     $("eyebrow-dates").innerHTML = `${esc(fmtDMD(p.trainOut))} → ${esc(fmtDMDY(p.home))}`.replace(/ /g, "&nbsp;");
-    const NW = ["", "One night", "Two nights", "Three nights", "Four nights", "Five nights", "Six nights", "Seven nights", "Eight nights", "Nine nights", "Ten nights", "Eleven nights", "Twelve nights", "Thirteen nights", "Fourteen nights"];
-    $("lede-nights").textContent = NW[p.nights] || `${p.nights} nights`;
-    $("lede-span").textContent = p.nights >= 7 ? "the whole week" : p.nights >= 4 ? "all of it" : "every minute of it";
     window.DCTrip = { depart: p.trainOut, arrive: new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate(), 14, 12), home: new Date(p.home.getFullYear(), p.home.getMonth(), p.home.getDate(), 10, 30) };
     window.dispatchEvent(new CustomEvent("trip:change"));
 
@@ -313,18 +312,11 @@
     $("fixed-fact").innerHTML = `Bart works until <b>${esc(WORK.offLabel)}</b> and is back at work <b>${esc(WORK.label)}</b>. The train gets home around ${esc(TRAIN.homeLabel.replace(" CT", ""))}.`;
     renderStrip(p);
 
-    // Board
-    const weekend = p.start.getDay() === 0 || p.start.getDay() === 6;
-    $("b-out-from").textContent = `${fmtDMD(p.trainOut)} · ${TRAIN.boardLabel}`;
-    $("b-out-to").textContent = `${fmtDMD(p.start)} · ${weekend ? TRAIN.arriveWeekend : TRAIN.arriveWeekday}`;
-    $("b-back-from").textContent = `${fmtDMD(p.depart)} · ${TRAIN.departLabel}`;
-    $("b-back-to").textContent = `${fmtDMD(p.home)} · ${TRAIN.homeLabel}`;
 
     // Today in Washington, the trophy case, the bracket, the reel
     renderToday(p);
     renderTrophies();
     renderBracket();
-    renderReel(p);
 
     // Week
     const WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen"];
@@ -371,26 +363,6 @@
       : "We're probably only doing this once, so we picked the A-list and gave every one of them the time it deserves.";
     const kept = p.headline.kept, total = p.headline.total;
     $("canon-note").textContent = kept === total ? "All on the schedule." : `${kept} of thirteen fit this version. The rest are marked.`;
-  }
-
-  /* ───────────── The reel: every contender, no schedule ───────────── */
-
-  function renderReel(p) {
-    const cs = B.contenders(C);
-    $("reel-list").innerHTML = cs.map((c) => {
-      const cp = C.copy[c.id] || { title: c.name, body: [] };
-      const u = p.family ? p.units[c.id] : null;
-      const rank = u && u.familyRank ? `<span class="reel-rank">Family's No. ${u.familyRank}</span>` : "";
-      return `<li class="reel-item${cp.featured ? " featured" : ""}" id="reel-${c.id}">
-        <div class="reel-meta"><span class="reel-seed">${c.seed}</span>${loadBadge(c.load)}<span class="reel-when">${c.period === "day" ? "Day" : "Night"}</span>${rank}</div>
-        <h3>${esc(cap(cp.title))}</h3>
-        ${c.bundle ? `<p class="reel-short">${esc(c.short)}</p>` : ""}
-        ${figure(cp.photo || null, "reel-photo")}
-        ${cp.body.map((t) => `<p>${esc(t)}</p>`).join("")}
-      </li>`;
-    }).join("");
-    $("reel-cta").hidden = family();
-    $("reel-intro").querySelector(".reel-easy").hidden = false;
   }
 
   /* ───────────── The bracket ───────────── */
@@ -631,7 +603,7 @@
     if (me && isAdmin()) el.innerHTML = `<span class="who">You're <b>${esc(me.name)}</b>, ${esc(me.role)}.</span><span class="can">You can change dates and nights, override any vote, and do everything the others can.</span>`;
     else if (me) el.innerHTML = `<span class="who">You're <b>${esc(me.name)}</b>, ${esc(me.role)}.</span><span class="can">Vote on anything, mark things done, move things to another day. Dates and nights are Bart's.</span>`;
     else if (signinWhy) el.innerHTML = `<span class="who">Signed in, but not on the trip.</span><span class="can">${esc(signinWhy)}. Bart can fix the address in the family list.</span>`;
-    else el.innerHTML = `<span class="who">This is the pitch.</span><span class="can">The family votes with a bracket, and the week follows the vote.</span> <a href="/family" class="signin">Family, sign in</a>`;
+    else el.innerHTML = `<span class="who">Not signed in.</span><span class="can">The family's trip is behind the gate.</span> <a href="/family" class="signin">Family, sign in</a> <a href="/" class="signin">The pitch</a>`;
   }
 
   // One explainer, four points, pacing first. Signed-in, before the trip, dismissable once.

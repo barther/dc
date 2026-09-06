@@ -58,59 +58,7 @@
 
   <p class="identity" id="identity" hidden></p>
 
-  <div class="explainer" id="explainer" hidden>
-    <p class="kicker-sm">How this page works</p>
-    <ol>
-      <li><b>The bracket sets the order.</b> Everyone fills one. Every finished ballot is a ranking, the family's average is the order, and the schedule follows it.</li>
-      <li><b>One Big thing a day.</b> A Big day gets an Easy night. Never two Bigs in one day. The planner won't let you.</li>
-      <li><b>Votes aren't edits.</b> Your vote is your opinion. Any must-do protects a thing; if everyone skips it, it's off.</li>
-      <li><b>Ideas stay ideas until someone asks.</b> The planner schedules the must-see things on its own. Extras need a vote.</li>
-      <li><b>Nothing consequential lands silently.</b> If a change costs a day or a must-see thing, you'll see the cost first.</li>
-    </ol>
-    <button type="button" class="ctl" data-act="explained" data-ids="">Got it</button>
-  </div>
-
-  <p class="whatif-banner" id="whatif-banner" hidden>This is a what-if. The family's real trip is unchanged. <button type="button" class="link" id="whatif-back">Back to the real trip</button></p>
-
-  <section class="today" id="today" hidden>
-    <p class="kicker-sm">Today in Washington</p>
-    <div id="today-body"></div>
-  </section>
-
-  <section class="today record" id="record" hidden>
-    <p class="kicker-sm">The record</p>
-    <div id="record-body"></div>
-  </section>
-
-  <div class="planner" data-family hidden>
-    <p class="verdict" id="verdict"></p>
-    <p class="verdict-why" id="verdict-why"></p>
-    <p class="verdict-work ok" id="verdict-work" hidden></p>
-    <details class="change" id="change">
-      <summary><span class="plus" aria-hidden="true">+</span> <span id="change-summary-text">Try a shorter trip</span></summary>
-      <div class="change-body">
-        <div class="strip-wrap" data-family>
-          <p class="strip-hint"><span>Drag the block to move the whole trip.</span> <span class="legend-work">Shaded days, Bart's at work.</span></p>
-          <div class="strip" id="strip" aria-label="Trip dates"></div>
-          <p class="strip-hint strip-hint-keys">Arrow keys move it a day at a time.</p>
-        </div>
-        <div class="dates">
-          <label class="field"><span>Leave home</span><input type="date" id="cfg-leave"></label>
-          <label class="field"><span>Back home</span><input type="date" id="cfg-home"></label>
-          <p class="dates-fact"><b id="cfg-nights"></b> <span id="cfg-nights-word">hotel nights</span></p>
-          <span class="hint" id="nights-hint"></span>
-        </div>
-        <p class="fixed-fact" id="fixed-fact"></p>
-        <p class="fixed-fact admin-note" id="admin-note" hidden>Dates and nights are Bart's call. Change them here to see a what-if; the real trip stays put.</p>
-        <button type="button" class="reset" id="cfg-reset" hidden>Back to the recommended trip</button>
-      </div>
-    </details>
-  </div>
-
   <nav class="hero-nav" aria-label="Sections">
-    <a href="#bracket" data-family hidden>The bracket</a>
-    <a href="#week" data-family hidden>The week</a>
-    <a href="#list" data-family hidden>The list</a>
     <a href="#reel">What's on the table</a>
     <a href="#train">The train</a>
     <a href="#rules">House rules</a>
@@ -119,82 +67,7 @@
 
 <main>
 
-  <!-- ───────────── THE BRACKET ───────────── -->
-  <section id="bracket" class="section" data-family hidden>
-    <div class="section-head">
-      <p class="kicker" data-kicker>The vote</p>
-      <h2>Fill in your bracket.</h2>
-      <p class="intro">
-        Seventeen things, one bracket, everyone gets one. This or that, one matchup at a time, saved as you go.
-        Every finished ballot becomes a ranking from one to seventeen. The family's average is the order,
-        and the schedule follows it. Your champion can't be averaged away: it's locked to the top.
-      </p>
-    </div>
-    <div id="bracket-body"><!-- rendered by ui.js --></div>
-  </section>
-
-  <!-- ───────────── THE WEEK ───────────── -->
-  <section id="week" class="section" data-family hidden>
-    <div class="section-head">
-      <p class="kicker" id="week-kicker" data-kicker>Nine days, one big thing a day</p>
-      <h2>The week.</h2>
-      <p class="intro">
-        Every day gets one real adventure, and the day and night are balanced so nobody gets wrecked.
-        Big museum day? Easy night. Easy afternoon? That's when we go out and see the memorials glow.
-      </p>
-    </div>
-
-    <div class="legend-box" aria-label="How big each thing is">
-      <span><i class="load lo">Easy</i> a stroll, a stop, a light morning</span>
-      <span><i class="load mid">Real</i> a real outing, with energy left over</span>
-      <span><i class="load hi">Big</i> the whole battery</span>
-      <span class="legend-rule">A Big day gets an Easy night. Never two Bigs in one day.</span>
-    </div>
-
-    <div id="panel-home"><div class="panel" id="panel" hidden></div></div>
-
-    <div class="tradeoffs decisions" id="decisions-wrap" hidden>
-      <p class="kicker-sm">What's been decided</p>
-      <ul id="decisions"></ul>
-    </div>
-
-    <div class="tradeoffs" id="tradeoffs-wrap" hidden>
-      <p class="kicker-sm">Tradeoffs</p>
-      <ul id="tradeoffs"></ul>
-    </div>
-
-    <ol class="line" id="line"><!-- rendered by ui.js --></ol>
-  </section>
-
-  <!-- ───────────── THE LIST ───────────── -->
-  <section id="list" class="section" data-family hidden>
-    <div class="section-head">
-      <p class="kicker" data-kicker>Why this trip</p>
-      <h2>We're doing it properly.</h2>
-      <p class="intro" id="canon-intro">
-        <span id="canon-lead">We're probably only doing this once, so we picked the A-list and gave every one of them the time it deserves.</span>
-        Thirteen must-see things. <span id="canon-note">All on the schedule.</span>
-      </p>
-    </div>
-
-    <ol class="canon" id="canon"><!-- rendered by ui.js --></ol>
-
-    <div class="trophies" id="trophies" hidden>
-      <div id="trophies-body"></div>
-    </div>
-
-    <div class="bench-wrap">
-      <h3 class="bench-head">Ideas</h3>
-      <p class="bench-intro" id="bench-intro">Everything else worth doing, in the order we'd miss it. The planner fills the must-see things on its own; these are yours to add. Ask for one and it finds room if it can, or tells you what it would cost.</p>
-      <ul class="bench" id="bench"></ul>
-      <div id="punted-wrap" hidden>
-        <h3 class="bench-head">Skipped</h3>
-        <ul class="bench" id="punted"></ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- ───────────── THE REEL ───────────── -->
+<!-- ───────────── THE REEL ───────────── -->
   <section id="reel" class="section">
     <div class="section-head">
       <p class="kicker" data-kicker>What's on the table</p>
@@ -204,7 +77,7 @@
         <span class="reel-easy"><i class="load lo">Easy</i> a stroll, <i class="load mid">Real</i> a real outing, <i class="load hi">Big</i> the whole battery.</span>
       </p>
     </div>
-    <ol class="reel" id="reel-list"><!-- rendered by ui.js --></ol>
+    <ol class="reel" id="reel-list"><!-- rendered by pitch.js --></ol>
     <p class="reel-cta" id="reel-cta"><a href="/family" class="signin">Family, sign in</a> to fill in your bracket. Nothing here changes until you do.</p>
   </section>
 
@@ -305,7 +178,7 @@
 <script src="/venues.js"></script>
 <script src="/planner.js"></script>
 <script src="/bracket.js"></script>
-<script src="/ui.js"></script>
+<script src="/pitch.js"></script>
 <script src="/app.js" defer></script>
 </body>
 </html>
