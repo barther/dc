@@ -409,6 +409,11 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .plate { width: 100%; max-width: 560px; padding: 4px; border: 1px solid transparent; }
 .plate:has(.photo.ready) { border-color: var(--rule); }
 .plate .photo { aspect-ratio: 16 / 9; object-fit: cover; object-position: center 35%; }
+/* The hero plate's museum label: tracked caps over an italic line, a gold hairline above. */
+.plate-label { display: grid; gap: 2px; justify-items: center; margin-top: 12px; padding-top: 10px; position: relative; font-style: normal; }
+.plate-label::before { content: ""; position: absolute; top: 0; left: 50%; width: 36px; margin-left: -18px; border-top: 1px solid var(--gold); }
+.plate-title { font-family: var(--text); font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--muted); }
+.plate-sub { font-family: var(--display); font-style: italic; font-size: 17px; color: var(--ink-2); }
 
 .banner .photo { aspect-ratio: 21 / 9; object-fit: cover; }
 .inset { max-width: 420px; }

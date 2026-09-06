@@ -277,6 +277,7 @@
     $("eyebrow-dates").innerHTML = `${esc(fmtDMD(p.trainOut))} → ${esc(fmtDMDY(p.home))}`.replace(/ /g, "&nbsp;");
     const NW = ["", "One night", "Two nights", "Three nights", "Four nights", "Five nights", "Six nights", "Seven nights", "Eight nights", "Nine nights", "Ten nights", "Eleven nights", "Twelve nights", "Thirteen nights", "Fourteen nights"];
     $("lede-nights").textContent = NW[p.nights] || `${p.nights} nights`;
+    $("lede-span").textContent = p.nights >= 7 ? "the whole week" : p.nights >= 4 ? "all of it" : "every minute of it";
     window.DCTrip = { depart: p.trainOut, arrive: new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate(), 14, 12), home: new Date(p.home.getFullYear(), p.home.getMonth(), p.home.getDate(), 10, 30) };
     window.dispatchEvent(new CustomEvent("trip:change"));
 
