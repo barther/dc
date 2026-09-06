@@ -410,7 +410,7 @@
       <div class="standings"><p class="kicker-sm">Standings</p>
         <ol>${standings.map((s) => `<li><span>${esc(s.t.name)}</span><b>${s.n}</b></li>`).join("")}</ol>
         ${!bartFirst && standings.length ? `<p class="muted">Bart has appealed the results.</p>` : ""}
-        ${trophies.group.length ? `<p class="muted">Trip: ${trophies.group.map((id) => (defs[id] || {}).name).filter(Boolean).join(", ")}</p>` : ""}
+        ${trophies.group.length ? `<p class="kicker-sm cards-head">The trip's</p><ul class="trophy-list">${trophies.group.map((id) => defs[id]).filter(Boolean).map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span></li>`).join("")}</ul>` : ""}
         ${samTotal && me.id !== "sam" ? `<p class="muted">Sam's blue cards: ${samCards} of ${samTotal}. They don't count here. <a href="/family/scouts">The map.</a></p>` : ""}
       </div>`;
   }
