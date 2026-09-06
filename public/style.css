@@ -707,3 +707,74 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .record .record-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
 .record .record-list b { font-family: var(--display); font-weight: 400; font-size: 20px; margin-right: 4px; }
 .record-trophy { font-family: var(--display); font-size: 22px; color: var(--red); margin-top: 6px; }
+
+
+/* ═══════════════ UX pass: hints, votes vs overrides, anchored panels, roles ═══════════════
+   Rules: every control gets a visible one-line hint; votes and overrides never share a row;
+   the consequence mounts next to its cause; the mode is announced; legends are elements. */
+
+.hint { display: block; flex-basis: 100%; font-size: 14px; line-height: 1.4; color: var(--muted); font-style: italic; }
+
+/* Role banner */
+.identity { display: grid; gap: 2px; justify-items: center; font-size: 15px; max-width: 52ch; }
+.identity .who { color: var(--ink); }
+.identity .can { color: var(--ink-2); }
+
+/* Explainer: once, dismissable */
+.explainer { width: 100%; max-width: 560px; border: 1px solid var(--ink); outline: 1px solid var(--ink); outline-offset: 3px; padding: 14px 18px; display: grid; gap: 8px; text-align: left; margin: 4px 0; }
+.explainer ol { margin: 0; padding: 0 0 0 1.2em; display: grid; gap: 6px; color: var(--ink-2); font-size: 16px; }
+.explainer ol b { color: var(--ink); font-weight: 600; }
+.explainer .ctl { justify-self: start; }
+
+.whatif-banner { font-size: 14px; color: var(--red); max-width: 52ch; }
+
+/* Stepper hint */
+.stepper .hint { margin-top: 4px; font-style: normal; }
+.field { max-width: 260px; }
+
+/* Legend as an element */
+.legend-box { display: grid; gap: 6px; border: 1px solid var(--rule); padding: 12px 16px; font-size: 15px; color: var(--ink-2); }
+.legend-box .load { margin-right: 8px; min-width: 3.6em; text-align: center; }
+.legend-rule { border-top: 1px solid var(--rule); padding-top: 8px; margin-top: 2px; color: var(--ink); font-weight: 600; }
+
+/* Per-unit blocks inside a day: actions, then your vote, then the override block */
+.unit-block { display: grid; gap: 8px; padding: 10px 0 2px; border-top: 1px solid var(--rule); }
+.unit-label { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.prefs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.prefs-you { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); font-weight: 600; min-width: 7ch; }
+.pref-pills { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.pref.on { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+.pref.on.must { background: var(--red); border-color: var(--red); color: var(--paper); }
+.pref.on.good { background: var(--ink); }
+.pref.on.meh, .pref.on.punt { background: var(--muted); border-color: var(--muted); color: var(--paper); }
+.override { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; border-top: 1px dashed var(--rule); padding-top: 8px; }
+.override-label { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red); font-weight: 600; min-width: 7ch; }
+.override .ctl-state { color: var(--ink); }
+
+/* Ideas list */
+.bench li { grid-template-columns: 16ch minmax(0, 1fr) auto; align-items: start; }
+.bench-meta { white-space: normal; line-height: 1.4; }
+.bench-act { display: grid; gap: 4px; justify-items: end; max-width: 26ch; }
+.bench-act .hint { text-align: right; font-size: 13px; }
+.bench .prefs { margin-top: 6px; }
+@media (max-width: 720px) {
+  .bench li { grid-template-columns: 1fr; }
+  .bench-act { justify-items: start; max-width: none; }
+  .bench-act .hint { text-align: left; }
+}
+
+/* Suggestions on open slots */
+.suggest-btn em { color: var(--muted); font-style: normal; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; margin-left: 4px; }
+
+/* The panel, wherever it mounts */
+.stop-body .panel, .bench-name .panel { margin-top: 10px; }
+
+/* Strip: the block is labeled and has grips */
+.block .grip { font-style: normal; font-size: 14px; letter-spacing: -3px; color: var(--ink); opacity: 0.8; }
+.block .seg.train { display: grid; place-items: center; min-width: 14px; }
+
+@media (max-width: 560px) {
+  .hint { font-size: 13px; }
+  .prefs-you, .override-label { min-width: 0; flex-basis: 100%; }
+}

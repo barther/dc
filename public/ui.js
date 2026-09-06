@@ -18,7 +18,23 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-  const loadBadge = (load) => `<i class="load ${load}">${load.toUpperCase()}</i>`;
+  // Reader-facing names. The data keeps lo/mid/hi, seed, punt; the page says Easy/Real/Big, Skip.
+  const LOAD_NAME = { lo: "Easy", mid: "Real", hi: "Big" };
+  const loadBadge = (load) => `<i class="load ${load}">${LOAD_NAME[load] || load}</i>`;
+  const hint = (text) => `<span class="hint">${esc(text)}</span>`;
+  const HINT = {
+    vote: "Votes aren't edits. Any must-do protects it; if everyone skips it, it's off.",
+    notThisDay: "Keeps it on the trip, finds another day.",
+    done: "Locks it into history and counts toward trophies.",
+    bail: "Bailed means we went, it was miserable, we called the car.",
+    override: "Changes the shared trip for everyone. Votes still show.",
+    whatIf: "A what-if. Nothing here changes the family's plan.",
+    add: "Asks the planner to find room. Never bumps a must-see thing.",
+    suggest: "Open on purpose. Add one of these, or leave it open.",
+    nights: "Fewer nights cut the least-missed things first. More nights come back open.",
+    strip: "Drag the block to move the whole trip. Shaded days, Bart's at work.",
+  };
+  const MISS = ["We'd miss it a lot", "We'd miss it some", "We'd miss it a little"];
 
   /* Narrative for the structural days. Trip prose, not venue data. */
   const NARRATIVE = {
@@ -110,7 +126,7 @@
     return `<div class="halves">${h("day", day)}${h("night", night)}</div>`;
   }
 
-  const CHOICES = [["must", "Must do"], ["good", "Sounds good"], ["meh", "Meh"], ["punt", "Punt"]];
+  const CHOICES = [["must", "Must do"], ["good", "Sounds good"], ["meh", "Meh"], ["punt", "Skip"]];
   const initials = (t) => t.name[0];
 
   // Personal opinions, not mutations. Everyone's shown; yours is clickable.
@@ -119,39 +135,43 @@
     const prefs = shared.trip.preferences || {};
     const mine = (prefs[me.id] || {})[u.members[0]] || null;
     const others = travelers.filter((t) => t.id !== me.id && (prefs[t.id] || {})[u.members[0]]).map((t) => `<span class="vote ${(prefs[t.id] || {})[u.members[0]]}" title="${esc(t.name)}: ${(prefs[t.id] || {})[u.members[0]]}">${esc(initials(t))}</span>`).join("");
-    return `<div class="prefs"><span class="prefs-you">You</span>${CHOICES.map(([c, l]) => `<button type="button" class="ctl pref${mine === c ? " on " + c : ""}" data-act="prefer" data-choice="${mine === c ? "" : c}" data-ids="${u.members.join(",")}">${l}</button>`).join("")}${others ? `<span class="votes">${others}</span>` : ""}</div>`;
+    return `<div class="prefs"><span class="prefs-you">Your vote</span><span class="pref-pills">${CHOICES.map(([c, l]) => `<button type="button" class="ctl pref${mine === c ? " on " + c : ""}" data-act="prefer" data-choice="${mine === c ? "" : c}" data-ids="${u.members.join(",")}">${l}</button>`).join("")}</span>${others ? `<span class="votes">${others}</span>` : ""}${hint(HINT.vote)}</div>`;
   }
 
+  // What you can do with this thing today: done, moved, bailed. One hint per state.
   function doneRow(u, d) {
     if (!shared || !signedIn() || !d) return "";
     const ids = u.members.join(","), date = iso(d.date);
-    if (u.completedOn) return `<span class="done-state">✓ Done</span><button type="button" class="ctl" data-act="uncomplete" data-ids="${ids}">Undo</button>`;
-    if (d.past || d.isToday) return `<button type="button" class="ctl" data-act="complete" data-ids="${ids}" data-date="${date}">Mark done</button>${d.isToday ? `<button type="button" class="ctl" data-act="bail" data-ids="${ids}" data-date="${date}" title="We were there, it was miserable, we called the car">We bailed</button>` : ""}`;
-    return `<button type="button" class="ctl" data-act="not_this_day" data-ids="${ids}" data-date="${date}" title="Keep it, move it">Not this day</button>`;
+    if (u.completedOn) return `<div class="actions"><span class="done-state">✓ Done</span><button type="button" class="ctl" data-act="uncomplete" data-ids="${ids}">Undo</button>${hint("It happened. Undo only if that was a mis-tap.")}</div>`;
+    if (d.past || d.isToday) return `<div class="actions"><button type="button" class="ctl" data-act="complete" data-ids="${ids}" data-date="${date}">Mark done</button>${d.isToday ? `<button type="button" class="ctl" data-act="bail" data-ids="${ids}" data-date="${date}">We bailed</button>` : ""}${hint(d.isToday ? `${HINT.done} ${HINT.bail}` : HINT.done)}</div>`;
+    return `<div class="actions"><button type="button" class="ctl" data-act="not_this_day" data-ids="${ids}" data-date="${date}">Not this day</button>${hint(HINT.notThisDay)}</div>`;
   }
 
-  function unitControls(u, d) {
+  // Admin overrides (or, with no family sign-in, what-if edits). A separate block, never the vote row.
+  function overrideBlock(u) {
     if (!u) return "";
-    if (shared && signedIn() && !isAdmin()) return `<span class="unit-controls">${doneRow(u, d)}</span>`;
+    if (shared && signedIn() && !isAdmin()) return "";
     const ids = u.members.join(",");
-    const override = shared && signedIn() ? `<span class="ctl-state override">Override</span>` : "";
-    const state = u.pinned ? `<span class="ctl-state">✦ Must-do</span>` : u.requested ? `<span class="ctl-state">Added by you</span>` : "";
+    const label = shared && signedIn() ? "Override" : "What-if";
+    const state = u.pinned ? `<span class="ctl-state">✦ Must-do</span>` : u.requested ? `<span class="ctl-state">Added</span>` : "";
     const pin = u.pinned
-      ? `<button type="button" class="ctl" data-act="unpin" data-ids="${ids}" title="Back to an ordinary recommendation">Relax</button>`
-      : `<button type="button" class="ctl" data-act="pin" data-ids="${ids}" title="Protect this from ordinary cuts">Must-do</button>`;
+      ? `<button type="button" class="ctl" data-act="unpin" data-ids="${ids}">Relax</button>`
+      : `<button type="button" class="ctl" data-act="pin" data-ids="${ids}">Must-do</button>`;
     const off = u.requested && !u.pinned
-      ? `<button type="button" class="ctl" data-act="unask" data-ids="${ids}" title="Back to the board">Remove</button>`
-      : `<button type="button" class="ctl" data-act="punt" data-ids="${ids}" title="Take this off the trip">Punt</button>`;
-    return `<span class="unit-controls">${override}${state}${pin}${off}${doneRow(u, d)}</span>`;
+      ? `<button type="button" class="ctl" data-act="unask" data-ids="${ids}">Remove</button>`
+      : `<button type="button" class="ctl" data-act="punt" data-ids="${ids}">Skip</button>`;
+    return `<div class="override"><span class="override-label">${label}</span>${state}${pin}${off}${hint(shared && signedIn() ? HINT.override : HINT.whatIf)}</div>`;
   }
+
+  function unitControls(u, d) { return u ? doneRow(u, d) : ""; }
 
   // Ranked suggestions for an open slot. Recommended, never imposed.
   function suggestions(d, slot) {
     const list = d.suggest && d.suggest[slot];
     if (!list || !list.length) return "";
-    return `<div class="suggest"><span class="suggest-head">${slot === "day" ? "Best additions" : "Or, after dark"}</span>
-      ${list.map((x) => `<button type="button" class="ctl suggest-btn" data-act="ask" data-ids="${x.id}"><em>#${x.seed}</em> ${esc(x.name)}${x.shortened ? ", shortened" : ""}</button>`).join("")}
-      <span class="suggest-or">or leave it open.</span></div>`;
+    return `<div class="suggest"><span class="suggest-head">${slot === "day" ? "Ideas for this day" : "Ideas for tonight"}</span>
+      ${list.map((x) => `<button type="button" class="ctl suggest-btn" data-act="ask" data-ids="${x.id}">${esc(x.name)}${x.shortened ? ", shortened" : ""} <em>${LOAD_NAME[x.load]}</em></button>`).join("")}
+      ${hint(HINT.suggest)}</div>`;
   }
 
   // Family photos replace the promotional ones when they exist: /img/done-<file>.
@@ -172,13 +192,15 @@
     else title = NARRATIVE.open.title;
     if (dc) body.push(...dc.body); if (nc) body.push(...nc.body);
     if (!du && !nu) body.push(p.nights > DEFAULT.nights && p.headline.kept === p.headline.total ? "Everything in the core trip already fits comfortably. This day is open on purpose." : NARRATIVE.open.body[0]);
-    if (du && !nu) body.push(du.load === "hi" ? "Then dinner, the hotel, and nothing. That's the plan, not a gap in it." : "Dinner. Nothing scheduled after.");
+    if (du && !nu) body.push(du.load === "hi" ? "After a Big day, we keep the night empty on purpose." : "Dinner. Nothing scheduled after.");
     const featured = (dc && dc.featured) || (nc && nc.featured);
     const photo = (dc && dc.photo) || (nc && nc.photo) || null;
     const dayHalf = du ? { label: du.short, load: du.load } : C.structural.open;
     const nightHalf = nu ? { label: nu.short, load: nu.load } : C.structural.rest;
+    const block = (label, u) => `<div class="unit-block" data-units="${u.id}"><span class="unit-label">${label}</span>${unitControls(u, d)}${prefRow(u)}${overrideBlock(u)}</div>`;
     return card(d, title, body, photo, halves(dayHalf, nightHalf), featured, false,
-      (du ? `<div class="ctl-row"><span>Day</span>${unitControls(du, d)}</div>${prefRow(du)}` : (d.past ? "" : suggestions(d, "day"))) + (nu ? `<div class="ctl-row"><span>Night</span>${unitControls(nu, d)}</div>${prefRow(nu)}` : (du && du.load !== "hi" && !d.past ? suggestions(d, "night") : "")));
+      (du ? block("Day", du) : (d.past ? "" : suggestions(d, "day"))) + (nu ? block("Night", nu) : (du && du.load !== "hi" && !d.past ? suggestions(d, "night") : "")),
+      [du && du.id, nu && nu.id].filter(Boolean).join(" "));
   }
 
   function renderDeparture(p, d) {
@@ -191,13 +213,13 @@
     const title = d.day.shortened ? `${cap(c.title)}, shortened, then home.` : `${cap(c.title)}, then home.`;
     const body = c.short ? c.short.slice() : [...c.body, NARRATIVE.departureTail];
     return card(d, title, body, c.photo || null, halves({ label: d.day.shortened ? `${du.short}, a couple of hours` : du.short, load: d.day.shortened ? "mid" : du.load }, C.structural.departure.night), false, false,
-      `<div class="ctl-row"><span>Morning</span>${unitControls(du, d)}</div>${prefRow(du)}`);
+      `<div class="unit-block" data-units="${du.id}"><span class="unit-label">Morning</span>${unitControls(du, d)}${prefRow(du)}${overrideBlock(du)}</div>`, du.id);
   }
 
-  function card(d, title, body, photo, halvesHtml, featured, late, controls) {
+  function card(d, title, body, photo, halvesHtml, featured, late, controls, units) {
     const cls = ["stop", featured ? "featured" : "", d.kind === "home" ? "last" : "", late ? "late" : "", d.past ? "past" : "", d.isToday ? "today" : ""].filter(Boolean).join(" ");
     return `<li class="${cls}"><div class="stop-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span></div>
-      <div class="stop-body"><h3>${esc(title)}</h3>${figure(photo, "stop-photo")}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${controls}</div></li>`;
+      <div class="stop-body"${units ? ` data-anchor="${units}"` : ""}><h3>${esc(title)}</h3>${figure(photo, "stop-photo")}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${controls}</div></li>`;
   }
 
   function renderWeek(p) {
@@ -219,20 +241,24 @@
   function renderBench(p) {
     const units = Object.values(p.units).filter((u) => !p.placements[u.id]).sort((a, b) => a.seed - b.seed);
     const puntedVenues = user.punted.map((id) => C.venues.find((v) => v.id === id)).filter(Boolean);
-    const row = (u) => {
+    const tier = (i) => MISS[Math.min(2, Math.floor((i / Math.max(1, units.length)) * 3))];
+    const meta = (u, i) => `<span class="bench-meta">${esc(tier(i))} · ${LOAD_NAME[u.load]} · ${u.period === "day" ? "Day" : "Night"}</span>`;
+    const row = (u, i) => {
       const ex = p.excluded.find((e) => e.unit.id === u.id);
       const note = u.pinned ? `<em class="bench-note">Marked must-do, but there's ${ex ? ex.why : "no room"}.</em>`
         : u.requested ? `<em class="bench-note">Doesn't fit without changing the current trip. <button type="button" class="link" data-act="options" data-ids="${u.members[0]}">See the options</button></em>` : "";
-      const btn = shared && signedIn() && !isAdmin() ? "" : u.pinned
-        ? `<button type="button" class="ctl" data-act="unpin" data-ids="${u.members.join(",")}">Let it go</button>`
+      const ids = u.members.join(",");
+      const adminOrLocal = !(shared && signedIn()) || isAdmin();
+      const btn = !adminOrLocal ? "" : u.pinned
+        ? `<button type="button" class="ctl" data-act="unpin" data-ids="${ids}">Let it go</button>`
         : u.requested
-        ? `<button type="button" class="ctl" data-act="unask" data-ids="${u.members.join(",")}">Never mind</button>`
-        : `<button type="button" class="ctl" data-act="ask" data-ids="${u.members.join(",")}">Add to trip</button>`;
-      if (shared && signedIn()) return `<li><span class="bench-meta">#${u.seed} · ${u.load.toUpperCase()} · ${u.period.toUpperCase()}</span><span class="bench-name">${esc(u.name)}${note}${prefRow(u)}</span>${btn}</li>`;
-      return `<li><span class="bench-meta">#${u.seed} · ${u.load.toUpperCase()} · ${u.period.toUpperCase()}</span><span class="bench-name">${esc(u.name)}${note}</span>${btn}</li>`;
+        ? `<button type="button" class="ctl" data-act="unask" data-ids="${ids}">Never mind</button>`
+        : `<button type="button" class="ctl" data-act="ask" data-ids="${ids}">Add to trip</button>`;
+      const btnHint = !adminOrLocal ? "" : hint(u.pinned || u.requested ? (shared && signedIn() ? HINT.override : HINT.whatIf) : HINT.add);
+      return `<li data-anchor="${u.id}">${meta(u, i)}<span class="bench-name">${esc(u.name)}${note}${shared && signedIn() ? prefRow(u) : ""}</span><span class="bench-act">${btn}${btnHint}</span></li>`;
     };
-    const puntRow = (v) => `<li class="punted"><span class="bench-meta">#${v.seed} · ${v.load.toUpperCase()} · ${v.period.toUpperCase()}</span><span class="bench-name">${esc(v.name)}</span><button type="button" class="ctl" data-act="unpunt" data-ids="${v.id}">Bring back</button></li>`;
-    $("bench").innerHTML = units.map(row).join("") || `<li class="empty">Everything on the board is in the trip.</li>`;
+    const puntRow = (v) => `<li class="punted"><span class="bench-meta">${LOAD_NAME[v.load]} · ${v.period === "day" ? "Day" : "Night"}</span><span class="bench-name">${esc(v.name)}</span><span class="bench-act"><button type="button" class="ctl" data-act="unpunt" data-ids="${v.id}">Bring back</button>${hint("Puts it back on the ideas list. The planner decides if it fits.")}</span></li>`;
+    $("bench").innerHTML = units.map(row).join("") || `<li class="empty">Every idea we have is already in the trip.</li>`;
     $("punted-wrap").hidden = !puntedVenues.length;
     $("punted").innerHTML = puntedVenues.map(puntRow).join("");
   }
@@ -240,6 +266,8 @@
   /* ───────────── Page ───────────── */
 
   function render() {
+    // Park the panel before anything it might be mounted in gets re-rendered.
+    $("panel-home").appendChild($("panel"));
     const p = P.plan(cfg, user, prevPlan, { today: today || (shared ? null : localToday()) });
     const s = P.summarize(p);
     prevPlan = p;
@@ -253,15 +281,18 @@
 
     $("cfg-nights").textContent = String(p.nights);
     const structural = shared && signedIn() && !isAdmin();
-    $("cfg-minus").disabled = p.nights <= MIN_NIGHTS || structural;
-    $("cfg-plus").disabled = p.nights >= MAX_NIGHTS || structural;
-    $("cfg-reset").hidden = isDefault() || structural;
+    $("cfg-minus").disabled = p.nights <= MIN_NIGHTS;
+    $("cfg-plus").disabled = p.nights >= MAX_NIGHTS;
+    $("cfg-reset").hidden = isDefault() && !(structural && whatIf);
     $("admin-note").hidden = !structural;
-    document.body.classList.toggle("structural-locked", !!structural);
+    $("nights-hint").textContent = HINT.nights;
+    document.body.classList.toggle("structural-locked", false);
     renderIdentity();
     renderDecisions();
     const warn = s.label === "A different kind of trip" || s.label === "These dates don't work" || s.label === "Runs into work";
-    $("verdict").innerHTML = [`<b>${p.nights} ${p.nights === 1 ? "night" : "nights"}</b>`, `<span class="verdict-label${warn ? " warn" : ""}">${esc(s.label)}</span>`, `<span>${esc(s.count)}</span>`].join('<span class="sep">·</span>');
+    $("verdict").innerHTML = [`<b>${p.nights} ${p.nights === 1 ? "night" : "nights"}</b>`, `<span class="verdict-label${warn ? " warn" : ""}">${esc(s.label)}</span>`, `<span>${esc(s.count.replace("headline experiences", "must-see things fit"))}</span>`].join('<span class="sep">·</span>');
+    $("change-summary-text").textContent = shared && signedIn() && isAdmin() ? "Change dates or nights" : shared && signedIn() ? "Try a shorter trip (a what-if)" : "Try a shorter trip";
+    renderExplainer(p);
     $("verdict-why").innerHTML = [s.cuts ? `<b>${esc(s.cuts)}</b>` : "", esc(s.why)].filter(Boolean).join(" ");
     const ws = p.work.early > 0 ? "late" : p.work.status;
     $("verdict-work").textContent = s.work; $("verdict-work").className = "verdict-work " + ws; $("verdict-work").hidden = !s.work;
@@ -294,11 +325,13 @@
       li.classList.toggle("punted", user.punted.includes(id));
     });
     const kept = p.headline.kept, total = p.headline.total;
-    $("canon-note").textContent = kept === total ? "All on the schedule." : `${kept} of thirteen on this version. The rest are marked.`;
+    $("canon-note").textContent = kept === total ? "All on the schedule." : `${kept} of thirteen fit this version. The rest are marked.`;
+    $("whatif-banner").hidden = !(shared && signedIn() && whatIf);
 
-    // Bench + footer
+    // Ideas + footer, then put the panel back next to its cause.
     renderBench(p);
     $("foot-dates").textContent = `${fmtMD(p.trainOut)} – ${fmtMD(p.home)}, ${p.home.getFullYear()}`;
+    renderPanel(true);
   }
 
   function localToday() {
@@ -310,8 +343,13 @@
   function update(next, live) {
     if (shared && signedIn() && !live) {
       // Structural changes are intents; the Worker decides. Local render only while dragging.
+      if (next.cfg && !isAdmin()) {
+        // Not theirs to change. Let them look, locally, and say so.
+        cfg = { ...cfg, ...next.cfg }; cfg.nights = Math.min(MAX_NIGHTS, Math.max(MIN_NIGHTS, cfg.nights));
+        whatIf = !(cfg.start === shared.trip.start && cfg.nights === shared.trip.nights);
+        render(); return;
+      }
       if (next.cfg) {
-        if (!isAdmin()) { toast("Bart administers the vacation. Dates and nights are his."); render(); return; }
         const c = { ...cfg, ...next.cfg };
         let intent = null;
         if (next.cfg.start && next.cfg.start !== shared.trip.start) intent = { type: "set_dates", start: c.start };
@@ -369,7 +407,7 @@
     const punts = (shared && shared.decisions || []).filter((d) => d.type === "punt" || /punt/.test(d.summary)).length;
     const total = trophies ? Object.values(trophies.byTraveler).reduce((n, l) => n + l.length, 0) + trophies.group.length : null;
     $("record-body").innerHTML = `<p class="today-date">${esc(fmtMD(p.trainOut))} – ${esc(fmtDMDY(p.home))}</p>
-      <ul class="record-list"><li><b>${doneCount}</b> of ${C.headlines.length} headline experiences</li>${total != null ? `<li><b>${total}</b> achievements</li>` : ""}<li><b>${swaps}</b> weather-driven ${swaps === 1 ? "swap" : "swaps"}</li><li><b>${punts}</b> strategic ${punts === 1 ? "punt" : "punts"}</li><li><b>0</b> HI/HI days</li></ul>
+      <ul class="record-list"><li><b>${doneCount}</b> of ${C.headlines.length} must-see things</li>${total != null ? `<li><b>${total}</b> achievements</li>` : ""}<li><b>${swaps}</b> weather-driven ${swaps === 1 ? "swap" : "swaps"}</li><li><b>${punts}</b> strategic ${punts === 1 ? "skip" : "skips"}</li><li><b>0</b> days with two Big things</li></ul>
       ${trophies && trophies.group.includes("wally-world") ? `<p class="record-trophy">Wally World Was Open.</p>` : ""}`;
   }
 
@@ -387,7 +425,7 @@
     const bartFirst = standings[0] && standings[0].t.is_admin;
     $("trophies-body").innerHTML = `
       <div class="mine"><p class="kicker-sm">${esc(me.name)}'s Washington</p>
-        <p><b>${mine.length}</b> ${mine.length === 1 ? "achievement" : "achievements"} · <b>${doneMine}</b> of ${C.headlines.length} headline experiences done${musts.length ? ` · must do: ${esc(musts.join(", "))}` : ""}</p>
+        <p><b>${mine.length}</b> ${mine.length === 1 ? "achievement" : "achievements"} · <b>${doneMine}</b> of ${C.headlines.length} must-see things done${musts.length ? ` · must do: ${esc(musts.join(", "))}` : ""}</p>
         ${mine.length ? `<ul class="trophy-list">${mine.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span></li>`).join("")}</ul>` : `<p class="muted">Nothing yet. Go see something.</p>`}
       </div>
       <div class="standings"><p class="kicker-sm">Current standings</p>
@@ -408,12 +446,21 @@
 
   /* ───────────── Who's here, what's been decided ───────────── */
 
+  // The role banner: who you are, and one sentence on what you can change.
   function renderIdentity() {
     const el = $("identity");
     if (!shared && !hasWorker) { el.hidden = true; return; }
     el.hidden = false;
-    if (me) el.innerHTML = `<span class="who">Signed in as <b>${esc(me.name)}</b> · ${esc(me.role)}</span>`;
-    else el.innerHTML = `<span class="who">This is the pitch. Family, the trip itself is behind the door.</span> <a href="/family" class="signin">Sign in</a>`;
+    if (me && isAdmin()) el.innerHTML = `<span class="who">You're <b>${esc(me.name)}</b>, ${esc(me.role)}.</span><span class="can">You can change dates and nights, override any vote, and do everything the others can.</span>`;
+    else if (me) el.innerHTML = `<span class="who">You're <b>${esc(me.name)}</b>, ${esc(me.role)}.</span><span class="can">Vote on anything, mark things done, move things to another day. Dates and nights are Bart's.</span>`;
+    else el.innerHTML = `<span class="who">This is the pitch.</span><span class="can">Try a shorter trip below; nothing here changes the family's plan.</span> <a href="/family" class="signin">Family, sign in</a>`;
+  }
+
+  // One explainer, four points, pacing first. Signed-in, before the trip, dismissable once.
+  function renderExplainer(p) {
+    const el = $("explainer");
+    let seen = false; try { seen = localStorage.getItem("dc.explained") === "1"; } catch (_) {}
+    el.hidden = !(shared && signedIn() && (p.phase === "before" || p.phase === "plan") && !seen);
   }
 
   function renderDecisions() {
@@ -495,7 +542,7 @@
     const late = p.trainOut < workOff || p.home > workBack;
     strip.style.setProperty("--n", n);
     strip.innerHTML = cells + `<div class="block${late ? " late" : ""}" id="block" style="grid-column:${a} / ${b + 1}" tabindex="0" role="slider" aria-label="Trip dates" aria-valuetext="${esc(fmtDMD(p.trainOut))} to ${esc(fmtDMD(p.home))}">
-        <span class="seg train"></span><span class="seg nights">${p.nights} ${p.nights === 1 ? "night" : "nights"}</span><span class="seg train"></span></div>`;
+        <span class="seg train"><i class="grip" aria-hidden="true">⋮</i></span><span class="seg nights">Your trip · ${p.nights} ${p.nights === 1 ? "night" : "nights"}</span><span class="seg train"><i class="grip" aria-hidden="true">⋮</i></span></div>`;
     bindBlock();
   }
 
@@ -534,10 +581,12 @@
     render();
     document.addEventListener("visibilitychange", async () => { if (!document.hidden && shared && !whatIf && !pending && await fetchShared()) { adoptShared(); render(); } });
   })();
+  $("whatif-back").addEventListener("click", () => { pending = null; adoptShared(); whatIf = false; render(); });
   $("cfg-minus").addEventListener("click", () => update({ cfg: { nights: cfg.nights - 1 } }));
   $("cfg-plus").addEventListener("click", () => update({ cfg: { nights: cfg.nights + 1 } }));
   $("cfg-reset").addEventListener("click", () => {
     pending = null; renderPanel();
+    if (shared && signedIn() && !isAdmin()) { adoptShared(); whatIf = false; render(); return; }
     if (shared && signedIn()) { update({ cfg: { ...DEFAULT }, user: { reset: true, punted: [], pinned: [], requested: [] } }); return; }
     update({ cfg: { ...DEFAULT }, user: { punted: [], pinned: [], requested: [] } });
   });
@@ -553,9 +602,25 @@
     return u;
   }
 
-  function renderPanel() {
+  function reveal(el) {
+    const r = el.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > window.innerHeight) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // The consequence mounts next to its cause: inside the card or the Ideas row that was pressed.
+  function anchorPanel() {
+    const el = $("panel"), home = $("panel-home");
+    let target = null;
+    if (pending && pending.anchor) {
+      const id = pending.anchor;
+      target = document.querySelector(`.stop-body[data-anchor~="${CSS.escape(id)}"]`) || document.querySelector(`#bench li[data-anchor="${CSS.escape(id)}"] .bench-name`);
+    }
+    (target || home).appendChild(el);
+  }
+
+  function renderPanel(silent) {
     const el = $("panel");
-    if (!pending) { el.hidden = true; el.innerHTML = ""; return; }
+    if (!pending) { el.hidden = true; el.innerHTML = ""; $("panel-home").appendChild(el); return; }
     el.hidden = false;
     if (pending.kind === "confirm") {
       el.innerHTML = `<p class="panel-head">${esc(pending.title)}</p>
@@ -563,13 +628,14 @@
         <div class="panel-actions"><button type="button" class="ctl on" data-panel="go">${esc(pending.go)}</button><button type="button" class="ctl" data-panel="no">Don't make this change</button></div>`;
     } else {
       el.innerHTML = `<p class="panel-head">${esc(pending.name)} doesn't fit without changing the current trip.</p>
-        ${pending.options.length ? `<p class="panel-sub">Best options:</p>` : `<p class="panel-note">At this length, every trade would go to something we rank higher. Mark it must-do on a day if it matters more than that, or add nights.</p>`}
+        ${pending.options.length ? `<p class="panel-sub">Best options:</p>` : `<p class="panel-note">At this length, every trade would go to something we'd miss more. Mark it must-do if it matters more than that, or add nights.</p>`}
         <div class="panel-actions vertical">
           ${pending.options.map((o, i) => `<button type="button" class="ctl" data-panel="opt" data-i="${i}">${esc(o.label)}</button>`).join("")}
-          <button type="button" class="ctl" data-panel="board">Leave it on the board</button>
+          <button type="button" class="ctl" data-panel="board">Leave it as an idea</button>
         </div>`;
     }
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    anchorPanel();
+    if (!silent) reveal(el);
   }
 
   const INTENT_OF = { punt: "punt", unpunt: "unpunt", pin: "pin", unpin: "unpin", ask: "ask", unask: "unask", complete: "complete", uncomplete: "uncomplete", not_this_day: "not_this_day", bail: "bail", prefer: "prefer" };
@@ -591,14 +657,14 @@
       const after = P.plan(cfg, trial, prevPlan, { today });
       if (!after.placements[unit.id]) {
         await send(intent, true);
-        pending = { kind: "options", name: unit.name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return;
+        pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return;
       }
     }
     if (action === "unpin" && ids.some((id) => user.requested.includes(id))) intent.backTo = "requested";
     if (action === "ask" && unit) {
       // Would it land? Ask the planner locally first so the options panel can offer the trades.
       const after = P.plan(cfg, nextUser("ask", ids), prevPlan);
-      if (!after.placements[unit.id]) { pending = { kind: "options", name: unit.name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
+      if (!after.placements[unit.id]) { pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
     }
     const r = await send(intent, false);
     if (r.ok && r.preview) {
@@ -608,10 +674,10 @@
         : cutsCore ? `To keep ${name}, something has to give.`
         : f.newAvoid && f.newAvoid.length ? "This makes a day harder."
         : "This changes more than one day.";
-      pending = { kind: "confirm", intent, messages: [...r.preview.messages, ...r.preview.notes], title,
+      pending = { kind: "confirm", intent, anchor: unit ? unit.id : null, messages: [...r.preview.messages, ...r.preview.notes], title,
         go: cutsCore ? `Keep ${name}, drop ${(f.cutProtected && f.cutProtected[0]) || f.cutHeadlines[0]}` : "Continue anyway" };
       renderPanel();
-    } else if (r.ok) $("week").scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (r.ok && unit) { const a = document.querySelector(`.stop-body[data-anchor~="${CSS.escape(unit.id)}"]`); if (a) reveal(a); }
   }
 
   function act(action, ids, extra) {
@@ -629,20 +695,20 @@
     const after = P.plan(cfg, u, before);
     const unit = Object.values(after.units).find((x) => x.members.some((m) => ids.includes(m)));
     if (action === "ask" && unit && !after.placements[unit.id]) {
-      pending = { kind: "options", name: unit.name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], before) };
+      pending = { kind: "options", name: unit.name, id: ids[0], anchor: unit.id, options: P.fitOptions(cfg, user, ids[0], before) };
       renderPanel(); return;
     }
     const d = P.diff(before, after, ids);
     if (d.consequential) {
       const cutsCore = d.cutHeadlines.length || d.cutProtected.length || d.identityChanged;
-      pending = { kind: "confirm", user: u, messages: d.messages.concat(d.notes),
+      pending = { kind: "confirm", user: u, anchor: unit ? unit.id : null, messages: d.messages.concat(d.notes),
         title: d.identityChanged ? "This changes the kind of trip." : cutsCore ? `To keep ${unit ? unit.name : "this"}, something has to give.` : d.newAvoid.length ? "This makes a day harder." : "This changes more than one day.",
         go: cutsCore && unit ? `Keep ${unit.name}${d.cutHeadlines.length ? `, drop ${d.cutHeadlines[0]}` : ""}` : "Continue anyway" };
       renderPanel(); return;
     }
     update({ user: u });
     if (d.notes.length) { $("tradeoffs-wrap").hidden = false; $("tradeoffs").insertAdjacentHTML("afterbegin", d.notes.map((n) => `<li>${esc(n)}</li>`).join("")); }
-    $("week").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (unit) { const a = document.querySelector(`.stop-body[data-anchor~="${CSS.escape(unit.id)}"]`); if (a) reveal(a); }
   }
 
   document.addEventListener("click", (e) => {
@@ -665,13 +731,11 @@
             if (o.kind === "night") { if (!isAdmin()) { toast("Adding a night is Bart's call. Ask him."); return; } await send({ type: "set_nights", nights: cfg.nights + 1 }, true); }
             else await send({ type: "punt", venue: o.members[0], members: o.members }, true);
             await send({ type: "ask", venue: id, members: [id] }, true);
-            $("week").scrollIntoView({ behavior: "smooth", block: "start" });
           })();
           return;
         }
         if (o.kind === "night") update({ cfg: { nights: cfg.nights + 1 }, user: nextUser("ask", [id]) });
         else update({ user: { ...nextUser("ask", [id]), punted: [...user.punted.filter((x) => !o.members.includes(x)), ...o.members] } });
-        $("week").scrollIntoView({ behavior: "smooth", block: "start" });
       }
       else if (k === "board" && pending) {
         const id = pending.id; pending = null; renderPanel();
@@ -684,7 +748,8 @@
     const ids = b.dataset.ids.split(","), a = b.dataset.act;
     if (a === "prefer") { act(a, ids, { choice: b.dataset.choice || null }); return; }
     if (["complete", "not_this_day", "bail"].includes(a)) { act(a, ids, { date: b.dataset.date }); return; }
-    if (a === "options") { pending = { kind: "options", name: prevPlan.units[Object.values(prevPlan.units).find((x) => x.members.includes(ids[0])).id].name, id: ids[0], options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
+    if (a === "options") { const u = Object.values(prevPlan.units).find((x) => x.members.includes(ids[0])); pending = { kind: "options", name: u.name, id: ids[0], anchor: u.id, options: P.fitOptions(cfg, user, ids[0], prevPlan) }; renderPanel(); return; }
+    if (a === "explained") { try { localStorage.setItem("dc.explained", "1"); } catch (_) {} $("explainer").hidden = true; return; }
     act(a, ids);
   });
   if (!isDefault()) $("change").open = true;
