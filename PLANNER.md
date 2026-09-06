@@ -50,6 +50,15 @@ major Smithsonian. If the trip gets too short for that identity, say so.
 
 ## Priority doctrine
 
+**When the family has voted, the family's average owns the ranking; the planner owns pacing and
+fit.** The bracket (`BRACKET.md`) turns every completed ballot into a 1-to-N ranking; the mean
+across ballots, with each ballot's champion locked to the top, replaces the seeds and tiers below.
+The planner then keeps only its own job: HI/LO pairing, bundles staying whole, closures, the
+departure-morning valve, what fits in N nights. The family's top thirteen are the must-see things;
+the top four are what a short trip keeps; champions can't be cut. The authored doctrine below is
+what runs until the first ballot is finished, and what the seeds are drawn from.
+
+
 - **Protected core:** Capitol, Library of Congress, Archives, Lincoln, Vietnam, Korea, WWII,
   White House / Christmas Washington.
 - **Very high:** Air & Space, Arlington.
@@ -241,6 +250,13 @@ tap: who did it, when, and everyone's take. Any traveler can file *Fine by me* o
 a short note, change it, or withdraw it. An opinion never changes the trip and never bumps the
 version; it tells the person who acted how the family feels about it. Until someone files, the
 entry says "No objections filed."
+
+**The bracket is the vote, and the schedule follows it.** Everyone fills one bracket over the same
+seventeen contenders. A finished ballot is a ranking; the family's order is the average, champions
+protected, ties to the seed; partial ballots count for nothing; a rerun replaces the ballot and the
+log says who. Dates are Bart's: leave home and back home, with the train eating both travel days.
+The front page shows the family nothing but the reel; the bracket, the week, and the list are
+behind sign-in.
 
 **Identity is Cloudflare Access with Entra ID.** The Worker trusts only a verified Access
 identity and maps the tenant address to an internal traveler id, so a changed email never

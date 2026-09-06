@@ -7,7 +7,7 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/family"]
+    "run_worker_first": ["/api/*", "/family", "/family/*"]
   },
   "kv_namespaces": [
     // Achievement unlocks and the cached forecast. Create with: wrangler kv namespace create KV

@@ -33,6 +33,10 @@
     { id: "wally-world", name: "Wally World Was Open", description: "Finish the vacation.", scope: "trip", rule: { type: "trip_complete" } },
     { id: "full-party-capitol", name: "Full Party Clear", description: "All four travelers completed Capitol Hill.", scope: "trip", rule: { type: "bundle_complete", bundle: "capitol-hill" } },
     { id: "four-score", name: "Four Score", description: "Every traveler unlocked at least four achievements.", scope: "trip", rule: { type: "everyone_has", count: 4 } },
+    // The bracket: what the vote said about us.
+    { id: "landslide", name: "Landslide", description: "Every ballot crowned the same champion.", scope: "trip", rule: { type: "bracket", fact: "landslide" } },
+    { id: "bracket-buster", name: "Bracket Buster", description: "Your champion wasn't the family's number one.", scope: "user", rule: { type: "bracket", fact: "buster" } },
+    { id: "cinderella", name: "Cinderella", description: "A 13-seed or lower made the family's top eight.", scope: "trip", rule: { type: "bracket", fact: "cinderella" } },
     { id: "clark-griswold", name: "Clark Griswold Distinguished Service Medal", description: "Administer a whole family vacation and get everyone home.", scope: "user", hidden: true, rule: { type: "trip_complete", admin: true } },
 
     // Sam's blue cards. One traveler, one track: each unlocks when the venue that
@@ -63,7 +67,8 @@
    *   travelerId, isAdmin, completed: { venue: date }, bundles: { id: { core: [] } },
    *   decisions: [{ type, traveler_id, payload }], preferences: { travelerId: { venue: choice } },
    *   phase: "plan"|"before"|"live"|"after", hadHiHi: bool, unlockedByTraveler: { travelerId: [ids] },
-   *   photos: number of family photos on the record
+   *   photos: number of family photos on the record,
+   *   bracket: { ballots: { travelerId: { champion } } (completed ballots only), familyRank: [unit ids], seeds: { unitId: seed } }
    * }
    * Definitions with `only` evaluate for that traveler alone. Definitions with a
    * `track` never count toward the standings or toward "everyone has N".
@@ -88,6 +93,14 @@
         case "trip_complete": ok = facts.phase === "after" && (!r.no_hihi || !facts.hadHiHi) && (!r.admin || !!facts.isAdmin); break;
         case "everyone_has": { const u = facts.unlockedByTraveler || {}; const ids = facts.travelerIds || []; ok = ids.length > 0 && ids.every((t) => counted(u[t]) >= r.count); break; }
         case "photos": ok = (facts.photos || 0) >= r.count; break;
+        case "bracket": {
+          const b = facts.bracket || {}; const ballots = b.ballots || {}; const order = b.familyRank || []; const ids = facts.travelerIds || [];
+          const champs = ids.map((t) => ballots[t] && ballots[t].champion);
+          if (r.fact === "landslide") ok = ids.length > 0 && champs.every(Boolean) && new Set(champs).size === 1;
+          else if (r.fact === "buster") ok = !!(ballots[facts.travelerId] && order.length && ballots[facts.travelerId].champion !== order[0]);
+          else if (r.fact === "cinderella") ok = order.slice(0, 8).some((id) => (b.seeds || {})[id] >= 13);
+          break;
+        }
         case "all_of": ok = r.rules.every(check); break;
         default: ok = false;
       }

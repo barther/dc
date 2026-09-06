@@ -21,12 +21,22 @@ records what the family decided; identity says who did it.
 - `src/weather.js` reads the National Weather Service forecast for the Mall (free, no key), caches
   it in KV for an hour, and reduces each day to categorical conditions. The planner turns those
   into venue-specific fit; `/api/today` proposes a swap only when the win is real.
+- `public/bracket.js` is the bracket: contenders from the catalog (bundles and standalone venues,
+  seeded from the regret list), a 16-bracket with play-ins for anything past sixteen, a total order
+  from one completed ballot, and the family's order from every completed ballot (mean rank,
+  champions locked to the top, ties to the seed). Pure, shared by the browser and the Worker.
+  Ballots live in D1 (`bracket_picks`); `GET /api/bracket`, `POST /api/bracket/pick`, and
+  `POST /api/bracket/reset` are the routes. The planner takes the family's order as an external
+  input and schedules by it. The doctrine is in `BRACKET.md`.
 - `public/achievements.js` is the achievement catalog and a pure evaluator. Unlocks are written
   to KV once and never removed. `/api/achievements` feeds the trophy case and the standings.
   Definitions with `only` evaluate for one traveler (Sam's merit badge blue cards); definitions
   with a `track` stay out of the standings.
+- `public/family/scouts.html` is Sam's merit badge map, served by the Worker at `/family/scouts`
+  to signed-in travelers only. Everything under `/family/` runs Worker-first for that reason.
 - `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, marks
-  (completed, fixed, not-this-day), accepted placements, decisions, and opinions on decisions.
+  (completed, fixed, not-this-day), accepted placements, decisions, opinions on decisions, and
+  bracket picks.
 
 ### Setting up the shared trip
 
@@ -86,8 +96,10 @@ dashboard if you want a nicer link to text the family.
 
 ## The planner
 
-The page opens on the recommended seven-night trip, then lets the family overrule it without
-breaking it. Three files, one direction of data flow:
+The public page is the pitch: a highlight reel of every contender and no schedule. Signed in,
+the family fills in brackets, the family's order replaces the authored seeds and tiers, and the
+planner packs that order into the week (see `BRACKET.md`). Until a ballot is finished, the week
+runs on the recommended trip. Three files, one direction of data flow:
 
 - `public/venues.js` is the source of truth: every experience with its seed, tier, day/night,
   LO/MID/HI load, environment, hours, closures, and bundle. Plus the bundle catalog, the
@@ -95,9 +107,11 @@ breaking it. Three files, one direction of data flow:
 - `public/planner.js` is the scheduler. Pure, no DOM, runs under node. It takes dates and user
   state (punts, pins) and returns a plan: each day's day and night assignment, what was cut or
   shortened, the tradeoffs worth explaining, and a label derived from what survived.
-- `public/ui.js` renders the plan and owns the controls: the calendar strip, the nights stepper,
-  Must-do and Punt on each day, Add to trip on the bench and on open slots, and the preview
-  panel that names a consequence before a change lands.
+- `public/ui.js` renders the plan and owns the controls: the reel, the bracket screens (one
+  matchup at a time, your ballot, the family's order), the calendar strip, the leave-home and
+  back-home dates (both travel days are the train's, so hotel nights = home − leave − 2), Must-do
+  and Punt on each day, Add to trip on the bench and on open slots, and the preview panel that
+  names a consequence before a change lands.
 
 Trip-design state (dates, nights, punts, pins) lives in the URL hash, so a configured trip can
 be sent around: `/#start=2026-12-05&nights=5&punt=natural-history&ask=fords-theatre`. The doctrine is in

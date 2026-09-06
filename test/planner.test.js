@@ -270,3 +270,44 @@ test("the accepted placements are the stability anchor across reloads", () => {
   const reloaded = plan({}, { punted: ["natural-history"] }, { placements: first.placements });
   assert.deepEqual(reloaded.placements, first.placements);
 });
+
+test("the family's bracket order replaces the authored seeds and tiers; the planner keeps pacing and fit", () => {
+  const B = require("../public/bracket.js");
+  const ids = B.contenders(C).map((c) => c.id);
+  // The family ranks the Spy Museum first and Capitol Hill last. Both champions are protected.
+  const order = ["spy-museum", "zoolights", ...ids.filter((id) => !["spy-museum", "zoolights", "capitol-hill"].includes(id)), "capitol-hill"];
+  const p = plan({}, {}, null, { familyRank: order, champions: ["spy-museum", "zoolights"] });
+  assert.ok(p.family);
+  assert.ok(p.placements["spy-museum"] && p.placements["zoolights"], "champions are in");
+  assert.ok(!p.placements["capitol-hill"], "ranked last, it doesn't fit a week");
+  assert.equal(p.headline.total, 13);
+  assert.deepEqual(p.mustSee, order.slice(0, 13));
+  assert.equal(p.units["spy-museum"].tier, "protected");
+  assert.equal(p.units["capitol-hill"].tier, "bonus");
+  // Still no HI/HI day, and the bench is the family's tail, not the author's.
+  for (const d of p.days) if (d.day && d.night) assert.ok(!(p.units[d.day.id].load === "hi" && p.units[d.night.id].load === "hi"));
+  assert.equal(p.label, "A different kind of trip", "no Capitol is honestly a different trip");
+  // A short trip cuts from the bottom of the family's order, never a champion.
+  const short = plan({ nights: 3 }, {}, null, { familyRank: order, champions: ["spy-museum", "zoolights"] });
+  assert.ok(short.placements["spy-museum"] && short.placements["zoolights"]);
+  // The authored order is the fallback when nobody has voted.
+  assert.ok(!plan().family);
+  assert.equal(plan({}, {}, null, { familyRank: [] }).label, "Recommended");
+});
+
+test("with the family's order and the family's champion on top, the recommended week is the family's version", () => {
+  const B = require("../public/bracket.js");
+  const ids = B.contenders(C).map((c) => c.id);
+  const p = plan({}, {}, null, { familyRank: ids, champions: [ids[0]] });
+  assert.equal(p.label, "The family's version");
+  assert.ok(p.headline.kept >= 9 && p.headline.kept <= 13, `${p.headline.kept} of 13`);
+  // What's cut comes from the bottom of the family's must-see list, not the top.
+  const cut = p.mustSee.filter((id) => !p.placements[id]);
+  assert.ok(cut.every((id) => p.units[id].familyRank > 6), cut.join());
+  assert.equal(plan({ nights: 10 }, {}, null, { familyRank: ids, champions: [ids[0]] }).label, "Extended");
+  assert.equal(p.units["capitol-hill"].tier, "protected");
+  assert.equal(p.units[ids[1]].tier, "high");
+  assert.equal(p.units[ids[12]].tier, "medium");
+  assert.equal(p.units[ids[13]].tier, "bonus");
+  assert.ok(!p.placements[ids[16]] || p.units[ids[16]].core === false);
+});

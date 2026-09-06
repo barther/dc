@@ -12,6 +12,7 @@
  */
 import planner from "../public/planner.js";
 import achievements from "../public/achievements.js";
+import bracket from "../public/bracket.js";
 import intents from "./intents.js";
 import { identify } from "./access.js";
 import { forecast } from "./weather.js";
@@ -25,6 +26,12 @@ const SECURITY_HEADERS = {
 
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS, ...extra } });
+
+// The bracket is the same for everyone: contenders and draw come from the catalog alone.
+const CONTENDERS = bracket.contenders(planner.catalog);
+const CIDS = CONTENDERS.map((c) => c.id);
+const STRUCT = bracket.structure(CIDS.length);
+const contenderName = (id) => (CONTENDERS.find((c) => c.id === id) || {}).name || id;
 
 const validVenue = (id) => planner.catalog.venues.some((v) => v.id === id);
 const venueName = (id) => (planner.catalog.venues.find((v) => v.id === id) || {}).name || id;
@@ -45,7 +52,31 @@ async function loadState(db) {
   }
   let placements = {}; try { placements = JSON.parse(trip.placements || "{}"); } catch (e) {}
   const travelers = (await db.prepare("SELECT id FROM travelers").all()).results.map((t) => t.id);
-  return { id: trip.id, start: trip.start, nights: trip.nights, version: trip.version, updated_at: trip.updated_at, venues, preferences, completed, fixed, notThisDay, placements, travelers };
+  const picks = await loadPicks(db);
+  return { id: trip.id, start: trip.start, nights: trip.nights, version: trip.version, updated_at: trip.updated_at, venues, preferences, completed, fixed, notThisDay, placements, travelers, picks, family: familyFromPicks(picks, travelers) };
+}
+
+// Everyone's bracket picks: { traveler: { game: winner } }. Survives the table not existing yet.
+async function loadPicks(db) {
+  try {
+    const rows = (await db.prepare("SELECT traveler_id, game, winner FROM bracket_picks WHERE trip_id = ?").bind(TRIP_ID).all()).results;
+    const picks = {}; for (const r of rows) (picks[r.traveler_id] = picks[r.traveler_id] || {})[r.game] = r.winner;
+    return picks;
+  } catch (e) { return {}; }
+}
+
+// Where the family stands: each ballot's state, and the order the planner schedules by.
+function familyFromPicks(picks, travelers) {
+  const ballots = {}, status = {};
+  for (const t of travelers) {
+    const p = picks[t] || {};
+    const r = bracket.resolve(STRUCT, CIDS, p);
+    const ranking = r.complete ? bracket.ranking(STRUCT, CIDS, p) : null;
+    status[t] = { complete: r.complete, picksMade: r.picksMade, picksNeeded: r.picksNeeded, champion: ranking ? ranking[0] : null };
+    if (ranking) ballots[t] = ranking;
+  }
+  const order = bracket.familyOrder(ballots, CIDS);
+  return { status, ballots, order, familyRank: order.map((r) => r.id), champions: order.filter((r) => r.protected).map((r) => r.id) };
 }
 
 async function travelerFor(db, identity, env) {
@@ -53,7 +84,7 @@ async function travelerFor(db, identity, env) {
   const row = await db.prepare("SELECT t.id, t.name, t.role, t.is_admin FROM traveler_identities i JOIN travelers t ON t.id = i.traveler_id WHERE lower(i.email) = ?").bind(identity.email.toLowerCase()).first();
   if (row) return row;
   // Local dev only: DEV_IDENTITY may name a traveler id directly (e.g. "bart").
-  if (identity.sub === "dev" && env && env.DEV_IDENTITY) return db.prepare("SELECT id, name, role, is_admin FROM travelers WHERE id = ?").bind(env.DEV_IDENTITY.split("@")[0].toLowerCase()).first();
+  if (identity.sub === "dev" && env && env.DEV_IDENTITY) return db.prepare("SELECT id, name, role, is_admin FROM travelers WHERE id = ?").bind(identity.email.split("@")[0].toLowerCase()).first();
   return null;
 }
 
@@ -109,7 +140,7 @@ async function evaluateAchievements(env, db, s, plan, origin) {
   const fresh = [];
   const now = new Date().toISOString();
   for (const t of travelers) {
-    const facts = { travelerId: t.id, isAdmin: !!t.is_admin, completed: s.completed, bundles: planner.catalog.bundles, decisions: allDecisions, preferences: s.preferences, phase: plan.phase, hadHiHi, unlockedByTraveler: have.byTraveler, travelerIds: travelers.map((x) => x.id), photos };
+    const facts = { travelerId: t.id, isAdmin: !!t.is_admin, completed: s.completed, bundles: planner.catalog.bundles, decisions: allDecisions, preferences: s.preferences, phase: plan.phase, hadHiHi, unlockedByTraveler: have.byTraveler, travelerIds: travelers.map((x) => x.id), photos, bracket: bracketFacts(s) };
     for (const id of achievements.evaluate(facts)) {
       const def = achievements.byId[id];
       if (def.scope === "trip") { if (!have.group.includes(id)) { await kv.put(akey("trip", null, id), JSON.stringify({ unlockedAt: now, source: "evaluate", version: 1 })); have.group.push(id); fresh.push({ scope: "trip", id, name: def.name }); } continue; }
@@ -123,9 +154,15 @@ async function evaluateAchievements(env, db, s, plan, origin) {
   return fresh;
 }
 
+function bracketFacts(s) {
+  const f = s.family || { status: {}, familyRank: [] };
+  const ballots = {}; for (const [t, st] of Object.entries(f.status)) if (st.complete) ballots[t] = { champion: st.champion };
+  return { ballots, familyRank: f.familyRank, seeds: Object.fromEntries(CONTENDERS.map((c) => [c.id, c.seed])) };
+}
+
 function publicState(s) {
   return { id: s.id, start: s.start, nights: s.nights, version: s.version, updated_at: s.updated_at, venues: s.venues, preferences: s.preferences,
-    completed: s.completed, fixed: s.fixed, notThisDay: s.notThisDay, placements: s.placements, planner: intents.plannerState(s) };
+    completed: s.completed, fixed: s.fixed, notThisDay: s.notThisDay, placements: s.placements, planner: intents.plannerState(s), bracket: s.family };
 }
 
 // Today, in Washington's timezone. DEV_TODAY overrides for local testing of live mode.
@@ -134,7 +171,8 @@ function todayISO(env) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 
-function external(env) { return { today: todayISO(env) }; }
+// What the planner is told from outside the catalog: the date, and the family's order when there is one.
+function external(env, s) { return { today: todayISO(env), familyRank: s && s.family ? s.family.familyRank : [], champions: s && s.family ? s.family.champions : [] }; }
 
 export default {
   async fetch(request, env) {
@@ -154,7 +192,7 @@ export default {
     if (url.pathname === "/api/achievements") {
       if (!(await requireTraveler(request, env, db))) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       // Trip-level trophies can come due with time alone (the trip ending), so check here too.
-      try { const s = await loadState(db); const ext = external(env); const cur = planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext); await evaluateAchievements(env, db, s, cur, url.origin); } catch (e) {}
+      try { const s = await loadState(db); const ext = external(env, s); const cur = planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext); await evaluateAchievements(env, db, s, cur, url.origin); } catch (e) {}
       const have = await unlocked(env.KV);
       const visible = achievements.defs.filter((d) => !d.hidden || have.group.includes(d.id) || Object.values(have.byTraveler).some((l) => l.includes(d.id)));
       return json({ ...have, defs: visible.map(({ id, name, description, scope, hidden, track, badge, only }) => ({ id, name, description, scope, hidden: !!hidden, track: track || null, badge: badge || null, only: only || null })) });
@@ -163,7 +201,7 @@ export default {
     if (url.pathname === "/api/today") {
       if (!(await requireTraveler(request, env, db))) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       const s = await loadState(db);
-      const ext = external(env);
+      const ext = external(env, s);
       const current = planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext);
       let weather = null, suggestion = null;
       if (current.phase === "live" || current.phase === "before") {
@@ -197,7 +235,7 @@ export default {
       if (r.error) return json({ error: r.error }, r.status || 400);
 
       // The planner is the validator: run it on the candidate state, and explain the consequence.
-      const ext = external(env);
+      const ext = external(env, s);
       const before = planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext);
       const after = planner.plan({ start: r.state.start, nights: r.state.nights }, intents.plannerState(r.state), before, ext);
       const acted = intent.members || (intent.venue ? [intent.venue] : []);
@@ -248,6 +286,60 @@ export default {
       else await db.prepare("DELETE FROM decision_opinions WHERE decision_id = ? AND traveler_id = ?").bind(id, traveler.id).run();
       return json({ decisions: await decisions(db) });
     }
+
+    /* ───────────── The bracket ───────────── */
+
+    if (url.pathname === "/api/bracket" && request.method === "GET") {
+      const traveler = await travelerFor(db, await identify(request, env), env);
+      if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      const s = await loadState(db);
+      return json({ contenders: CONTENDERS, structure: STRUCT, me: traveler.id, picks: s.picks[traveler.id] || {}, family: s.family });
+    }
+
+    // One pick: the next undecided game, one of its two contenders. Saved as you go.
+    if (url.pathname === "/api/bracket/pick" && request.method === "POST") {
+      const traveler = await travelerFor(db, await identify(request, env), env);
+      if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      let body; try { body = await request.json(); } catch (e) { return json({ error: "Bad JSON." }, 400); }
+      const s = await loadState(db);
+      const mine = s.picks[traveler.id] || {};
+      const cur = bracket.resolve(STRUCT, CIDS, mine);
+      if (!cur.next) return json({ error: "Your bracket is finished. Rerun it to change it." }, 409);
+      if (body.game !== cur.next.id) return json({ error: "That's not the game on the screen.", picks: mine }, 409);
+      if (!bracket.valid(STRUCT, CIDS, mine, body.game, body.winner)) return json({ error: "Pick one of the two." }, 400);
+      const now = new Date().toISOString();
+      await db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(trip_id, traveler_id, game) DO UPDATE SET winner = excluded.winner, at = excluded.at").bind(TRIP_ID, traveler.id, body.game, body.winner, now).run();
+      const next = await loadState(db);
+      const st = next.family.status[traveler.id];
+      let fresh = [];
+      if (st && st.complete) {
+        const rk = next.family.ballots[traveler.id];
+        await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(TRIP_ID, now, traveler.id, "bracket", JSON.stringify({ champion: rk[0], ranking: rk }), `${traveler.name} finished a bracket: ${contenderName(rk[0])} is the champion, ${contenderName(rk[1])} second. ${Object.values(next.family.status).filter((x) => x.complete).length} of ${next.travelers.length} ballots are in.`).run();
+        try { const ext = external(env, next); const p = planner.plan({ start: next.start, nights: next.nights }, intents.plannerState(next), { placements: next.placements }, ext); fresh = await evaluateAchievements(env, db, next, p, url.origin); } catch (e) { fresh = []; }
+      }
+      return json({ picks: next.picks[traveler.id] || {}, family: next.family, trip: publicState(next), decisions: await decisions(db), unlocked: fresh });
+    }
+
+    // Rerun: the old ballot is gone, and the log says so.
+    if (url.pathname === "/api/bracket/reset" && request.method === "POST") {
+      const traveler = await travelerFor(db, await identify(request, env), env);
+      if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      const s = await loadState(db);
+      const had = s.family.status[traveler.id];
+      await db.prepare("DELETE FROM bracket_picks WHERE trip_id = ? AND traveler_id = ?").bind(TRIP_ID, traveler.id).run();
+      if (had && had.picksMade) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ wasComplete: had.complete, champion: had.champion }), had.complete ? `${traveler.name} reran their bracket. The old ballot (${contenderName(had.champion)} on top) is gone until the new one is finished.` : `${traveler.name} started their bracket over.`).run();
+      const next = await loadState(db);
+      return json({ picks: {}, family: next.family, trip: publicState(next), decisions: await decisions(db) });
+    }
+
+    // Family-only pages live under /family/ so the same Access application covers them.
+    // The Worker runs first for that prefix, checks the traveler, then serves the asset.
+    if (url.pathname === "/family/scouts") {
+      if (!(await requireTraveler(request, env, db))) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      const page = await env.ASSETS.fetch(new Request(`${url.origin}/family/scouts.html`));
+      return new Response(page.body, { status: page.status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store", ...SECURITY_HEADERS } });
+    }
+    if (url.pathname.startsWith("/family/")) return json({ error: "Not found." }, 404);
 
     if (url.pathname === "/family") {
       // Access gates this path; once through, the Access cookie covers the API. Back to the page.

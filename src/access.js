@@ -56,7 +56,12 @@ export async function identify(request, env) {
     try { return await verifyAccessJwt(token, env); } catch (e) { return { error: `verify_failed: ${e.message}` }; }
   }
   if (token) return { error: "team_domain_unset: ACCESS_TEAM_DOMAIN is empty, so the token was ignored" };
-  if (env.DEV_IDENTITY && !env.ACCESS_TEAM_DOMAIN) return { email: env.DEV_IDENTITY.toLowerCase(), sub: "dev" };
+  // Local dev only: a dev_identity cookie can stand in for another traveler, so one
+  // wrangler dev can fill four ballots. "anon" means nobody is signed in.
+  if (env.DEV_IDENTITY && !env.ACCESS_TEAM_DOMAIN) {
+    const who = cookie(request, "dev_identity") || env.DEV_IDENTITY;
+    return who === "anon" ? null : { email: who.toLowerCase(), sub: "dev" };
+  }
   return null;
 }
 

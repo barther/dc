@@ -58,3 +58,17 @@ test("Sam's blue cards evaluate for Sam alone, and never count toward the standi
   u.sam = ["a", "b", "c", "d", ...cards];
   assert.ok(A.evaluate(facts({ travelerId: "bart", unlockedByTraveler: u })).includes("four-score"));
 });
+
+test("the bracket trophies: a landslide needs every ballot, a buster is personal, Cinderella is a seed", () => {
+  const seeds = { a: 1, b: 2, c: 13, d: 17 };
+  const all = (ch) => Object.fromEntries(FAMILY.map((t) => [t, { champion: ch }]));
+  assert.ok(A.evaluate(facts({ bracket: { ballots: all("a"), familyRank: ["a", "b", "c", "d"], seeds } })).includes("landslide"));
+  assert.ok(!A.evaluate(facts({ bracket: { ballots: { ...all("a"), nanny: undefined }, familyRank: ["a", "b"], seeds } })).includes("landslide"), "three ballots is not every ballot");
+  assert.ok(!A.evaluate(facts({ bracket: { ballots: { ...all("a"), sam: { champion: "b" } }, familyRank: ["a", "b"], seeds } })).includes("landslide"));
+  const buster = A.evaluate(facts({ bracket: { ballots: { ...all("a"), sam: { champion: "b" } }, familyRank: ["a", "b"], seeds } }));
+  assert.ok(buster.includes("bracket-buster"));
+  assert.ok(!A.evaluate(facts({ travelerId: "jess", bracket: { ballots: { ...all("a"), sam: { champion: "b" } }, familyRank: ["a", "b"], seeds } })).includes("bracket-buster"));
+  assert.ok(A.evaluate(facts({ bracket: { ballots: all("a"), familyRank: ["a", "b", "c", "d"], seeds } })).includes("cinderella"));
+  assert.ok(!A.evaluate(facts({ bracket: { ballots: all("a"), familyRank: ["a", "b", "d", "c"].slice(0, 2), seeds } })).includes("cinderella"));
+  assert.ok(!A.evaluate(facts({})).some((id) => ["landslide", "bracket-buster", "cinderella"].includes(id)), "no bracket, no trophies");
+});
