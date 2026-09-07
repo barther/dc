@@ -81,3 +81,17 @@ test("the bracket trophies: a landslide needs every ballot, a buster is personal
   assert.ok(A.evaluate(facts({ travelerId: "nanny", bracket: { ballots: threeIn, abstained: ["nanny"], familyRank: ["a", "b"], seeds } })).includes("along-for-the-ride"));
   assert.ok(!A.evaluate(facts({ travelerId: "sam", bracket: { ballots: threeIn, abstained: ["nanny"], familyRank: ["a", "b"], seeds } })).includes("along-for-the-ride"));
 });
+
+test("a trophy that names a venue this city doesn't have is not a trophy here, and never unlocks by accident", () => {
+  const NYC = require("../public/venues-nyc.js");
+  // The old bug: no such bundle meant an empty core, and every member of nothing is done.
+  assert.ok(!A.evaluate(facts({ bundles: NYC.bundles, travelerId: "bart" })).includes("checks-and-balances"));
+  assert.ok(!A.evaluate(facts({ bundles: NYC.bundles, travelerId: "bart" })).includes("night-at-the-monuments"));
+  assert.ok(!A.applicable(A.byId["checks-and-balances"], NYC));
+  assert.ok(!A.applicable(A.byId["hope-dealer"], NYC));
+  assert.ok(A.applicable(A.byId["checks-and-balances"], C));
+  // City-agnostic trophies exist everywhere: the bracket ones, the trip ones, the train ride.
+  for (const id of ["landslide", "bracket-buster", "cinderella", "wally-world", "no-death-march", "four-score", "five-hundred-miles"]) assert.ok(A.applicable(A.byId[id], NYC), id);
+  const here = A.defs.filter((d) => A.applicable(d, NYC)).map((d) => d.id);
+  assert.ok(!here.includes("full-party-capitol") && here.includes("clark-griswold"));
+});

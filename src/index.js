@@ -118,6 +118,10 @@ async function decisions(ctx, db, limit = 12) {
 
 const akey = (ctx, scope, who, id) => scope === "trip" ? `trip:${ctx.TRIP_ID}:group:achievement:${id}` : `trip:${ctx.TRIP_ID}:user:${who}:achievement:${id}`;
 
+// A trophy exists in a city only if its rule can be met there. One that names a venue the city
+// doesn't have is filtered out, and a stray key for one (an old bug unlocked a few) is deleted.
+const applicableHere = (ctx, id) => { const d = achievements.byId[id]; return !!d && achievements.applicable(d, ctx.planner.catalog); };
+
 async function unlocked(ctx, kv) {
   const byTraveler = {}, group = [];
   if (!kv) return { byTraveler, group };
@@ -125,6 +129,7 @@ async function unlocked(ctx, kv) {
   for (const k of list.keys) {
     const m = k.name.match(/^trip:[^:]+:(user:([^:]+)|group):achievement:(.+)$/);
     if (!m) continue;
+    if (!applicableHere(ctx, m[3])) { try { await kv.delete(k.name); } catch (e) {} continue; }
     if (m[1] === "group") group.push(m[3]); else (byTraveler[m[2]] = byTraveler[m[2]] || []).push(m[3]);
   }
   return { byTraveler, group };
@@ -154,6 +159,7 @@ async function evaluateAchievements(ctx, env, db, s, plan, origin) {
     const facts = { travelerId: t.id, isAdmin: !!t.is_admin, completed: s.completed, bundles: ctx.planner.catalog.bundles, decisions: allDecisions, preferences: s.preferences, phase: plan.phase, hadHiHi, unlockedByTraveler: have.byTraveler, travelerIds: travelers.map((x) => x.id), photos, bracket: bracketFacts(ctx, s) };
     for (const id of achievements.evaluate(facts)) {
       const def = achievements.byId[id];
+      if (!applicableHere(ctx, id)) continue;
       if (def.scope === "trip") { if (!have.group.includes(id)) { await kv.put(akey(ctx, "trip", null, id), JSON.stringify({ unlockedAt: now, source: "evaluate", version: 1 })); have.group.push(id); fresh.push({ scope: "trip", id, name: def.name }); } continue; }
       if (!(have.byTraveler[t.id] || []).includes(id)) {
         await kv.put(akey(ctx, "user", t.id, id), JSON.stringify({ unlockedAt: now, source: "evaluate", version: 1 }));
@@ -207,7 +213,7 @@ export default {
       // Trip-level trophies can come due with time alone (the trip ending), so check here too.
       try { const s = await loadState(ctx, db); const ext = external(ctx, env, s); const cur = ctx.planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext); await evaluateAchievements(ctx, env, db, s, cur, url.origin); } catch (e) {}
       const have = await unlocked(ctx, env.KV);
-      const visible = achievements.defs.filter((d) => !d.hidden || have.group.includes(d.id) || Object.values(have.byTraveler).some((l) => l.includes(d.id)));
+      const visible = achievements.defs.filter((d) => applicableHere(ctx, d.id) && (!d.hidden || have.group.includes(d.id) || Object.values(have.byTraveler).some((l) => l.includes(d.id))));
       return json({ ...have, defs: visible.map(({ id, name, description, scope, hidden, track, badge, only }) => ({ id, name, description, scope, hidden: !!hidden, track: track || null, badge: badge || null, only: only || null })) });
     }
 
