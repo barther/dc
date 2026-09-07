@@ -13,9 +13,19 @@
 (function () {
   "use strict";
 
-  const P = window.DCPlanner, C = window.DCVenues, B = window.DCBracket;
-  const { DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW } = P;
+  const B = window.DCBracket;
   const $ = (id) => document.getElementById(id);
+  const cityId = (document.cookie.match(/(?:^|;\s*)city=(\w+)/) || [])[1] === "nyc" && window.DCVenuesNYC ? "nyc" : "dc";
+  const C = cityId === "nyc" ? window.DCVenuesNYC : window.DCVenues;
+  const P = window.DCPlanner.withCatalog(C);
+  const { DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW } = P;
+  const city = C.city, N = city.narrative;
+  document.body.dataset.city = cityId;
+  document.querySelectorAll("[data-city-pick]").forEach((b) => { b.classList.toggle("on", b.dataset.cityPick === cityId); b.setAttribute("aria-pressed", String(b.dataset.cityPick === cityId)); });
+  document.querySelector(".city-switch").addEventListener("click", (e) => { const b = e.target.closest("[data-city-pick]"); if (!b || b.dataset.cityPick === cityId) return; document.cookie = `city=${b.dataset.cityPick}; path=/; max-age=31536000; samesite=lax`; location.reload(); });
+  document.title = `${city.title[0]} ${city.title[1]} · inside`;
+  $("hero-title").innerHTML = `${city.title[0]} <em>${city.title[1]}</em>`;
+  document.querySelectorAll(".city-name").forEach((el) => { el.textContent = city.name; });
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const LOAD_NAME = { lo: "Easy", mid: "Real", hi: "Big" };
@@ -35,17 +45,9 @@
       day: { label: "Pack and drive", load: "lo" }, night: { label: "The train is the activity", load: "lo" },
       photo: ["day-1128-anniston-station.webp", "Anniston station at boarding time"],
     }),
-    arrival: {
-      title: "Hello, Washington.",
-      body: ["Roll into Union Station, check into the hotel, unpack, eat. Then, after dark, our first real look at the city: the U.S. Capitol dome lit up against the night sky. No tour. No agenda. Just stand there and take it in."],
-      photo: ["day-1129-union-station.webp", "The main hall at Union Station"],
-    },
-    departureTail: "Lunch, luggage, Union Station, and the Crescent south.",
-    departureEmpty: {
-      title: "Last morning, then home.",
-      body: ["Check out, leave the bags with the hotel, a slow breakfast, and one last walk on the Mall. Lunch, luggage, Union Station, and the Crescent south. Nothing big on purpose."],
-      day: { label: "A slow last morning", load: "lo" },
-    },
+    arrival: { title: N.arrivalTitle, body: [N.arrivalBody], photo: N.arrivalPhoto || null },
+    departureTail: N.departureTail,
+    departureEmpty: { title: "Last morning, then home.", body: [N.lastMorning], day: { label: "A slow last morning", load: "lo" } },
     open: {
       title: "Open day.",
       body: ["Nothing scheduled, on purpose. Whitespace is part of the itinerary."],
@@ -117,7 +119,7 @@
   }
 
   // Getting there: the day's legs from the hotel and back, miles and walk or ride. Straight-line, honest about it.
-  const MODE = { walk: "walk", ride: "a ride", metro: "Metro" };
+  const MODE = { walk: "walk", ride: "a ride", metro: "Metro", subway: "subway" };
   const mi = (m) => m < 0.95 ? `${Math.max(0.1, Math.round(m * 10) / 10)} mi` : `${m.toFixed(1)} mi`;
   function routeLine(d) {
     const r = d.route; if (!r) return "";
@@ -183,7 +185,7 @@
           .bindPopup(`<b>${esc(s.name)}</b><br>${esc(fmtDMD(d.date))} · ${mi(fromHotel)} from the hotel`);
       }
     }
-    L.circleMarker(geo.base.ll, { radius: 7, color: "#a8322c", weight: 2, fillColor: "#a8322c", fillOpacity: 1 }).addTo(map).bindPopup("<b>The hotel</b><br>L'Enfant Plaza");
+    L.circleMarker(geo.base.ll, { radius: 7, color: "#a8322c", weight: 2, fillColor: "#a8322c", fillOpacity: 1 }).addTo(map).bindPopup(`<b>The hotel</b><br>${esc(city.hotel)}`);
     map.fitBounds(L.latLngBounds(all), { padding: [24, 24] });
     maps[id] = map;
   }
@@ -227,7 +229,7 @@
 
     // Header: dates, and whether they collide with work.
     $("eyebrow-dates").innerHTML = `${esc(fmtDMD(p.trainOut))} → ${esc(fmtDMDY(p.home))}`.replace(/ /g, "&nbsp;");
-    window.DCTrip = { depart: p.trainOut, arrive: new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate(), 14, 12), home: new Date(p.home.getFullYear(), p.home.getMonth(), p.home.getDate(), 10, 30) };
+
     $("dates-admin").hidden = !isAdmin();
     $("dates-line").hidden = isAdmin();
     if (isAdmin()) {
@@ -295,7 +297,7 @@
   // What we're in for: every stop, about how long, tickets or not. So nobody misses the White House inside a night.
   const hoursText = (h) => h >= 1 ? `about ${Number.isInteger(h) ? h : h.toFixed(1).replace(/\.0$/, "")} ${h === 1 ? "hour" : "hours"}` : `about ${Math.round(h * 60)} minutes`;
   const TICKETS = { none: "no tickets", recommended: "tickets recommended", required: "timed tickets required" };
-  const GO_TEXT = { walk: "a walk", ride: "a ride", metro: "one Metro ride" };
+  const GO_TEXT = { walk: "a walk", ride: "a ride", metro: "one Metro ride", subway: "the subway" };
   const fromHotel = (c) => c.miles == null ? "" : ` · ${c.miles < 0.95 ? `${(c.miles * 10 | 0) / 10 || 0.1} mi` : `${c.miles.toFixed(1)} mi`} from the hotel, ${GO_TEXT[c.go] || "a ride"}`;
 
   function inFor(c) {
@@ -475,7 +477,7 @@
     const samTotal = trophies.defs.filter((d) => d.track === "scouts" && d.only === "sam").length;
     const bartFirst = standings[0] && standings[0].t.is_admin;
     el.innerHTML = `
-      <div class="mine"><p class="kicker-sm">${esc(me.name)}'s Washington</p>
+      <div class="mine"><p class="kicker-sm">${esc(me.name)}'s ${esc(city.name)}</p>
         ${mine.length ? `<ul class="trophy-list">${mine.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span></li>`).join("")}</ul>` : `<p class="muted">Nothing yet. Go see something.</p>`}
         ${cardTotal ? `<p class="kicker-sm cards-head">Blue cards · ${cards.length} of ${cardTotal} · <a href="/family/scouts" class="cards-map">the map</a></p>
         ${cards.length ? `<ul class="trophy-list cards">${cards.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span> <i class="badge-req">${esc(d.badge || "")}</i></li>`).join("")}</ul>` : `<p class="muted">Each one is a merit badge requirement a stop on this trip satisfies. Mark the stop done and it files itself.</p>`}` : ""}

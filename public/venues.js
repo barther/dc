@@ -244,9 +244,41 @@
     const h = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a[0])) * Math.cos(toR(b[0])) * Math.sin(dLon / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
   }
-  const geo = { base, WALK, distMi };
+  const geo = { base, WALK, distMi, ride: "ride" };
 
-  const catalog = { venues, bundles, pairings, preferred_order, structural, copy, headlines, geo };
+  /* The city: everything the pages say that isn't about a venue. Prose lives here so the
+     same pages can serve another city from another catalog in this shape. */
+  const city = {
+    id: "dc", name: "Washington", short: "DC", title: ["Washington,", "for Christmas."],
+    station: "Washington Union Station", stationShort: "Union Station", hotel: "L'Enfant Plaza",
+    lede: "in the capital. Sleeper cars there and back. The Capitol lit up at night, dinosaurs, the Hope Diamond, the actual Declaration of Independence, and a whole city dressed for Christmas.",
+    reelIntro: "Everything Washington has for us, and no schedule yet.",
+    trainIntro: "No airport. No rental car. We board the Amtrak Crescent in Anniston after Bart gets off work, settle into two sleeper rooms across the hall from each other, sleep through Georgia and the Carolinas, and wake up in Virginia. Sunday afternoon we roll into Union Station, three blocks from the Capitol.",
+    homeBase: "We're aiming for L'Enfant Plaza, a short walk from Air & Space, Natural History, and the Washington Monument, with a one-seat Metro ride to Arlington.",
+    thesis: "Leave Washington feeling like we actually saw Washington, without needing a vacation from the vacation.",
+    plate: { photo: "hero-capitol-night.webp", alt: "The U.S. Capitol at night", title: "The Capitol", sub: "lit for the night" },
+    // The Crescent: labels for the board, and the hour the countdown points at.
+    train: { boardLabel: "evening", arriveWeekend: "~2:12 PM", arriveWeekday: "afternoon, per the timetable", departLabel: "6:30 PM", homeLabel: "~10:30 AM CT", arriveHour: 14.2 },
+    // Structural prose for the week.
+    narrative: {
+      arrivalTitle: "Hello, Washington.",
+      arrivalBody: "Roll into Union Station, check into the hotel, unpack, eat. Then, after dark, our first real look at the city: the U.S. Capitol dome lit up against the night sky. No tour. No agenda. Just stand there and take it in.",
+      arrivalPhoto: ["day-1129-union-station.webp", "The main hall at Union Station"],
+      departureTail: "Lunch, luggage, Union Station, and the Crescent south.",
+      lastMorning: "Check out, leave the bags with the hotel, a slow breakfast, and one last walk on the Mall. Lunch, luggage, Union Station, and the Crescent south. Nothing big on purpose.",
+    },
+  };
+
+  /* What makes this trip this trip. Lose one and it's a different kind of trip, which is fine as long as we know it. */
+  const identity = {
+    civic: { name: "the Capitol", any: ["us-capitol", "library-of-congress"] },
+    documents: { name: "the founding documents", any: ["national-archives"] },
+    memorials: { name: "the memorial night", all: ["lincoln-memorial", "vietnam-memorial", "wwii-memorial", "korean-memorial"] },
+    christmas: { name: "Christmas Washington", all: ["white-house", "national-christmas-tree"] },
+    smithsonian: { name: "a major Smithsonian", any: ["air-space", "natural-history", "american-history", "african-american-history"] },
+  };
+
+  const catalog = { venues, bundles, pairings, preferred_order, structural, copy, headlines, geo, city, identity };
   if (typeof module !== "undefined" && module.exports) { module.exports = catalog; return; }
   root.DCVenues = catalog;
 })(typeof window !== "undefined" ? window : globalThis);

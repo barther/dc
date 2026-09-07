@@ -25,10 +25,11 @@ Christmas Washington, the Tidal Basin loop) or a standalone venue. Accessories
 ride with their bundle and are never contenders. Structural days (the trains,
 arrival night, the Capitol lit on arrival) never enter the bracket.
 
-A bundle's seed is its best member's seed. Today that gives seventeen contenders,
+A bundle's seed is its best member's seed. In Washington that gives seventeen contenders,
 seeded Capitol Hill first and the Spy Museum last. The engine is generic: N
 contenders means a 16-bracket with N − 16 play-in games, so the roster can grow
-without touching the bracket code.
+without touching the bracket code. New York's catalog is twenty-one contenders, a sixteen
+with five play-ins, and each city's ballots are its own.
 
 ## The draw
 

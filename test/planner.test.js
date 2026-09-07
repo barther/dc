@@ -329,3 +329,19 @@ test("geography: every day has a route from the hotel, Arlington is a Metro ride
   // Geography never overrides pacing: still no HI/HI day anywhere.
   for (const d of q.days) if (d.day && d.night) assert.ok(!(q.units[d.day.id].load === "hi" && q.units[d.night.id].load === "hi"));
 });
+
+test("another city, same machine: the New York catalog plans a week under the same rules", () => {
+  const NYC = require("../public/venues-nyc.js");
+  const E = P.withCatalog(NYC);
+  const p = E.plan({ start: "2026-11-29", nights: 7 });
+  assert.equal(p.headline.total, 13);
+  assert.ok(p.headline.kept >= 12, `${p.headline.kept} of 13`);
+  for (const d of p.days) if (d.day && d.night) assert.ok(!(p.units[d.day.id].load === "hi" && p.units[d.night.id].load === "hi"), "no HI/HI in New York either");
+  assert.ok(p.intact, "the tree, an icon, a museum, and a show are all in");
+  assert.ok(!p.days.some((d) => d.night && d.night.id === "theater-district" && d.date.getDay() === 1), "no Broadway on a Monday");
+  const routes = p.days.filter((d) => d.route);
+  assert.ok(routes.every((d) => d.route.legs.every((l) => ["walk", "subway"].includes(l.mode))), "New York rides are the subway");
+  // The Washington engine is untouched by the New York one.
+  assert.equal(P.plan({ start: "2026-11-29", nights: 7 }).label, "Recommended");
+  assert.equal(P.catalog.city.id, "dc"); assert.equal(E.catalog.city.id, "nyc");
+});

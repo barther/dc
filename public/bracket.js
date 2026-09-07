@@ -31,7 +31,7 @@
       // From the hotel to the first stop: the number that decides walk or ride.
       const first = vs[0];
       const miles = geo && first && first.ll ? geo.distMi(geo.base.ll, first.ll) : null;
-      const go = first && first.go ? first.go : miles == null ? null : miles <= geo.WALK ? "walk" : "ride";
+      const go = first && first.go ? first.go : miles == null ? null : miles <= geo.WALK ? "walk" : (geo.ride || "ride");
       return { stops: core.map((id) => stop(id, false)).concat(accessory.map((id) => stop(id, true))), hours: vs.reduce((h, v) => h + (v.ideal_hours || 0), 0), reservation: res, miles, go };
     };
     const taken = new Set();
