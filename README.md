@@ -41,7 +41,7 @@ records what the family decided; identity says who did it.
   to signed-in travelers only. Everything under `/family/` runs Worker-first for that reason.
 - `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, marks
   (completed, fixed, not-this-day), accepted placements, decisions, opinions on decisions,
-  bracket picks, and the New York trip row.
+  bracket picks, the New York trip row, and pace and rest days (`trip_capacity`, `trip_rest_days`).
 
 ### Setting up the shared trip
 

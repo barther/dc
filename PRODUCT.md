@@ -44,7 +44,7 @@ must be home by, a date somebody can't leave before. These aggregate by
 | Input | Example | Aggregation | Status |
 | --- | --- | --- | --- |
 | Desire | "Air & Space over Natural History" | Consensus (mean rank) | Built |
-| Capacity | "Two heavy days in a row is too many" | Minimum (floor) | **Missing** |
+| Capacity | "Two heavy days in a row is too many" | Minimum (floor) | Built: a pace per traveler, the floor is the party's, pace is policy in the planner, and a rest day is anyone's to call |
 | Hard edges | "Back by Thursday 2 PM" | Intersection | Built |
 
 ---

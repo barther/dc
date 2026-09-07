@@ -254,7 +254,20 @@ week, and trophy case, and the same rules run over both. Adding a third city is 
 says how many hours the last morning holds between checkout and the train (three in Washington
 behind a 6:30 PM departure, two in New York behind a 2:15 PM one), and the planner places the
 last morning against that number, not against a label. Seven nights are not the same seven
-nights in every city.
+nights in every city. Trophies follow the same rule: one that names a venue or a bundle the city
+doesn't have doesn't exist there, so a Washington trophy can't unlock on the New York trip.
+
+**Capacity aggregates by the floor, and pace is policy, not constants.** Each traveler states a
+pace in outcomes, not symptoms: Easy (one thing a day, done by dinner), Steady (one big thing,
+then an easy one, never two big days in a row), Full (a big thing and a real thing most days,
+the doctrine this planner was written with), All out (all day, every day). The family moves at
+the slowest pace anyone states; the unrated ride at Full. The rules read the pace: what two
+loads on one day cost, whether the other slot stays empty, how many big days may run back to
+back. Desire aggregates by consensus and capacity by minimum, and the two never mix.
+
+**A pause is anyone's to call.** Any traveler can make a future day a rest day. Nothing lands on
+it, whatever was there moves, completed days stay put, and the log says who called it. Taking
+it back is one tap. This is how day three gets easier without the vacation failing.
 
 **Geography breaks ties; it never overrides pacing.** Every venue has coordinates and the hotel is
 the base. A day's two stops within about a mile of each other earn a point; stops three miles

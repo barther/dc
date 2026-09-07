@@ -83,3 +83,16 @@ test("live-trip intents are anyone's: complete, not this day, place, bail, swap"
   const ps = I.plannerState(r.state);
   assert.equal(ps.completed["air-space"], "2026-11-30");
 });
+
+test("pace and rest days: anyone sets their own pace, the floor is the party's, a pause is anyone's to call", () => {
+  const sam = { id: "sam", name: "Sam", is_admin: 0 };
+  const s1 = I.apply(base(), { type: "set_pace", level: 2 }, sam, limits);
+  assert.equal(s1.state.capacity.sam, 2);
+  assert.match(s1.summary, /steady/);
+  assert.equal(I.apply(base(), { type: "set_pace", level: 9 }, sam, limits).status, 400);
+  assert.equal(I.paceFloor({ bart: 4, sam: 2, jess: 3 }), 2);
+  assert.equal(I.paceFloor({}), 3);
+  const r = I.apply(s1.state, { type: "rest_day", date: "2026-12-03" }, sam, limits);
+  assert.equal(r.state.restDays["2026-12-03"], "sam");
+  assert.equal(I.apply(r.state, { type: "unrest_day", date: "2026-12-03" }, bart, limits).state.restDays["2026-12-03"], undefined);
+});

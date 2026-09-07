@@ -86,7 +86,7 @@
       switch (r.type) {
         case "venue_complete": ok = done(r.venue); break;
         case "venues_complete": ok = r.venues.every(done); break;
-        case "bundle_complete": ok = ((facts.bundles[r.bundle] || {}).core || []).every(done); break;
+        case "bundle_complete": { const core = ((facts.bundles || {})[r.bundle] || {}).core || []; ok = core.length > 0 && core.every(done); break; }
         case "count_complete": ok = r.venues.filter(done).length >= r.count; break;
         case "decision": ok = facts.decisions.some((d) => decisionMatches(d, r.decision) && (r.by === "any" || mine(d))); break;
         case "preferences": ok = Object.keys((facts.preferences || {})[facts.travelerId] || {}).length >= r.count; break;
@@ -118,7 +118,23 @@
   }
 
   const byId = Object.fromEntries(defs.map((d) => [d.id, d]));
-  const api = { defs, evaluate, byId, HUNT };
+
+  // Does this trophy exist in this city? A rule that names a venue or a bundle the catalog
+  // doesn't have is a trophy for somewhere else, not a trophy waiting to be earned here.
+  function applicable(def, catalog) {
+    if (!catalog) return true;
+    const vids = new Set(catalog.venues.map((v) => v.id));
+    const check = (r) => {
+      if (r.type === "venue_complete") return vids.has(r.venue);
+      if (r.type === "venues_complete" || r.type === "count_complete") return r.venues.every((v) => vids.has(v));
+      if (r.type === "bundle_complete") return !!(catalog.bundles || {})[r.bundle];
+      if (r.type === "all_of") return r.rules.every(check);
+      return true;
+    };
+    return check(def.rule);
+  }
+
+  const api = { defs, evaluate, byId, HUNT, applicable };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
   root.DCAchievements = api;
 })(typeof window !== "undefined" ? window : globalThis);

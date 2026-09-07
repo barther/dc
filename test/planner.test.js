@@ -354,3 +354,35 @@ test("another city, same machine: the New York catalog plans a week under the sa
   assert.equal(P.plan({ start: "2026-11-29", nights: 7 }).label, "Recommended");
   assert.equal(P.catalog.city.id, "dc"); assert.equal(E.catalog.city.id, "nyc");
 });
+
+test("pace is policy: the party's floor moves the dials, and a rest day empties a date without touching history", () => {
+  const D7 = { start: "2026-11-29", nights: 7 };
+  const hasHiHi = (p) => p.days.some((d) => d.day && d.night && p.units[d.day.id].load === "hi" && p.units[d.night.id].load === "hi");
+  // Level 3 is today's doctrine; nothing regresses.
+  assert.equal(plan().label, "Recommended");
+  assert.equal(plan({}, {}, null, { pace: 3 }).label, "Recommended");
+  // Level 4 may pair two big things when the week needs it; the default never does.
+  assert.ok(!hasHiHi(plan({ nights: 3 })));
+  assert.ok(P.paceFor(4).hihi > -Infinity && P.paceFor(3).hihi === -Infinity);
+  // Level 2: never two big days in a row.
+  const steady = plan(D7, {}, null, { pace: 2 });
+  for (let i = 1; i < steady.days.length; i++) {
+    const a = steady.days[i - 1].day, b = steady.days[i].day;
+    assert.ok(!(a && b && steady.units[a.id].load === "hi" && steady.units[b.id].load === "hi"), `${P.fmtDMD(steady.days[i].date)} follows a big day`);
+  }
+  assert.ok(!steady.days.some((d) => d.day && d.night && steady.units[d.day.id].load === "hi" && steady.units[d.night.id].load === "mid"), "no HI/MID at steady pace");
+  // Level 1: one thing a day.
+  const easy = plan(D7, {}, null, { pace: 1 });
+  assert.ok(easy.days.every((d) => !(d.day && d.night)), "one thing a day");
+  assert.equal(easy.pace.name, "Easy");
+  // A rest day: nothing lands on it, and a completed day before it stays put.
+  const before = plan(D7, {}, null, { today: "2026-12-02" });
+  const done = { completed: { "air-space": "2026-11-30" } };
+  const rest = plan(D7, done, before, { today: "2026-12-02", restDays: ["2026-12-03"] });
+  const off = rest.days.find((d) => P.iso(d.date) === "2026-12-03");
+  assert.ok(off.rest && !off.day && !off.night);
+  assert.equal(rest.placements["air-space"], "2026-11-30");
+  assert.ok(rest.days.filter((d) => d.day || d.night).length >= 4, "the rest of the week is still a week");
+  // Unknown or missing pace is the default.
+  assert.equal(plan({}, {}, null, { pace: undefined }).pace.level, 3);
+});
