@@ -246,6 +246,14 @@ lands on the record. Photography is the badge; Sam already holds Citizenship in 
 never count toward the family standings or toward "everyone has four"; the game stays fair and
 the counselor still gets a timestamped record.
 
+**Geography breaks ties; it never overrides pacing.** Every venue has coordinates and the hotel is
+the base. A day's two stops within about a mile of each other earn a point; stops three miles
+apart cost three, because that's a ride between them. Both are below the load doctrine and the
+must-see order, so the Cathedral and ZooLights share an uptown day when the family ranks them, and
+no day ever becomes HI/HI to save a fare. Every day reports its route: legs from the hotel and
+back, straight-line miles, walk under about a mile, otherwise a ride, or the Metro where a venue
+names it.
+
 **The log is a conversation, not a receipt.** Every entry in "What's been decided" opens on a
 tap: who did it, when, and everyone's take. Any traveler can file *Fine by me* or *I object* with
 a short note, change it, or withdraw it. An opinion never changes the trip and never bumps the

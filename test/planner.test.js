@@ -311,3 +311,21 @@ test("with the family's order and the family's champion on top, the recommended 
   assert.equal(p.units[ids[13]].tier, "bonus");
   assert.ok(!p.placements[ids[16]] || p.units[ids[16]].core === false);
 });
+
+test("geography: every day has a route from the hotel, Arlington is a Metro ride, and neighbors share a day", () => {
+  const p = plan();
+  for (const d of p.days) if (d.day || d.night) { assert.ok(d.route && d.route.miles > 0, P.fmtDMD(d.date)); assert.equal(d.route.legs[d.route.legs.length - 1].to, "the hotel"); }
+  const arl = p.days.find((d) => d.day && d.day.id === "arlington");
+  assert.equal(arl.route.legs[0].mode, "metro");
+  const air = p.days.find((d) => d.day && d.day.id === "air-space");
+  assert.equal(air.route.rides, 0, "Air and Space is a walk from the hotel");
+  // The Cathedral and ZooLights are both uptown. Ranked together, they land on the same day.
+  const B = require("../public/bracket.js");
+  const ids = B.contenders(C).map((c) => c.id);
+  const order = ["national-cathedral", "zoolights", ...ids.filter((id) => !["national-cathedral", "zoolights"].includes(id))];
+  const q = plan({}, {}, null, { familyRank: order, champions: ["national-cathedral"] });
+  const cath = q.days.find((d) => d.day && d.day.id === "national-cathedral");
+  assert.ok(cath && cath.night && cath.night.id === "zoolights", "uptown day, uptown night");
+  // Geography never overrides pacing: still no HI/HI day anywhere.
+  for (const d of q.days) if (d.day && d.night) assert.ok(!(q.units[d.day.id].load === "hi" && q.units[d.night.id].load === "hi"));
+});

@@ -104,3 +104,11 @@ test("the family's order averages completed ballots, locks champions, and breaks
   const same = B.familyOrder({ bart, jess: bart }, ids).map((r) => r.id);
   assert.deepEqual(same, bart);
 });
+
+test("every contender knows how far it is from the hotel and whether that's a walk", () => {
+  const air = cs.find((c) => c.id === "air-space"), cath = cs.find((c) => c.id === "national-cathedral"), arl = cs.find((c) => c.id === "arlington");
+  assert.ok(air.miles < 1 && air.go === "walk");
+  assert.ok(cath.miles > 3 && cath.go === "ride");
+  assert.equal(arl.go, "metro");
+  for (const c of cs) assert.ok(typeof c.miles === "number" && c.miles >= 0, c.id);
+});

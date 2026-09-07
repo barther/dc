@@ -107,7 +107,8 @@ planner packs that order into the week (see `BRACKET.md`). Until a ballot is fin
 runs on the recommended trip. Three files, one direction of data flow:
 
 - `public/venues.js` is the source of truth: every experience with its seed, tier, day/night,
-  LO/MID/HI load, environment, hours, closures, and bundle. Plus the bundle catalog, the
+  LO/MID/HI load, environment, hours, closures, bundle, and coordinates. The hotel at L'Enfant
+  Plaza is the base; straight-line miles decide walk or ride. Plus the bundle catalog, the
   Archives/memorials pairing, structural days, and the prose for each unit.
 - `public/planner.js` is the scheduler. Pure, no DOM, runs under node. It takes dates and user
   state (punts, pins) and returns a plan: each day's day and night assignment, what was cut or
@@ -115,7 +116,9 @@ runs on the recommended trip. Three files, one direction of data flow:
 - `public/ui.js` renders `/family`: the bracket screens (one matchup at a time, then your
   ballot), your week from your ranking, the family's week from everyone's, the leave-home and
   back-home dates for Bart (both travel days are the train's, so hotel nights = home − leave − 2),
-  and, during the trip, Mark done and the weather swap. The planner's other intents (punt, pin,
+  and, during the trip, Mark done and the weather swap. Each day card carries its route from the
+  hotel with miles and walk or ride per leg, and each week has a map (Leaflet, vendored under
+  `public/vendor/leaflet`, on OpenStreetMap tiles). The planner's other intents (punt, pin,
   ask, prefer, not this day) are still accepted by the Worker; the page just doesn't offer them.
 
 The doctrine is in `PLANNER.md`; `npm test` checks the behavioral invariants.

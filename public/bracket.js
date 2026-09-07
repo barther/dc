@@ -3,7 +3,7 @@
  * ranking out; ballots in, the family's order out. No DOM, no Worker. Shared by
  * the browser and the Worker the same way the planner is.
  *
- *   contenders(catalog)      → [{ id, name, short, seed, members, load, period, bundle, stops, hours, reservation }]
+ *   contenders(catalog)      → [{ id, name, short, seed, members, load, period, bundle, stops, hours, reservation, miles, go }]
  *   structure(n)             → { games, slots, picksNeeded }
  *   resolve(struct, ids, picks) → { games, next, complete, picksMade, picksNeeded }
  *   valid(struct, ids, picks, game, winner) → bool
@@ -24,10 +24,15 @@
   function contenders(catalog) {
     const venueById = Object.fromEntries(catalog.venues.map((v) => [v.id, v]));
     const stop = (id, rides) => { const v = venueById[id]; return { id, name: v.name, hours: v.ideal_hours, period: v.period, rides: !!rides }; };
+    const geo = catalog.geo;
     const describe = (core, accessory) => {
       const vs = core.map((id) => venueById[id]);
       const res = vs.reduce((r, v) => RES_RANK[v.reservation || "none"] > RES_RANK[r] ? v.reservation : r, "none");
-      return { stops: core.map((id) => stop(id, false)).concat(accessory.map((id) => stop(id, true))), hours: vs.reduce((h, v) => h + (v.ideal_hours || 0), 0), reservation: res };
+      // From the hotel to the first stop: the number that decides walk or ride.
+      const first = vs[0];
+      const miles = geo && first && first.ll ? geo.distMi(geo.base.ll, first.ll) : null;
+      const go = first && first.go ? first.go : miles == null ? null : miles <= geo.WALK ? "walk" : "ride";
+      return { stops: core.map((id) => stop(id, false)).concat(accessory.map((id) => stop(id, true))), hours: vs.reduce((h, v) => h + (v.ideal_hours || 0), 0), reservation: res, miles, go };
     };
     const taken = new Set();
     const out = [];

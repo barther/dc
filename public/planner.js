@@ -60,6 +60,8 @@
   /* ───────────── Units: what the scheduler actually places ───────────── */
 
   const TIER_WEIGHT = { protected: 1000, high: 200, medium: 100, bonus: 20 };
+  const geo = catalog.geo;
+  const NEAR = 1.2, FAR = 3; // miles between a day's two stops: neighbors, or a ride between them
   const MUST_SEE = 13, FINAL_FOUR = 4; // of the family's order: the must-see things, and the ones a short trip keeps
   const TIER_RANK = { protected: 0, high: 1, medium: 2, bonus: 3 };
   const LOAD = { lo: 0, mid: 1, hi: 2 };
@@ -143,6 +145,8 @@
         } else if (!accessoryIds.has(u.id)) { u.tier = "bonus"; u.value = TIER_WEIGHT.bonus - 100 - u.seed; u.core = false; }
       }
       u.order = u.familyRank || u.seed;
+      const lls = u.members.map((m) => venueById[m].ll).filter(Boolean);
+      u.ll = lls.length ? [lls.reduce((a, l) => a + l[0], 0) / lls.length, lls.reduce((a, l) => a + l[1], 0) / lls.length] : null;
       // The planner owns the core trip; the family owns the extras. Only headline experiences,
       // requests, and must-dos are scheduled without being asked. Accessories ride with their bundle.
       u.auto = u.core || u.requested || u.pinned || !!u.completedOn || !!u.fixedOn;
@@ -242,6 +246,7 @@
       if (ps < 0 && !u.core) return -Infinity;   // only the headline experiences get to squeeze a day
       s += ps;
       if (other && other.environment === "outdoor" && u.environment === "outdoor" && !u.accessoryOf && !(other.accessory)) s -= 3; // two cold outings in one day
+      if (other && other.ll && u.ll) { const mi = geo.distMi(other.ll, u.ll); if (mi <= NEAR) s += 1; else if (mi >= FAR) s -= 3; }   // neighbors break ties; across town costs a ride, below pacing but above stability
       if (d.kind === "departure" && u.load !== "lo") s -= 6;                              // shortened: worth more than stability
       if (u.prefer_weekday != null && d.date.getDay() === u.prefer_weekday) s += 3;
       const pr = pairingFor(u);
@@ -442,7 +447,7 @@
     else if (nights > DEFAULT.nights) label = "Extended";
     else label = "Recommended";
 
-    for (const d of days) { d.fit = { day: d.day ? weatherFit(byId[d.day.id], d.weather) : null, night: d.night ? weatherFit(byId[d.night.id], d.weather) : null }; }
+    for (const d of days) { d.fit = { day: d.day ? weatherFit(byId[d.day.id], d.weather) : null, night: d.night ? weatherFit(byId[d.night.id], d.weather) : null }; d.route = routeFor(d, byId); }
     const trainOut = addDays(start, -1), home = addDays(start, nights + 1);
     const phase = !today ? "plan" : today < start ? "before" : today <= days[days.length - 1].date ? "live" : "after";
     return {
@@ -456,6 +461,30 @@
   }
 
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  /* ───────────── Geography: what a day costs in miles ───────────── */
+
+  // Legs from the hotel through the day's stops and the night's stops and home. Straight-line miles;
+  // a leg over WALK miles is a ride unless the venue names its train.
+  function routeFor(d, byId) {
+    const stops = [];
+    for (const slot of ["day", "night"]) {
+      if (!d[slot]) continue;
+      const u = byId[d[slot].id];
+      for (const m of u.members) { const v = venueById[m]; if (v && v.ll) stops.push({ id: v.id, name: v.name, ll: v.ll, go: v.go || null }); }
+    }
+    if (!stops.length) return null;
+    const pts = [{ id: "hotel", name: geo.base.name, ll: geo.base.ll }, ...stops, { id: "hotel", name: geo.base.name, ll: geo.base.ll }];
+    const legs = [];
+    for (let i = 1; i < pts.length; i++) {
+      const miles = geo.distMi(pts[i - 1].ll, pts[i].ll);
+      const dest = pts[i].id === "hotel" ? pts[i - 1] : pts[i];
+      legs.push({ from: pts[i - 1].name, to: pts[i].name, miles, mode: dest.go ? dest.go : miles <= geo.WALK ? "walk" : "ride" });
+    }
+    const walked = legs.filter((l) => l.mode === "walk").reduce((a, l) => a + l.miles, 0);
+    const rides = legs.filter((l) => l.mode !== "walk").length;
+    return { legs, miles: legs.reduce((a, l) => a + l.miles, 0), walked, rides, stops };
+  }
 
   /* ───────────── Summary copy ───────────── */
 

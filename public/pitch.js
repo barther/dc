@@ -31,10 +31,13 @@
   // What we're in for: every stop, about how long, tickets or not. So nobody misses the White House inside a night.
   const hoursText = (h) => h >= 1 ? `about ${Number.isInteger(h) ? h : h.toFixed(1).replace(/\.0$/, "")} ${h === 1 ? "hour" : "hours"}` : `about ${Math.round(h * 60)} minutes`;
   const TICKETS = { none: "no tickets", recommended: "tickets recommended", required: "timed tickets required" };
+  const GO_TEXT = { walk: "a walk", ride: "a ride", metro: "one Metro ride" };
+  const fromHotel = (c) => c.miles == null ? "" : ` · ${c.miles < 0.95 ? `${(c.miles * 10 | 0) / 10 || 0.1} mi` : `${c.miles.toFixed(1)} mi`} from the hotel, ${GO_TEXT[c.go] || "a ride"}`;
+
   function inFor(c) {
     const stops = c.stops.map((s) => `<li${s.rides ? ' class="ride"' : ""}><b>${esc(s.name)}</b><span>${s.rides ? `rides along by ${s.period}` : hoursText(s.hours)}</span></li>`).join("");
     return `<div class="in-for"><span class="in-for-head">What we're in for</span><ul class="stops">${stops}</ul>
-      <p class="in-for-line">${c.period === "day" ? "A day" : "A night"} · ${LOAD_NAME[c.load]} · ${hoursText(c.hours)} on the ground · ${TICKETS[c.reservation] || TICKETS.none}</p></div>`;
+      <p class="in-for-line">${c.period === "day" ? "A day" : "A night"} · ${LOAD_NAME[c.load]} · ${hoursText(c.hours)} on the ground · ${TICKETS[c.reservation] || TICKETS.none}${fromHotel(c)}</p></div>`;
   }
 
   // The reel: every contender, seeded, with its copy. Sizzle, not schedule.
