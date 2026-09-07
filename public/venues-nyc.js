@@ -26,7 +26,7 @@
     { id: "metropolitan-museum", ll: [40.7794, -73.9632], name: "The Metropolitan Museum of Art", seed: 5, priority_tier: "protected", period: "day", load: "hi", environment: "indoor",
       min_hours: 2.5, ideal_hours: 5, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null, constraints: { weekdays: [3], holidays: ["thanksgiving", "christmas", "newyear"] } },
     { id: "broadway-show", ll: [40.759, -73.9866], name: "A Broadway show", seed: 6, priority_tier: "protected", period: "night", load: "mid", environment: "indoor",
-      min_hours: 2.5, ideal_hours: 3.5, shortenable: false, reservation: "required", weather: INDOOR_ALL, bundle: "theater-district", constraints: { weekdays: [1], holidays: [] } },
+      min_hours: 2.5, ideal_hours: 3.5, shortenable: false, reservation: "required", weather: INDOOR_ALL, bundle: "theater-district", constraints: { weekdays: [], holidays: [] } },
     { id: "nine-eleven-museum", ll: [40.7115, -74.0125], name: "9/11 Memorial Museum", seed: 7, priority_tier: "high", period: "day", load: "hi", environment: "indoor",
       min_hours: 2, ideal_hours: 4, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: "world-trade-center", constraints: MUSEUM_CLOSED },
     { id: "nine-eleven-memorial", ll: [40.7115, -74.0134], name: "9/11 Memorial", seed: 8, priority_tier: "high", period: "day", load: "lo", environment: "outdoor",
@@ -123,7 +123,7 @@
       short: ["Check out, leave the bags, and take a slow morning at Chelsea Market with a walk on the High Line. Lunch, luggage, Penn Station, and the Crescent south."],
       photo: ["nyc/unit-chelsea-high-line.webp", "The High Line in winter"] },
     "theater-district": { title: "Broadway night",
-      body: ["A show, tickets booked ahead, with Times Square as the walk before or after. Most shows are dark on Mondays."],
+      body: ["A show, tickets booked ahead, with Times Square as the walk before or after. Performance days vary by production, so the show gets booked first and the night lands where the ticket is."],
       photo: ["nyc/unit-theater-district.webp", "The Theater District after dark"] },
     "central-park": { title: "Central Park",
       body: ["A day in Central Park: the Mall, Bethesda Terrace, the lake, the Ramble, and Wollman Rink if anyone wants to skate. Easy to shorten. The park doesn't close."],
@@ -209,6 +209,9 @@
     // The same train, four more hours. The Crescent's published times move by season; these are approximate
     // except the southbound departure, which the timetable prints as 2:15 PM.
     train: { boardLabel: "evening", arriveWeekend: "~6:30 PM, per the timetable", arriveWeekday: "evening, per the timetable", departLabel: "2:15 PM", homeLabel: "~10:30 AM CT", arriveHour: 18.5 },
+    // The same seven nights are worth less here: an evening arrival, and a 2:15 PM train south that
+    // leaves about two hours on the last morning between checkout and Penn Station.
+    edges: { departureHours: 2 },
     narrative: {
       arrivalTitle: "Hello, New York.",
       arrivalBody: "Roll into Penn Station, up into Midtown, check into the hotel, unpack, eat. Then a first walk after dark: the Empire State Building is four blocks away and lit. No agenda. Just look up.",

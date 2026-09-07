@@ -259,6 +259,9 @@
     plate: { photo: "hero-capitol-night.webp", alt: "The U.S. Capitol at night", title: "The Capitol", sub: "lit for the night" },
     // The Crescent: labels for the board, and the hour the countdown points at.
     train: { boardLabel: "evening", arriveWeekend: "~2:12 PM", arriveWeekday: "afternoon, per the timetable", departLabel: "6:30 PM", homeLabel: "~10:30 AM CT", arriveHour: 14.2 },
+    // What the travel days are worth here. A 6:30 PM train south leaves about three usable hours
+    // on the last morning after checkout; the 2 PM arrival leaves the first night for the Capitol.
+    edges: { departureHours: 3 },
     // Structural prose for the week.
     narrative: {
       arrivalTitle: "Hello, Washington.",

@@ -64,6 +64,9 @@
 
   const TIER_WEIGHT = { protected: 1000, high: 200, medium: 100, bonus: 20 };
   const geo = catalog.geo;
+  // Travel-day capacity is a city fact, not a train label: Washington's 6:30 PM departure leaves a
+  // three-hour last morning; New York's 2:15 PM leaves two. Arrival day never places a venue.
+  const EDGES = (catalog.city && catalog.city.edges) || { departureHours: 3 };
   const NEAR = 1.2, FAR = 3; // miles between a day's two stops: neighbors, or a ride between them
   const MUST_SEE = 13, FINAL_FOUR = 4; // of the family's order: the must-see things, and the ones a short trip keeps
   const TIER_RANK = { protected: 0, high: 1, medium: 2, bonus: 3 };
@@ -157,7 +160,8 @@
       // Ranking: must-do, protected, high, headline mediums, requested, then the bench.
       u.rank = u.completedOn ? -3 : u.fixedOn ? -2 : u.pinned ? -1 : u.tier === "protected" ? 0 : u.tier === "high" ? 1 : u.core ? 2 : u.requested ? 2.5 : 3;
       // Departure morning: a LO activity, or a shortened indoor/mixed visit. Never a full outdoor day.
-      u.departureOK = u.period === "day" && (u.load === "lo" || (u.shortenable && u.environment !== "outdoor" && u.min_hours <= 3));
+      // The last morning's capacity is the city's: how many hours exist between checkout and the train.
+      u.departureOK = u.period === "day" && (u.load === "lo" || (u.shortenable && u.environment !== "outdoor" && u.min_hours <= EDGES.departureHours)) && u.min_hours <= EDGES.departureHours;
     }
     return units;
   }
@@ -603,7 +607,7 @@
     return { moves, gain, plan: next, lines, summary: `Nothing gets cut and every day stays balanced. ${lines.join(". ")}.` };
   }
 
-  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, catalog, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
+  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, catalog, EDGES, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
   }
 
   const isNode = typeof module !== "undefined" && module.exports;
