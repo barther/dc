@@ -116,10 +116,20 @@
     return "";
   }
 
+  // Getting there: the day's legs from the hotel and back, miles and walk or ride. Straight-line, honest about it.
+  const MODE = { walk: "walk", ride: "a ride", metro: "Metro" };
+  const mi = (m) => m < 0.95 ? `${Math.max(0.1, Math.round(m * 10) / 10)} mi` : `${m.toFixed(1)} mi`;
+  function routeLine(d) {
+    const r = d.route; if (!r) return "";
+    const legs = r.legs.map((l) => `<span class="leg"><span class="leg-to">${esc(l.to)}</span> <span class="leg-mi">${mi(l.miles)}&nbsp;<span class="leg-mode ${l.mode}">${MODE[l.mode]}</span></span></span>`).join('<span class="leg-arrow">→</span>');
+    const sum = `${mi(r.walked)} on foot${r.rides ? `, ${r.rides === 1 ? "one ride" : `${r.rides} rides`}` : ", no rides"}`;
+    return `<div class="route"><span class="route-head">Getting there · ${esc(sum)}</span><span class="legs"><span class="leg"><span class="leg-to">Hotel</span></span><span class="leg-arrow">→</span>${legs}</span></div>`;
+  }
+
   function card(p, d, title, body, photo, halvesHtml, featured, late, controls) {
     const cls = ["stop", featured ? "featured" : "", d.kind === "home" ? "last" : "", late ? "late" : "", d.past ? "past" : "", d.isToday ? "today" : ""].filter(Boolean).join(" ");
     return `<li class="${cls}"><div class="stop-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span>${featured ? `<em class="champ-mark">✦ ${esc(featured)}</em>` : ""}</div>
-      <div class="stop-body"><h3>${esc(title)}</h3>${figure(photo, "stop-photo", p)}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${controls}</div></li>`;
+      <div class="stop-body"><h3>${esc(title)}</h3>${figure(photo, "stop-photo", p)}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${d.kind === "full" || d.kind === "departure" ? routeLine(d) : ""}${controls}</div></li>`;
   }
 
   function renderFull(p, d, liveMode) {
@@ -146,6 +156,36 @@
     const title = d.day.shortened ? `${cap(c.title)}, shortened, then home.` : `${cap(c.title)}, then home.`;
     const body = c.short ? c.short.slice() : [...c.body, NARRATIVE.departureTail];
     return card(p, d, title, body, c.photo || null, halves({ label: d.day.shortened ? `${du.short}, a couple of hours` : du.short, load: d.day.shortened ? "mid" : du.load }, C.structural.departure.night), champion(p, du), false, doneRow(du, d, liveMode));
+  }
+
+  // One map of the week: the hotel, every stop, each day's loop. Leaflet on OpenStreetMap tiles,
+  // vendored, so it pinches and zooms on a phone. Without the library, the page just has no map.
+  const maps = {};
+  function weekMap(id, p) {
+    const host = $(id); if (!host) return;
+    if (maps[id]) { maps[id].remove(); delete maps[id]; }
+    host.innerHTML = "";
+    if (!window.L) return;
+    const geo = C.geo;
+    const days = p.days.filter((d) => d.route);
+    if (!days.length) return;
+    const el = document.createElement("div"); el.className = "week-map"; host.appendChild(el);
+    const map = L.map(el, { scrollWheelZoom: false, attributionControl: true });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>" }).addTo(map);
+    const all = [geo.base.ll];
+    for (const d of days) {
+      const seq = [geo.base.ll, ...d.route.stops.map((s) => s.ll), geo.base.ll];
+      L.polyline(seq, { color: "#1c2a4a", weight: 1.5, opacity: 0.45 }).addTo(map);
+      for (const s of d.route.stops) {
+        all.push(s.ll);
+        const fromHotel = geo.distMi(geo.base.ll, s.ll);
+        L.circleMarker(s.ll, { radius: 6, color: "#1c2a4a", weight: 1.5, fillColor: "#f4f1ea", fillOpacity: 1 }).addTo(map)
+          .bindPopup(`<b>${esc(s.name)}</b><br>${esc(fmtDMD(d.date))} · ${mi(fromHotel)} from the hotel`);
+      }
+    }
+    L.circleMarker(geo.base.ll, { radius: 7, color: "#a8322c", weight: 2, fillColor: "#a8322c", fillOpacity: 1 }).addTo(map).bindPopup("<b>The hotel</b><br>L'Enfant Plaza");
+    map.fitBounds(L.latLngBounds(all), { padding: [24, 24] });
+    maps[id] = map;
   }
 
   function renderWeek(p, liveMode) {
@@ -206,6 +246,7 @@
       const my = planFrom(mine, [mine[0]], null, { [mine[0]]: ["you"] });
       $("mine-intro").innerHTML = `Your ranking, packed into ${my.nights} ${my.nights === 1 ? "night" : "nights"}. One <i class="load hi">Big</i> thing a day, and a Big day gets an <i class="load lo">Easy</i> night.${my.headline.kept < my.headline.total ? ` ${my.headline.total - my.headline.kept} of your top thirteen didn't fit.` : ""}`;
       $("line-mine").innerHTML = renderWeek(my, false);
+      weekMap("map-mine", my);
     }
 
     // The family's week: behind your own ballot, built from everyone's.
@@ -218,6 +259,7 @@
         ? "Every ballot is in. Each thing's place is the average of everyone's rank, champions locked to the top, and the same rules pack it into the nights. This is the trip."
         : `Built from ${list(done.map((t) => t.name))}. Waiting on ${list(waiting.map((t) => t.name))}; the week moves when ${waiting.length === 1 ? "that ballot" : "those ballots"} land${waiting.length === 1 ? "s" : ""}.`;
       $("line").innerHTML = renderWeek(p, p.phase === "live" || p.phase === "after");
+      weekMap("map", p);
       renderOrder(fam);
     }
 
@@ -249,10 +291,13 @@
   // What we're in for: every stop, about how long, tickets or not. So nobody misses the White House inside a night.
   const hoursText = (h) => h >= 1 ? `about ${Number.isInteger(h) ? h : h.toFixed(1).replace(/\.0$/, "")} ${h === 1 ? "hour" : "hours"}` : `about ${Math.round(h * 60)} minutes`;
   const TICKETS = { none: "no tickets", recommended: "tickets recommended", required: "timed tickets required" };
+  const GO_TEXT = { walk: "a walk", ride: "a ride", metro: "one Metro ride" };
+  const fromHotel = (c) => c.miles == null ? "" : ` · ${c.miles < 0.95 ? `${(c.miles * 10 | 0) / 10 || 0.1} mi` : `${c.miles.toFixed(1)} mi`} from the hotel, ${GO_TEXT[c.go] || "a ride"}`;
+
   function inFor(c) {
     const stops = c.stops.map((s) => `<li${s.rides ? ' class="ride"' : ""}><b>${esc(s.name)}</b><span>${s.rides ? `rides along by ${s.period}` : hoursText(s.hours)}</span></li>`).join("");
     return `<div class="in-for"><span class="in-for-head">What we're in for</span><ul class="stops">${stops}</ul>
-      <p class="in-for-line">${c.period === "day" ? "A day" : "A night"} · ${LOAD_NAME[c.load]} · ${hoursText(c.hours)} on the ground · ${TICKETS[c.reservation] || TICKETS.none}</p></div>`;
+      <p class="in-for-line">${c.period === "day" ? "A day" : "A night"} · ${LOAD_NAME[c.load]} · ${hoursText(c.hours)} on the ground · ${TICKETS[c.reservation] || TICKETS.none}${fromHotel(c)}</p></div>`;
   }
 
   function contenderCard(c, game) {

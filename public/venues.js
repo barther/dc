@@ -28,64 +28,64 @@
   const FEDERAL_CLOSED = { weekdays: [0], holidays: ["thanksgiving", "christmas", "newyear"] };
 
   const venues = [
-    { id: "us-capitol", name: "U.S. Capitol", seed: 1, priority_tier: "protected", period: "day", load: "hi", environment: "mixed",
+    { id: "us-capitol", ll: [38.8899, -77.0091], name: "U.S. Capitol", seed: 1, priority_tier: "protected", period: "day", load: "hi", environment: "mixed",
       min_hours: 2.5, ideal_hours: 4, shortenable: false, reservation: "recommended",
       weather: { rain: "good", cold: "good", wind: "good", heat: "good" }, bundle: "capitol-hill", constraints: FEDERAL_CLOSED },
-    { id: "national-archives", name: "National Archives", seed: 2, priority_tier: "protected", period: "day", load: "lo", environment: "indoor",
+    { id: "national-archives", ll: [38.8926, -77.023], name: "National Archives", seed: 2, priority_tier: "protected", period: "day", load: "lo", environment: "indoor",
       min_hours: 1.5, ideal_hours: 2.5, shortenable: true, reservation: "recommended",
       weather: INDOOR_ALL, bundle: null, constraints: { weekdays: [], holidays: ["thanksgiving", "christmas"] } },
-    { id: "lincoln-memorial", name: "Lincoln Memorial", seed: 3, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
+    { id: "lincoln-memorial", ll: [38.8893, -77.0502], name: "Lincoln Memorial", seed: 3, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 1, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "main-memorial-loop" },
-    { id: "library-of-congress", name: "Library of Congress", seed: 4, priority_tier: "protected", period: "day", load: "hi", environment: "indoor",
+    { id: "library-of-congress", ll: [38.8887, -77.0047], name: "Library of Congress", seed: 4, priority_tier: "protected", period: "day", load: "hi", environment: "indoor",
       min_hours: 1.5, ideal_hours: 2.5, shortenable: true, reservation: "required", weather: INDOOR_ALL, bundle: "capitol-hill", constraints: FEDERAL_CLOSED },
-    { id: "vietnam-memorial", name: "Vietnam Veterans Memorial", seed: 5, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
+    { id: "vietnam-memorial", ll: [38.8912, -77.0477], name: "Vietnam Veterans Memorial", seed: 5, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 0.75, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "main-memorial-loop" },
-    { id: "air-space", name: "National Air and Space Museum", seed: 6, priority_tier: "high", period: "day", load: "hi", environment: "indoor",
+    { id: "air-space", ll: [38.8882, -77.0199], name: "National Air and Space Museum", seed: 6, priority_tier: "high", period: "day", load: "hi", environment: "indoor",
       min_hours: 2.5, ideal_hours: 5, shortenable: true, reservation: "required", weather: INDOOR_ALL, bundle: null, constraints: SMITHSONIAN_CLOSED },
-    { id: "arlington", name: "Arlington National Cemetery", seed: 7, priority_tier: "high", period: "day", load: "hi", environment: "outdoor",
+    { id: "arlington", ll: [38.8787, -77.0675], go: "metro", name: "Arlington National Cemetery", seed: 7, priority_tier: "high", period: "day", load: "hi", environment: "outdoor",
       min_hours: 3, ideal_hours: 5, shortenable: true, reservation: "none",
       weather: { rain: "poor", cold: "acceptable", wind: "poor", heat: "acceptable" }, bundle: null },
-    { id: "wwii-memorial", name: "World War II Memorial", seed: 8, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
+    { id: "wwii-memorial", ll: [38.8894, -77.0405], name: "World War II Memorial", seed: 8, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 0.75, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "main-memorial-loop" },
-    { id: "korean-memorial", name: "Korean War Veterans Memorial", seed: 9, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
+    { id: "korean-memorial", ll: [38.8876, -77.0477], name: "Korean War Veterans Memorial", seed: 9, priority_tier: "protected", period: "night", load: "hi", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 0.75, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "main-memorial-loop" },
-    { id: "white-house", name: "White House Exterior", seed: 10, priority_tier: "protected", period: "night", load: "mid", environment: "outdoor",
+    { id: "white-house", ll: [38.8977, -77.0365], name: "White House Exterior", seed: 10, priority_tier: "protected", period: "night", load: "mid", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 1, shortenable: true, reservation: "none",
       weather: { rain: "poor", cold: "good", wind: "acceptable", heat: "good" }, bundle: "christmas-washington" },
-    { id: "national-christmas-tree", name: "National Christmas Tree", seed: 11, priority_tier: "protected", period: "night", load: "mid", environment: "outdoor",
+    { id: "national-christmas-tree", ll: [38.8946, -77.0366], name: "National Christmas Tree", seed: 11, priority_tier: "protected", period: "night", load: "mid", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 1, shortenable: true, reservation: "none",
       weather: { rain: "poor", cold: "good", wind: "acceptable", heat: "good" }, bundle: "christmas-washington" },
-    { id: "natural-history", name: "National Museum of Natural History", seed: 12, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
+    { id: "natural-history", ll: [38.8913, -77.0261], name: "National Museum of Natural History", seed: 12, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
       min_hours: 2.5, ideal_hours: 5, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, constraints: SMITHSONIAN_CLOSED },
-    { id: "american-history", name: "National Museum of American History", seed: 13, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
+    { id: "american-history", ll: [38.8913, -77.03], name: "National Museum of American History", seed: 13, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
       min_hours: 2, ideal_hours: 4.5, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, constraints: SMITHSONIAN_CLOSED },
-    { id: "african-american-history", name: "National Museum of African American History and Culture", seed: 14, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
+    { id: "african-american-history", ll: [38.891, -77.0326], name: "National Museum of African American History and Culture", seed: 14, priority_tier: "medium", period: "day", load: "hi", environment: "indoor",
       min_hours: 3, ideal_hours: 5, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null, constraints: SMITHSONIAN_CLOSED },
-    { id: "washington-monument", name: "Washington Monument", seed: 15, priority_tier: "medium", period: "day", load: "mid", environment: "mixed",
+    { id: "washington-monument", ll: [38.8895, -77.0353], name: "Washington Monument", seed: 15, priority_tier: "medium", period: "day", load: "mid", environment: "mixed",
       min_hours: 1, ideal_hours: 2, shortenable: false, reservation: "required",
       weather: { rain: "poor", cold: "good", wind: "poor", heat: "acceptable" }, bundle: null, constraints: { weekdays: [], holidays: ["christmas"] } },
-    { id: "jefferson-memorial", name: "Jefferson Memorial", seed: 16, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
+    { id: "jefferson-memorial", ll: [38.8814, -77.0365], name: "Jefferson Memorial", seed: 16, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 1, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "tidal-basin-loop" },
-    { id: "mlk-memorial", name: "Martin Luther King Jr. Memorial", seed: 17, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
+    { id: "mlk-memorial", ll: [38.8862, -77.0442], name: "Martin Luther King Jr. Memorial", seed: 17, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
       min_hours: 0.5, ideal_hours: 0.75, shortenable: false, reservation: "none", weather: MEMORIAL, bundle: "tidal-basin-loop" },
-    { id: "fdr-memorial", name: "Franklin Delano Roosevelt Memorial", seed: 18, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
+    { id: "fdr-memorial", ll: [38.8838, -77.0421], name: "Franklin Delano Roosevelt Memorial", seed: 18, priority_tier: "medium", period: "night", load: "mid", environment: "outdoor",
       min_hours: 0.75, ideal_hours: 1.25, shortenable: true, reservation: "none", weather: MEMORIAL, bundle: "tidal-basin-loop" },
-    { id: "national-gallery", name: "National Gallery of Art", seed: 19, priority_tier: "bonus", period: "day", load: "hi", environment: "indoor",
+    { id: "national-gallery", ll: [38.8913, -77.0199], name: "National Gallery of Art", seed: 19, priority_tier: "bonus", period: "day", load: "hi", environment: "indoor",
       min_hours: 2, ideal_hours: 4, shortenable: true, reservation: "none", weather: INDOOR_ALL, bundle: null, constraints: { weekdays: [], holidays: ["christmas", "newyear"] } },
-    { id: "georgetown", name: "Georgetown", seed: 20, priority_tier: "bonus", period: "day", load: "mid", environment: "mixed",
+    { id: "georgetown", ll: [38.9076, -77.0623], name: "Georgetown", seed: 20, priority_tier: "bonus", period: "day", load: "mid", environment: "mixed",
       min_hours: 2, ideal_hours: 4, shortenable: true, reservation: "none",
       weather: { rain: "poor", cold: "good", wind: "acceptable", heat: "acceptable" }, bundle: null },
-    { id: "national-cathedral", name: "Washington National Cathedral", seed: 21, priority_tier: "bonus", period: "day", load: "mid", environment: "indoor",
+    { id: "national-cathedral", ll: [38.9305, -77.0708], name: "Washington National Cathedral", seed: 21, priority_tier: "bonus", period: "day", load: "mid", environment: "indoor",
       min_hours: 1.5, ideal_hours: 3, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null },
-    { id: "fords-theatre", name: "Ford's Theatre", seed: 22, priority_tier: "bonus", period: "day", load: "lo", environment: "indoor",
+    { id: "fords-theatre", ll: [38.8967, -77.0258], name: "Ford's Theatre", seed: 22, priority_tier: "bonus", period: "day", load: "lo", environment: "indoor",
       min_hours: 1, ideal_hours: 2, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null, constraints: { weekdays: [], holidays: ["thanksgiving", "christmas"] } },
-    { id: "zoolights", name: "ZooLights", seed: 23, priority_tier: "bonus", period: "night", load: "mid", environment: "outdoor",
+    { id: "zoolights", ll: [38.9296, -77.0498], name: "ZooLights", seed: 23, priority_tier: "bonus", period: "night", load: "mid", environment: "outdoor",
       min_hours: 1.5, ideal_hours: 2.5, shortenable: true, reservation: "recommended",
       weather: { rain: "poor", cold: "good", wind: "acceptable", heat: "good" }, bundle: null },
-    { id: "holiday-market", name: "DowntownDC Holiday Market", seed: 24, priority_tier: "bonus", period: "day", load: "lo", environment: "outdoor",
+    { id: "holiday-market", ll: [38.8953, -77.0223], name: "DowntownDC Holiday Market", seed: 24, priority_tier: "bonus", period: "day", load: "lo", environment: "outdoor",
       min_hours: 1, ideal_hours: 2, shortenable: true, reservation: "none",
       weather: { rain: "poor", cold: "good", wind: "acceptable", heat: "good" }, bundle: "christmas-washington" },
-    { id: "spy-museum", name: "International Spy Museum", seed: 25, priority_tier: "bonus", period: "day", load: "mid", environment: "indoor",
+    { id: "spy-museum", ll: [38.8837, -77.025], name: "International Spy Museum", seed: 25, priority_tier: "bonus", period: "day", load: "mid", environment: "indoor",
       min_hours: 2, ideal_hours: 3, shortenable: true, reservation: "recommended", weather: INDOOR_ALL, bundle: null },
   ];
 
@@ -234,7 +234,19 @@
     "white-house", "lincoln-memorial", "vietnam-memorial", "korean-memorial", "wwii-memorial", "arlington", "national-christmas-tree",
   ];
 
-  const catalog = { venues, bundles, pairings, preferred_order, structural, copy, headlines };
+  /* Geography. Home base is L'Enfant Plaza; straight-line miles are close enough on a flat grid
+     to decide "walk or call a car". A leg over WALK miles is a ride; `go: "metro"` names the one-seat train. */
+  const base = { name: "the hotel", ll: [38.8845, -77.0255] };
+  const WALK = 1.1;
+  function distMi(a, b) {
+    const R = 3958.8, toR = (x) => (x * Math.PI) / 180;
+    const dLat = toR(b[0] - a[0]), dLon = toR(b[1] - a[1]);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a[0])) * Math.cos(toR(b[0])) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  const geo = { base, WALK, distMi };
+
+  const catalog = { venues, bundles, pairings, preferred_order, structural, copy, headlines, geo };
   if (typeof module !== "undefined" && module.exports) { module.exports = catalog; return; }
   root.DCVenues = catalog;
 })(typeof window !== "undefined" ? window : globalThis);

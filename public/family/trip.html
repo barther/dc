@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css">
   <script>
     // Photo slots are optional: a missing file removes its frame instead of breaking the page.
@@ -89,6 +90,7 @@
       <h2>What your ballot builds.</h2>
       <p class="intro" id="mine-intro">Your ranking, packed into the nights we have. One <i class="load hi">Big</i> thing a day, and a Big day gets an <i class="load lo">Easy</i> night. Whatever didn't fit, didn't fit.</p>
     </div>
+    <div id="map-mine"></div>
     <ol class="line" id="line-mine"><!-- rendered by ui.js --></ol>
   </section>
 
@@ -99,6 +101,7 @@
       <h2 id="week-head">Everyone's ballots, one week.</h2>
       <p class="intro" id="week-intro"></p>
     </div>
+    <div id="map"></div>
     <ol class="line" id="line"><!-- rendered by ui.js --></ol>
     <div class="family-order" id="family-order" hidden></div>
   </section>
@@ -124,6 +127,7 @@
   <p><span id="foot-dates"></span> · Anniston to Washington and back on the Crescent · Hotel and tour reservations still being locked in.</p>
 </footer>
 
+<script src="/vendor/leaflet/leaflet.js"></script>
 <script src="/venues.js"></script>
 <script src="/planner.js"></script>
 <script src="/bracket.js"></script>
