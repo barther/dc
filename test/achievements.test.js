@@ -74,4 +74,10 @@ test("the bracket trophies: a landslide needs every ballot, a buster is personal
   assert.ok(A.evaluate(facts({ bracket: { ballots: all("a"), familyRank: ["a", "b", "c", "d"], seeds } })).includes("cinderella"));
   assert.ok(!A.evaluate(facts({ bracket: { ballots: all("a"), familyRank: ["a", "b", "d", "c"].slice(0, 2), seeds } })).includes("cinderella"));
   assert.ok(!A.evaluate(facts({})).some((id) => ["landslide", "bracket-buster", "cinderella"].includes(id)), "no bracket, no trophies");
+  // Along for the ride: an abstainer is not a missing ballot. Three matching champions are a landslide.
+  const threeIn = { ...all("a") }; delete threeIn.nanny;
+  assert.ok(!A.evaluate(facts({ bracket: { ballots: threeIn, familyRank: ["a", "b"], seeds } })).includes("landslide"), "a missing ballot is not a landslide");
+  assert.ok(A.evaluate(facts({ bracket: { ballots: threeIn, abstained: ["nanny"], familyRank: ["a", "b"], seeds } })).includes("landslide"));
+  assert.ok(A.evaluate(facts({ travelerId: "nanny", bracket: { ballots: threeIn, abstained: ["nanny"], familyRank: ["a", "b"], seeds } })).includes("along-for-the-ride"));
+  assert.ok(!A.evaluate(facts({ travelerId: "sam", bracket: { ballots: threeIn, abstained: ["nanny"], familyRank: ["a", "b"], seeds } })).includes("along-for-the-ride"));
 });

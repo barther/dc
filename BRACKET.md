@@ -60,6 +60,10 @@ This is a total order derived only from the picks already made.
 - Ties break by seed.
 - Everyone's ballot weighs the same. Sam's included.
 - Rerun replaces the ballot. The old one is gone; the log says who reran.
+- **Along for the ride.** Anyone can decline to vote, on the record. An abstention counts
+  as "in": the family's week stops waiting, the average runs on the ballots that exist, and
+  Landslide needs every voter, not every traveler. An abstainer still sees the family's week
+  and can fill in a bracket later.
 
 ## What the planner does with it
 

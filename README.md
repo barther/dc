@@ -29,8 +29,9 @@ records what the family decided; identity says who did it.
   seeded from the regret list), a 16-bracket with play-ins for anything past sixteen, a total order
   from one completed ballot, and the family's order from every completed ballot (mean rank,
   champions locked to the top, ties to the seed). Pure, shared by the browser and the Worker.
-  Ballots live in D1 (`bracket_picks`); `GET /api/bracket`, `POST /api/bracket/pick`, and
-  `POST /api/bracket/reset` are the routes. The planner takes the family's order as an external
+  Ballots live in D1 (`bracket_picks`); `GET /api/bracket`, `POST /api/bracket/pick`,
+  `POST /api/bracket/reset`, and `POST /api/bracket/abstain` (along for the ride: no ballot,
+  on the record, and the family's week stops waiting) are the routes. The planner takes the family's order as an external
   input and schedules by it. The doctrine is in `BRACKET.md`.
 - `public/achievements.js` is the achievement catalog and a pure evaluator. Unlocks are written
   to KV once and never removed. `/api/achievements` feeds the trophy case and the standings.

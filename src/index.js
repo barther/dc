@@ -70,6 +70,7 @@ function familyFromPicks(picks, travelers) {
   const ballots = {}, status = {};
   for (const t of travelers) {
     const p = picks[t] || {};
+    if (p.abstain) { status[t] = { complete: false, abstained: true, picksMade: 0, picksNeeded: STRUCT.picksNeeded, champion: null }; continue; }
     const r = bracket.resolve(STRUCT, CIDS, p);
     const ranking = r.complete ? bracket.ranking(STRUCT, CIDS, p) : null;
     status[t] = { complete: r.complete, picksMade: r.picksMade, picksNeeded: r.picksNeeded, champion: ranking ? ranking[0] : null };
@@ -156,8 +157,9 @@ async function evaluateAchievements(env, db, s, plan, origin) {
 
 function bracketFacts(s) {
   const f = s.family || { status: {}, familyRank: [] };
-  const ballots = {}; for (const [t, st] of Object.entries(f.status)) if (st.complete) ballots[t] = { champion: st.champion };
-  return { ballots, familyRank: f.familyRank, seeds: Object.fromEntries(CONTENDERS.map((c) => [c.id, c.seed])) };
+  const ballots = {}, abstained = [];
+  for (const [t, st] of Object.entries(f.status)) { if (st.complete) ballots[t] = { champion: st.champion }; if (st.abstained) abstained.push(t); }
+  return { ballots, abstained, familyRank: f.familyRank, seeds: Object.fromEntries(CONTENDERS.map((c) => [c.id, c.seed])) };
 }
 
 function publicState(s) {
@@ -321,13 +323,32 @@ export default {
     }
 
     // Rerun: the old ballot is gone, and the log says so.
+    // Along for the ride: no ballot, on the record. Counts as in, so the family's week stops waiting.
+    if (url.pathname === "/api/bracket/abstain" && request.method === "POST") {
+      const traveler = await travelerFor(db, await identify(request, env), env);
+      if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      const s = await loadState(db);
+      const had = s.family.status[traveler.id];
+      const now = new Date().toISOString();
+      await db.batch([
+        db.prepare("DELETE FROM bracket_picks WHERE trip_id = ? AND traveler_id = ?").bind(TRIP_ID, traveler.id),
+        db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, 'abstain', 'train', ?)").bind(TRIP_ID, traveler.id, now),
+        db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(TRIP_ID, now, traveler.id, "bracket_abstain", JSON.stringify({ hadBallot: !!(had && had.complete) }), `${traveler.name} is along for the ride: no ballot, and the family's week doesn't wait on one.`),
+      ]);
+      const next = await loadState(db);
+      const cur = planner.plan({ start: next.start, nights: next.nights }, intents.plannerState(next), { placements: next.placements }, external(env, next));
+      let fresh = []; try { fresh = await evaluateAchievements(env, db, next, cur, url.origin); } catch (e) { fresh = []; }
+      return json({ picks: next.picks[traveler.id] || {}, family: next.family, trip: publicState(next), decisions: await decisions(db), unlocked: fresh });
+    }
+
     if (url.pathname === "/api/bracket/reset" && request.method === "POST") {
       const traveler = await travelerFor(db, await identify(request, env), env);
       if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       const s = await loadState(db);
       const had = s.family.status[traveler.id];
       await db.prepare("DELETE FROM bracket_picks WHERE trip_id = ? AND traveler_id = ?").bind(TRIP_ID, traveler.id).run();
-      if (had && had.picksMade) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ wasComplete: had.complete, champion: had.champion }), had.complete ? `${traveler.name} reran their bracket. The old ballot (${contenderName(had.champion)} on top) is gone until the new one is finished.` : `${traveler.name} started their bracket over.`).run();
+      if (had && had.abstained) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ wasAbstain: true }), `${traveler.name} is filling in a bracket after all.`).run();
+      else if (had && had.picksMade) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ wasComplete: had.complete, champion: had.champion }), had.complete ? `${traveler.name} reran their bracket. The old ballot (${contenderName(had.champion)} on top) is gone until the new one is finished.` : `${traveler.name} started their bracket over.`).run();
       const next = await loadState(db);
       return json({ picks: {}, family: next.family, trip: publicState(next), decisions: await decisions(db) });
     }

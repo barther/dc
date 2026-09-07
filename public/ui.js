@@ -213,8 +213,11 @@
     const ids = br ? br.contenders.map((c) => c.id) : [];
     const mine = br ? B.ranking(br.structure, ids, br.picks) : null; // null until my ballot is done
     const status = fam.status || {};
+    const abstained = (t) => !!(status[t.id] && status[t.id].abstained);
+    const iAbstain = !!(me && status[me.id] && status[me.id].abstained);
     const done = travelers.filter((t) => status[t.id] && status[t.id].complete);
-    const waiting = travelers.filter((t) => !(status[t.id] && status[t.id].complete));
+    const riders = travelers.filter(abstained);
+    const waiting = travelers.filter((t) => !(status[t.id] && status[t.id].complete) && !abstained(t));
 
     // The family's week is the trip: planned from every finished ballot, or from the seeds until there is one.
     const whose = {}; for (const t of travelers) { const st = status[t.id]; if (st && st.champion) (whose[st.champion] = whose[st.champion] || []).push(t.name); }
@@ -238,7 +241,7 @@
     $("foot-dates").textContent = `${fmtMD(p.trainOut)} – ${fmtMD(p.home)}, ${p.home.getFullYear()}`;
 
     renderToday(p);
-    renderBracket(mine);
+    renderBracket(mine, iAbstain);
 
     // Your week: only once your ballot is done, and only from your ballot.
     $("mine").hidden = !mine; $("nav-mine").hidden = !mine;
@@ -250,14 +253,15 @@
     }
 
     // The family's week: behind your own ballot, built from everyone's.
-    const showFamily = !!mine && done.length > 0;
+    const showFamily = (!!mine || iAbstain) && done.length > 0;
     $("week").hidden = !showFamily; $("nav-week").hidden = !showFamily;
     if (showFamily) {
       const allIn = waiting.length === 0;
       $("week-head").textContent = allIn ? "Everyone's ballots, one week." : `${done.length} of ${travelers.length} ballots, one week so far.`;
+      const ride = riders.length ? ` ${list(riders.map((t) => t.name))} ${riders.length === 1 ? "is" : "are"} along for the ride.` : "";
       $("week-intro").textContent = allIn
-        ? "Every ballot is in. Each thing's place is the average of everyone's rank, champions locked to the top, and the same rules pack it into the nights. This is the trip."
-        : `Built from ${list(done.map((t) => t.name))}. Waiting on ${list(waiting.map((t) => t.name))}; the week moves when ${waiting.length === 1 ? "that ballot" : "those ballots"} land${waiting.length === 1 ? "s" : ""}.`;
+        ? `Every ballot is in. Each thing's place is the average of everyone's rank, champions locked to the top, and the same rules pack it into the nights. This is the trip.${ride}`
+        : `Built from ${list(done.map((t) => t.name))}. Waiting on ${list(waiting.map((t) => t.name))}; the week moves when ${waiting.length === 1 ? "that ballot" : "those ballots"} land${waiting.length === 1 ? "s" : ""}.${ride}`;
       $("line").innerHTML = renderWeek(p, p.phase === "live" || p.phase === "after");
       weekMap("map", p);
       renderOrder(fam);
@@ -313,9 +317,17 @@
     </button>`;
   }
 
-  function renderBracket(mine) {
+  let abstainConfirm = false;
+  function renderBracket(mine, iAbstain) {
     const el = $("bracket-body");
     if (!br) { el.innerHTML = ""; return; }
+    if (iAbstain) {
+      $("bracket-head").textContent = "You're along for the ride.";
+      $("bracket-intro").hidden = true;
+      el.innerHTML = `<div class="ballot"><p class="ballots-in">No ballot from you, on the record. The family's week below doesn't wait on one.</p>
+        <div class="actions"><button type="button" class="ctl" data-bracket="restart">Fill in a bracket after all</button></div></div>`;
+      return;
+    }
     const ids = br.contenders.map((c) => c.id);
     const byId = Object.fromEntries(br.contenders.map((c) => [c.id, c]));
     const r = B.resolve(br.structure, ids, br.picks);
@@ -328,6 +340,9 @@
         <p class="matchup-round"><span class="round">${esc(B.ROUND_NAME[g.round])}</span><span class="sep">·</span><span>pick ${r.picksMade + 1} of ${r.picksNeeded}</span></p>
         <div class="versus">${contenderCard(byId[g.a], g.id)}<span class="vs">or</span>${contenderCard(byId[g.b], g.id)}</div>
         ${hint("Tap the one you'd rather not miss. Saved as you go.")}${sofar}
+        ${abstainConfirm
+          ? `<div class="actions"><span class="ctl-state">No ballot, then. The family's week won't wait on you.</span><button type="button" class="ctl on" data-bracket="abstain">That's right</button><button type="button" class="ctl" data-bracket="keep">Never mind</button></div>`
+          : `<p class="matchup-sofar">Been already? <button type="button" class="link" data-bracket="abstain-ask">I'm here for the train.</button></p>`}
       </div>`;
       return;
     }
@@ -381,6 +396,17 @@
     }
   }
 
+  async function bracketAbstain() {
+    const data = await bracketPost("/api/bracket/abstain", {});
+    if (!data) return;
+    abstainConfirm = false;
+    br.picks = data.picks; br.family = data.family;
+    shared = { ...shared, trip: data.trip };
+    render();
+    const mine = (data.unlocked || []).filter((u) => u.scope === "trip" || u.traveler === me.id);
+    if (mine.length) toast(`Achievement unlocked: ${mine.map((u) => u.name).join(", ")}`);
+  }
+
   async function bracketReset() {
     const data = await bracketPost("/api/bracket/reset", {});
     if (!data) return;
@@ -397,8 +423,10 @@
     const k = b.dataset.bracket;
     if (k === "restart") { bracketReset(); return; }
     if (k === "rerun") { brConfirm = true; render(); }
-    else if (k === "keep") { brConfirm = false; render(); }
+    else if (k === "keep") { brConfirm = false; abstainConfirm = false; render(); }
     else if (k === "reset") bracketReset();
+    else if (k === "abstain-ask") { abstainConfirm = true; render(); }
+    else if (k === "abstain") bracketAbstain();
   });
 
   /* ───────────── Today in Washington, the record, the trophy case ───────────── */
