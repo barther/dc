@@ -13,7 +13,8 @@
   // Structural mutations. Only a Trip Administrator.
   const ADMIN_ONLY = new Set(["set_dates", "set_nights", "set_trip", "reset", "override_preference"]);
   // Everything else any authenticated traveler may do.
-  const ANYONE = new Set(["punt", "unpunt", "pin", "unpin", "ask", "unask", "prefer", "complete", "uncomplete", "not_this_day", "place", "unplace", "bail", "swap"]);
+  const ANYONE = new Set(["punt", "unpunt", "pin", "unpin", "ask", "unask", "prefer", "complete", "uncomplete", "not_this_day", "place", "unplace", "bail", "swap", "set_pace", "rest_day", "unrest_day"]);
+  const PACE_NAME = { 1: "easy", 2: "steady", 3: "full", 4: "all out" };
 
   const VENUE_STATES = ["punted", "pinned", "requested"];
 
@@ -35,7 +36,8 @@
     const { MIN_NIGHTS, MAX_NIGHTS, validVenue } = limits;
     if (!can(traveler, intent.type)) return { error: ADMIN_ONLY.has(intent.type) ? "Bart administers the vacation. That one's his." : "Not a thing you can do.", status: 403 };
     const next = { start: state.start, nights: state.nights, travelers: state.travelers, venues: { ...state.venues }, preferences: JSON.parse(JSON.stringify(state.preferences || {})),
-      completed: { ...(state.completed || {}) }, fixed: { ...(state.fixed || {}) }, notThisDay: JSON.parse(JSON.stringify(state.notThisDay || {})) };
+      completed: { ...(state.completed || {}) }, fixed: { ...(state.fixed || {}) }, notThisDay: JSON.parse(JSON.stringify(state.notThisDay || {})),
+      capacity: { ...(state.capacity || {}) }, restDays: { ...(state.restDays || {}) } };
     const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
     const venue = intent.venue;
     const needVenue = () => { if (!venue || !validVenue(venue)) return { error: "Unknown venue.", status: 400 }; return null; };
@@ -102,6 +104,23 @@
         for (const v of intent.members || [venue]) delete next.completed[v];
         summary = `unmarked ${intent.name || venue}.`; break;
       }
+      // Pace is yours to state; the family moves at the slowest. A rest day is anyone's to call.
+      case "set_pace": {
+        const level = intent.level | 0;
+        if (level < 1 || level > 4) return { error: "Pace is 1 to 4.", status: 400 };
+        next.capacity[traveler.id] = level;
+        summary = `set a pace: ${PACE_NAME[level]}.`; break;
+      }
+      case "rest_day": {
+        if (!isDate(intent.date)) return { error: "Which day?", status: 400 };
+        next.restDays[intent.date] = traveler.id;
+        summary = `called a pause: ${intent.date} is a rest day. Whatever was there moves.`; break;
+      }
+      case "unrest_day": {
+        if (!isDate(intent.date)) return { error: "Which day?", status: 400 };
+        delete next.restDays[intent.date];
+        summary = `took back the pause on ${intent.date}.`; break;
+      }
       case "not_this_day": {
         const e = needVenue(); if (e) return e;
         if (!isDate(intent.date)) return { error: "Which day?", status: 400 };
@@ -163,7 +182,13 @@
     return { punted: pick("punted"), pinned: pick("pinned"), requested: pick("requested"), completed: state.completed || {}, fixed: state.fixed || {}, notThisDay: state.notThisDay || {} };
   }
 
-  const api = { apply, can, groupState, plannerState, ADMIN_ONLY, ANYONE, VENUE_STATES };
+  // The party's pace is the floor of everyone's rating; the unrated ride at the default.
+  function paceFloor(capacity) {
+    const levels = Object.values(capacity || {}).map((l) => l | 0).filter((l) => l >= 1 && l <= 4);
+    return levels.length ? Math.min(...levels) : 3;
+  }
+
+  const api = { apply, can, groupState, plannerState, paceFloor, ADMIN_ONLY, ANYONE, VENUE_STATES };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
   root.DCIntents = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

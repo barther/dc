@@ -168,12 +168,29 @@
 
   /* ───────────── The doctrine of a day ───────────── */
 
-  // Score for putting two loads on one day. null = the other slot is empty.
+  /* ───────────── Pace: what the party can take, as policy ───────────── */
+
+  // Four ratings, stated in outcomes. The family moves at the slowest one. Level 3 is the
+  // doctrine this planner was written with; the others are the same rules with the dials moved.
+  //   hihi / himid   the cost of pairing two loads on one day (-Infinity forbids it)
+  //   onePerDay      the other slot stays empty
+  //   maxHeavyStreak how many HI days may run back to back
+  const PACE = {
+    1: { level: 1, name: "Easy", outcome: "One thing a day, and done by dinner.", hihi: -Infinity, himid: -Infinity, onePerDay: true, maxHeavyStreak: 1 },
+    2: { level: 2, name: "Steady", outcome: "One big thing, then an easy one. Never two big days in a row.", hihi: -Infinity, himid: -Infinity, onePerDay: false, maxHeavyStreak: 1 },
+    3: { level: 3, name: "Full", outcome: "A big thing and a real thing most days.", hihi: -Infinity, himid: -8, onePerDay: false, maxHeavyStreak: Infinity },
+    4: { level: 4, name: "All out", outcome: "All day, every day. Sleep on the train.", hihi: -8, himid: 0, onePerDay: false, maxHeavyStreak: Infinity },
+  };
+  const paceFor = (level) => PACE[Math.min(4, Math.max(1, level | 0 || 3))];
+  let POLICY = PACE[3];
+
+  // Score for putting two loads on one day. null = the other slot is empty. The policy sets the prices.
   function pairScore(a, b) {
     if (!a || !b) return 0;
-    if (a === "hi" && b === "hi") return -Infinity;       // forbidden
-    if ((a === "hi" && b === "mid") || (a === "mid" && b === "hi")) return -8; // avoid
-    return 0;                                              // preferred
+    if (POLICY.onePerDay) return -Infinity;
+    if (a === "hi" && b === "hi") return POLICY.hihi;
+    if ((a === "hi" && b === "mid") || (a === "mid" && b === "hi")) return POLICY.himid;
+    return 0;
   }
 
   /* ───────────── Weather: venue-specific, never "Tuesday is bad" ───────────── */
@@ -211,6 +228,8 @@
     const today = external.today ? parseISO(external.today) : null;
     const stability = external.stability != null ? external.stability : 5;
     const weather = external.weather || null; // { iso: { rain, cold, wind, heat, summary } }
+    POLICY = paceFor(external.pace);
+    const restDays = new Set(external.restDays || []);
 
     const units = buildUnits(state, external);
     const byId = Object.fromEntries(units.map((u) => [u.id, u]));
@@ -218,7 +237,7 @@
     // What "must-see" means: the thirteen headline venues, or the family's top thirteen units.
     const mustSee = family ? units.filter((u) => u.core).sort((a, b) => a.familyRank - b.familyRank).map((u) => u.id) : null;
     const days = frameDays(start, nights);
-    for (const d of days) { d.past = !!today && d.date < today; d.isToday = !!today && iso(d.date) === iso(today); d.weather = weather ? weather[iso(d.date)] || null : null; }
+    for (const d of days) { d.past = !!today && d.date < today; d.isToday = !!today && iso(d.date) === iso(today); d.weather = weather ? weather[iso(d.date)] || null : null; d.rest = restDays.has(iso(d.date)); }
     const fixed = Object.fromEntries(units.filter((u) => u.fixedOn).map((u) => [u.id, u.fixedOn]));
     const placed = {};   // unitId -> { dayIdx, slot }
     const reasons = [];
@@ -239,6 +258,10 @@
       }
       if (u.completedOn) return u.completedOn === iso(d.date) ? 100 : -Infinity; // history: exactly where it happened
       if (d.past) return -Infinity;                                                  // the past is closed
+      if (d.rest) return -Infinity;                                                  // a called pause: nothing lands here
+      if (u.load === "hi" && slot === "day" && POLICY.maxHeavyStreak < 2) {           // no two big days in a row
+        for (const j of [di - 1, di + 1]) { const n = days[j]; if (n && n.day && byId[n.day.id].load === "hi" && n.day.id !== ignore) return -Infinity; }
+      }
       if (u.closed(d.date)) return -Infinity;
       if (u.fixedOn && u.fixedOn !== iso(d.date)) return -Infinity;
       if (u.notDays.has(iso(d.date))) return -Infinity;
@@ -459,6 +482,7 @@
       includedVenues, identity, intact, excluded, reasons, label, openDays, avoidPairs,
       headline: mustSee ? { kept: mustSee.filter((id) => placed[id]).length, total: mustSee.length } : { kept: catalog.headlines.filter(has).length, total: catalog.headlines.length },
       family, mustSee: mustSee || units.filter((u) => u.core).map((u) => u.id),
+      pace: POLICY, restDays: [...restDays],
       work: { status: workStatus(home), buffer: workBuffer(home), early: workEarly(trainOut) },
     };
   }
@@ -494,7 +518,7 @@
   function summarize(p) {
     const N = p.nights;
     const cuts = p.excluded.filter((e) => e.unit.core).map((e) => e.unit.name);
-    const s = { nights: N, label: p.label, count: `${p.headline.kept} of ${p.headline.total} headline experiences`, cuts: cuts.length ? `Cut: ${list(cuts)}.` : "", why: "", work: "" };
+    const s = { nights: N, label: p.label, paceNote: p.pace.level !== 3 ? `The family moves at ${p.pace.name.toLowerCase()} pace: ${p.pace.outcome}` : "", count: `${p.headline.kept} of ${p.headline.total} headline experiences`, cuts: cuts.length ? `Cut: ${list(cuts)}.` : "", why: "", work: "" };
     const ws = p.work.status, early = p.work.early;
     if (early > 0) s.work = `Runs into work. This boards ${fmtDMD(p.trainOut)}, and Bart works until ${WORK.offLabel}. Arrive ${early === 1 ? "a day" : `${early} days`} later.`;
     else if (ws === "late") s.work = `Runs into work. Home ${fmtDMD(p.home)}, and Bart is due back ${WORK.label}. Start earlier or take a night off the end.`;
@@ -607,7 +631,7 @@
     return { moves, gain, plan: next, lines, summary: `Nothing gets cut and every day stays balanced. ${lines.join(". ")}.` };
   }
 
-  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, catalog, EDGES, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
+  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, catalog, EDGES, PACE, paceFor, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
   }
 
   const isNode = typeof module !== "undefined" && module.exports;

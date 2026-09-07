@@ -963,3 +963,15 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .city-switch button:not(.on):hover { color: var(--red); }
 .city-switch button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 body[data-city="nyc"] .hero-nav a[href="/family/scouts"] { display: none; }
+
+/* ───────────── Pace: what you can take, in outcomes ───────────── */
+.pace-block { display: grid; gap: 8px; justify-items: center; width: 100%; max-width: 560px; text-align: left; }
+.pace-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; width: 100%; }
+.pace { font: inherit; text-align: left; color: var(--ink); background: transparent; border: 1px solid var(--rule); padding: 8px 10px; cursor: pointer; display: grid; gap: 2px; }
+.pace b { font-family: var(--display); font-weight: 400; font-size: 17px; }
+.pace span { font-size: 13px; color: var(--ink-2); line-height: 1.3; }
+.pace:hover { border-color: var(--ink); }
+.pace.on { border-color: var(--red); outline: 1px solid var(--red); }
+.pace:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.pace-line { font-size: 15px; color: var(--ink-2); text-align: center; max-width: 52ch; }
+.pace-line b { color: var(--ink); font-weight: 600; }

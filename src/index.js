@@ -52,6 +52,12 @@ async function loadState(ctx, db) {
   const rows = (await db.prepare("SELECT venue_id, state, set_by, set_at FROM trip_venue_state WHERE trip_id = ?").bind(ctx.TRIP_ID).all()).results;
   const prefs = (await db.prepare("SELECT traveler_id, venue_id, choice FROM preferences WHERE trip_id = ?").bind(ctx.TRIP_ID).all()).results;
   const marks = (await db.prepare("SELECT venue_id, kind, date FROM trip_marks WHERE trip_id = ?").bind(ctx.TRIP_ID).all()).results;
+  // Pace and pauses. Both tables arrive with migration 0007; until then the trip runs at the default.
+  let capacity = {}, restDays = {};
+  try {
+    for (const r of (await db.prepare("SELECT traveler_id, level FROM trip_capacity WHERE trip_id = ?").bind(ctx.TRIP_ID).all()).results) capacity[r.traveler_id] = r.level;
+    for (const r of (await db.prepare("SELECT date, set_by FROM trip_rest_days WHERE trip_id = ?").bind(ctx.TRIP_ID).all()).results) restDays[r.date] = r.set_by;
+  } catch (e) { capacity = {}; restDays = {}; }
   const venues = {}; for (const r of rows) venues[r.venue_id] = r.state;
   const preferences = {}; for (const r of prefs) (preferences[r.traveler_id] = preferences[r.traveler_id] || {})[r.venue_id] = r.choice;
   const completed = {}, fixed = {}, notThisDay = {};
@@ -63,7 +69,7 @@ async function loadState(ctx, db) {
   let placements = {}; try { placements = JSON.parse(trip.placements || "{}"); } catch (e) {}
   const travelers = (await db.prepare("SELECT id FROM travelers").all()).results.map((t) => t.id);
   const picks = await loadPicks(ctx, db);
-  return { id: trip.id, start: trip.start, nights: trip.nights, version: trip.version, updated_at: trip.updated_at, venues, preferences, completed, fixed, notThisDay, placements, travelers, picks, family: familyFromPicks(ctx, picks, travelers) };
+  return { id: trip.id, start: trip.start, nights: trip.nights, version: trip.version, updated_at: trip.updated_at, venues, preferences, completed, fixed, notThisDay, placements, travelers, picks, family: familyFromPicks(ctx, picks, travelers), capacity, restDays };
 }
 
 // Everyone's bracket picks: { traveler: { game: winner } }. Survives the table not existing yet.
@@ -180,7 +186,8 @@ function bracketFacts(ctx, s) {
 
 function publicState(ctx, s) {
   return { id: s.id, start: s.start, nights: s.nights, version: s.version, updated_at: s.updated_at, venues: s.venues, preferences: s.preferences,
-    completed: s.completed, fixed: s.fixed, notThisDay: s.notThisDay, placements: s.placements, planner: intents.plannerState(s), bracket: s.family };
+    completed: s.completed, fixed: s.fixed, notThisDay: s.notThisDay, placements: s.placements, planner: intents.plannerState(s), bracket: s.family,
+    capacity: s.capacity || {}, restDays: s.restDays || {}, pace: intents.paceFloor(s.capacity) };
 }
 
 // Today, in Washington's timezone. DEV_TODAY overrides for local testing of live mode.
@@ -190,7 +197,10 @@ function todayISO(env) {
 }
 
 // What the planner is told from outside the catalog: the date, and the family's order when there is one.
-function external(ctx, env, s) { return { today: todayISO(env), familyRank: s && s.family ? s.family.familyRank : [], champions: s && s.family ? s.family.champions : [] }; }
+function external(ctx, env, s) {
+  return { today: todayISO(env), familyRank: s && s.family ? s.family.familyRank : [], champions: s && s.family ? s.family.champions : [],
+    pace: intents.paceFloor(s && s.capacity), restDays: Object.keys((s && s.restDays) || {}) };
+}
 
 export default {
   async fetch(request, env) {
@@ -256,7 +266,7 @@ export default {
       // The planner is the validator: run it on the candidate state, and explain the consequence.
       const ext = external(ctx, env, s);
       const before = ctx.planner.plan({ start: s.start, nights: s.nights }, intents.plannerState(s), { placements: s.placements }, ext);
-      const after = ctx.planner.plan({ start: r.state.start, nights: r.state.nights }, intents.plannerState(r.state), before, ext);
+      const after = ctx.planner.plan({ start: r.state.start, nights: r.state.nights }, intents.plannerState(r.state), before, { ...ext, pace: intents.paceFloor(r.state.capacity), restDays: Object.keys(r.state.restDays || {}) });
       const acted = intent.members || (intent.venue ? [intent.venue] : []);
       const d = planner.diff(before, after, acted);
       const consequence = [...d.messages, ...d.notes].join(" ");
@@ -276,6 +286,10 @@ export default {
         ...Object.entries(r.state.notThisDay).flatMap(([vid, ds]) => ds.map((d) => db.prepare("INSERT INTO trip_marks (trip_id, venue_id, kind, date, set_by, set_at) VALUES (?, ?, 'not_this_day', ?, ?, ?)").bind(ctx.TRIP_ID, vid, d, traveler.id, now))),
         db.prepare("DELETE FROM trip_venue_state WHERE trip_id = ?").bind(ctx.TRIP_ID),
         ...Object.entries(r.state.venues).map(([vid, st]) => db.prepare("INSERT INTO trip_venue_state (trip_id, venue_id, state, set_by, set_at) VALUES (?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, vid, st, traveler.id, now)),
+        db.prepare("DELETE FROM trip_capacity WHERE trip_id = ?").bind(ctx.TRIP_ID),
+        ...Object.entries(r.state.capacity || {}).map(([tid, level]) => db.prepare("INSERT INTO trip_capacity (trip_id, traveler_id, level, set_at) VALUES (?, ?, ?, ?)").bind(ctx.TRIP_ID, tid, level, now)),
+        db.prepare("DELETE FROM trip_rest_days WHERE trip_id = ?").bind(ctx.TRIP_ID),
+        ...Object.entries(r.state.restDays || {}).map(([date, by]) => db.prepare("INSERT INTO trip_rest_days (trip_id, date, set_by, set_at) VALUES (?, ?, ?, ?)").bind(ctx.TRIP_ID, date, by, now)),
         db.prepare("DELETE FROM preferences WHERE trip_id = ?").bind(ctx.TRIP_ID),
         ...Object.entries(r.state.preferences).flatMap(([tid, prefs]) => Object.entries(prefs).map(([vid, c]) => db.prepare("INSERT INTO preferences (trip_id, traveler_id, venue_id, choice, set_at) VALUES (?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, tid, vid, c, now))),
         db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, now, traveler.id, intent.type, JSON.stringify(body.intent), `${r.summary}${consequence ? " " + consequence : ""} Now: ${after.label}.`),

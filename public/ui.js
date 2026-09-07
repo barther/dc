@@ -87,7 +87,8 @@
   const cfg = () => ({ start: shared.trip.start, nights: shared.trip.nights });
   const userState = () => { const pl = shared.trip.planner; return { punted: [...pl.punted], pinned: [...pl.pinned], requested: [...pl.requested], completed: pl.completed || {}, fixed: pl.fixed || {}, notThisDay: pl.notThisDay || {} }; };
   // A week from an order: the same planner the Worker runs, told who ranked what.
-  const planFrom = (order, champions, prev, whose) => { const p = P.plan(cfg(), userState(), prev || null, { today, familyRank: order, champions }); p.champions = whose || {}; return p; };
+  const paceFloor = () => shared.trip.pace || 3;
+  const planFrom = (order, champions, prev, whose) => { const p = P.plan(cfg(), userState(), prev || null, { today, familyRank: order, champions, pace: paceFloor(), restDays: Object.keys(shared.trip.restDays || {}) }); p.champions = whose || {}; return p; };
 
   /* ───────────── Day cards ───────────── */
 
@@ -134,7 +135,17 @@
       <div class="stop-body"><h3>${esc(title)}</h3>${figure(photo, "stop-photo", p)}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${d.kind === "full" || d.kind === "departure" ? routeLine(d) : ""}${controls}</div></li>`;
   }
 
-  function renderFull(p, d, liveMode) {
+  // A pause: anyone can call one on a future day; whoever called it, or anyone, can take it back.
+  function restControls(d, allow) {
+    if (!allow) return "";
+    const date = iso(d.date);
+    if (d.rest) { const by = travelers.find((t) => t.id === (shared.trip.restDays || {})[date]); return `<div class="actions"><span class="done-state">Rest day${by ? ` · ${esc(by.name)} called it` : ""}</span>${d.past ? "" : `<button type="button" class="ctl" data-act="unrest_day" data-date="${date}">Never mind</button>`}</div>`; }
+    if (d.past || d.isToday) return "";
+    return `<div class="actions"><button type="button" class="ctl" data-act="rest_day" data-date="${date}">Call a pause</button></div>`;
+  }
+
+  function renderFull(p, d, liveMode, isFamily) {
+    if (d.rest) return card(p, d, "Rest day.", ["Nothing scheduled. Whatever was here moved to another day, and the week re-planned around the pause."], null, halves(C.structural.open, C.structural.rest), false, false, restControls(d, isFamily));
     const du = d.day ? p.units[d.day.id] : null, nu = d.night ? p.units[d.night.id] : null;
     const dc = du ? unitCopy(du) : null, nc = nu ? unitCopy(nu) : null;
     let title, body = [];
@@ -147,7 +158,7 @@
     if (du && !nu) body.push(du.load === "hi" ? "After a Big day, we keep the night empty on purpose." : "Dinner. Nothing scheduled after.");
     const featured = champion(p, du) || champion(p, nu);
     const photo = (dc && dc.photo) || (nc && nc.photo) || null;
-    const controls = (du ? doneRow(du, d, liveMode) : "") + (nu ? doneRow(nu, d, liveMode) : "");
+    const controls = (du ? doneRow(du, d, liveMode) : "") + (nu ? doneRow(nu, d, liveMode) : "") + restControls(d, isFamily);
     return card(p, d, title, body, photo, halves(du ? { label: du.short, load: du.load } : C.structural.open, nu ? { label: nu.short, load: nu.load } : C.structural.rest), featured, false, controls);
   }
 
@@ -190,13 +201,13 @@
     maps[id] = map;
   }
 
-  function renderWeek(p, liveMode) {
+  function renderWeek(p, liveMode, isFamily) {
     const out = [];
     const t = NARRATIVE.train(p.work.early);
     out.push(card(p, { date: p.trainOut, kind: "train" }, t.title, t.body, t.photo, halves(t.day, t.night), false, p.work.early > 0, ""));
     for (const d of p.days) {
       if (d.kind === "arrival") { const a = NARRATIVE.arrival; out.push(card(p, d, a.title, a.body, a.photo, halves(C.structural.arrival.day, C.structural.arrival.night), false, false, "")); }
-      else if (d.kind === "full") out.push(renderFull(p, d, liveMode));
+      else if (d.kind === "full") out.push(renderFull(p, d, liveMode, isFamily));
       else out.push(renderDeparture(p, d, liveMode));
     }
     const h = NARRATIVE.home(p);
@@ -243,6 +254,7 @@
     $("foot-dates").textContent = `${fmtMD(p.trainOut)} – ${fmtMD(p.home)}, ${p.home.getFullYear()}`;
 
     renderToday(p);
+    renderPace(p);
     renderBracket(mine, iAbstain);
 
     // Your week: only once your ballot is done, and only from your ballot.
@@ -264,7 +276,7 @@
       $("week-intro").textContent = allIn
         ? `Every ballot is in. Each thing's place is the average of everyone's rank, champions locked to the top, and the same rules pack it into the nights. This is the trip.${ride}`
         : `Built from ${list(done.map((t) => t.name))}. Waiting on ${list(waiting.map((t) => t.name))}; the week moves when ${waiting.length === 1 ? "that ballot" : "those ballots"} land${waiting.length === 1 ? "s" : ""}.${ride}`;
-      $("line").innerHTML = renderWeek(p, p.phase === "live" || p.phase === "after");
+      $("line").innerHTML = renderWeek(p, p.phase === "live" || p.phase === "after", true);
       weekMap("map", p);
       renderOrder(fam);
     }
@@ -272,6 +284,20 @@
     renderTrophies();
     numberSections();
   }
+
+  // Your pace, stated in outcomes; the family's, which is the slowest.
+  function renderPace(p) {
+    const cap = shared.trip.capacity || {};
+    const mine = cap[me.id] || null;
+    $("pace-pick").innerHTML = Object.values(P.PACE).map((r) => `<button type="button" class="pace${mine === r.level ? " on" : ""}" data-pace="${r.level}" aria-pressed="${mine === r.level}"><b>${esc(r.name)}</b><span>${esc(r.outcome)}</span></button>`).join("");
+    const floor = p.pace;
+    const slowest = travelers.filter((t) => cap[t.id] === floor.level).map((t) => t.name);
+    const rated = Object.keys(cap).length;
+    const fam = `The family moves at <b>${esc(floor.name)}</b>${slowest.length ? `, ${esc(list(slowest))}'s pace` : ""}. ${esc(floor.outcome)}`;
+    const unsaid = rated < travelers.length ? ` ${travelers.length - rated} of you ${travelers.length - rated === 1 ? "hasn't" : "haven't"} said.` : "";
+    $("pace-line").innerHTML = (mine ? "" : `Pick one. Until you do, you ride at <b>Full</b>. `) + fam + unsaid;
+  }
+  $("pace-pick").addEventListener("click", (e) => { const b = e.target.closest("[data-pace]"); if (!b) return; send({ type: "set_pace", level: +b.dataset.pace }); });
 
   function numberSections() {
     const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
@@ -560,7 +586,9 @@
       return;
     }
     const b = e.target.closest("button[data-act]"); if (!b) return;
-    const ids = b.dataset.ids.split(","), a = b.dataset.act;
+    const a = b.dataset.act;
+    if (a === "rest_day" || a === "unrest_day") { send({ type: a, date: b.dataset.date }); return; }
+    const ids = b.dataset.ids.split(",");
     send({ type: a, venue: ids[0], members: ids, name: venueName(ids[0]), date: b.dataset.date });
   });
 
