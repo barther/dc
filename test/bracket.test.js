@@ -124,3 +124,27 @@ test("the New York catalog seeds twenty-one contenders: a sixteen with five play
   assert.ok(ny.every((c) => NYC.copy[c.id] && NYC.copy[c.id].body.length), "every contender has copy");
   assert.equal(ny.find((c) => c.id === "liberty-ellis").go, "subway");
 });
+
+test("the seeding round: buckets decide who faces whom, and nothing else", () => {
+  // No buckets: the authored order, untouched.
+  assert.deepEqual(B.draw(ids, {}, "x"), ids);
+  // Four favorites in bucket one never meet before the quarterfinals; the rest hold their tiers.
+  const favs = ["spy-museum", "zoolights", "georgetown", "fords-theatre"]; // low authored seeds on purpose
+  const buckets = Object.fromEntries(favs.map((id) => [id, 1]));
+  buckets["capitol-hill"] = 3;
+  const mine = B.draw(ids, buckets, "dc-2026:sam");
+  assert.deepEqual(new Set(mine.slice(0, 4)), new Set(favs), "bucket one leads the order");
+  assert.equal(mine[mine.length - 1], "capitol-hill", "bucket three trails, whatever its authored seed");
+  assert.equal(mine.length, ids.length);
+  // Stable: the same salt gives the same draw; a different traveler gets a different shuffle within a bucket.
+  assert.deepEqual(B.draw(ids, buckets, "dc-2026:sam"), mine);
+  const bart = B.draw(ids, { ...buckets }, "dc-2026:bart");
+  assert.deepEqual(new Set(bart.slice(0, 4)), new Set(favs));
+  // Spread: with the personal order, no round-of-16 game pairs two favorites.
+  const s = B.structure(ids.length);
+  const r = B.resolve(s, mine, {});
+  for (const g of r.games) if (g.round === "r16" || g.round === "playin") assert.ok(!(favs.includes(g.a) && favs.includes(g.b)), `${g.id} pairs two favorites`);
+  // Guardrail: the family's order knows nothing about buckets. Same ballots, same order, whatever the draw was.
+  const ballot = B.ranking(s, mine, fill(s, mine, (g) => (mine.indexOf(g.a) < mine.indexOf(g.b) ? g.a : g.b)));
+  assert.deepEqual(B.familyOrder({ sam: ballot }, ids).map((x) => x.id), ballot, "the family's order is built from results only");
+});

@@ -223,7 +223,7 @@
     if (!inside()) { numberSections(); return; }
 
     const fam = shared.trip.bracket || { familyRank: [], champions: [], status: {}, order: [] };
-    const ids = br ? br.contenders.map((c) => c.id) : [];
+    const ids = br ? (br.draw || br.contenders.map((c) => c.id)) : []; // my own draw, from my seeding round
     const mine = br ? B.ranking(br.structure, ids, br.picks) : null; // null until my ballot is done
     const status = fam.status || {};
     const abstained = (t) => !!(status[t.id] && status[t.id].abstained);
@@ -356,9 +356,11 @@
         <div class="actions"><button type="button" class="ctl" data-bracket="restart">Fill in a bracket after all</button></div></div>`;
       return;
     }
-    const ids = br.contenders.map((c) => c.id);
+    const ids = br.draw || br.contenders.map((c) => c.id);
     const byId = Object.fromEntries(br.contenders.map((c) => [c.id, c]));
     const r = B.resolve(br.structure, ids, br.picks);
+    const seeded = Object.keys(br.picks || {}).some((k) => k.startsWith("bucket:"));
+    if (!mine && !seeded && !r.picksMade) { renderSeeding(); return; }
     if (!mine) {
       const g = r.next;
       $("bracket-head").textContent = "Fill in your bracket.";
@@ -382,6 +384,21 @@
     el.innerHTML = `<div class="ballot">
       <ol class="ballot-list">${mine.map((id, i) => `<li><b>${i + 1}</b><span>${esc(byId[id].name)}${byId[id].bundle ? `<small>${esc(byId[id].short)}</small>` : ""}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
       ${rerun}
+    </div>`;
+  }
+
+  // The seeding round. Three piles, one job: who faces whom. Not points, not protection, not a vote.
+  const BUCKETS = [[1, "Definitely interested"], [2, "Could be good"], [3, "Probably not"]];
+  let seedPick = {};
+  function renderSeeding() {
+    const el = $("bracket-body");
+    $("bracket-head").textContent = "First, the seeding round.";
+    $("bracket-intro").hidden = false;
+    $("bracket-intro").textContent = "Sort the field into three piles. This decides who faces whom in your bracket, so two things you're excited about don't meet in the first round. It scores nothing, protects nothing, and never enters the family's order. Only the bracket does that.";
+    el.innerHTML = `<div class="seeding">
+      <ul class="seed-list">${br.contenders.map((c) => `<li><span class="seed-name"><b>${esc(c.name)}</b>${c.bundle ? `<small>${esc(c.short)}</small>` : ""}</span>
+        <span class="seed-pick" role="group" aria-label="${esc(c.name)}">${BUCKETS.map(([b, label]) => `<button type="button" class="ctl${(seedPick[c.id] || 2) === b ? " on" : ""}" data-seed="${c.id}" data-bucket="${b}">${label}</button>`).join("")}</span></li>`).join("")}</ul>
+      <div class="actions"><button type="button" class="ctl on" data-bracket="seed">Draw my bracket</button>${hint("Everything unsorted is \"could be good.\" You can rerun the whole thing later.")}</div>
     </div>`;
   }
 
@@ -435,21 +452,33 @@
     if (mine.length) toast(`Achievement unlocked: ${mine.map((u) => u.name).join(", ")}`);
   }
 
+  async function bracketSeed() {
+    const data = await bracketPost("/api/bracket/seed", { buckets: seedPick });
+    if (!data) return;
+    seedPick = {};
+    br.picks = data.picks; br.draw = data.draw; br.family = data.family;
+    shared = { ...shared, trip: data.trip };
+    render();
+  }
+
   async function bracketReset() {
     const data = await bracketPost("/api/bracket/reset", {});
     if (!data) return;
     brConfirm = false;
-    br.picks = {}; br.family = data.family;
+    br.picks = {}; br.draw = data.draw || br.contenders.map((c) => c.id); br.family = data.family;
     shared = { ...shared, trip: data.trip };
     render();
   }
 
   $("bracket-body").addEventListener("click", (e) => {
+    const sb = e.target.closest("[data-seed]");
+    if (sb) { seedPick[sb.dataset.seed] = +sb.dataset.bucket; renderSeeding(); return; }
     const pick = e.target.closest("[data-pick]");
     if (pick) { bracketPick(pick.dataset.game, pick.dataset.pick); return; }
     const b = e.target.closest("[data-bracket]"); if (!b) return;
     const k = b.dataset.bracket;
     if (k === "restart") { bracketReset(); return; }
+    if (k === "seed") { bracketSeed(); return; }
     if (k === "rerun") { brConfirm = true; render(); }
     else if (k === "keep") { brConfirm = false; abstainConfirm = false; render(); }
     else if (k === "reset") bracketReset();

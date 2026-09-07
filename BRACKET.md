@@ -31,6 +31,19 @@ contenders means a 16-bracket with N − 16 play-in games, so the roster can gro
 without touching the bracket code. New York's catalog is twenty-one contenders, a sixteen
 with five play-ins, and each city's ballots are its own.
 
+## The seeding round
+
+Before the first matchup, each traveler sorts the field into three piles: definitely
+interested, could be good, probably not. Anything unsorted is "could be good." The piles
+become that traveler's seed order, pile by pile with a stable shuffle inside each, and the
+standard draw spreads the top pile across the quarters, so two things someone is excited
+about can't meet before the quarterfinals.
+
+That is the whole job. The piles score nothing, protect nothing, and never enter the family's
+order. Only bracket results do. The authored seed keeps two narrow jobs: the reel's order
+before anyone has said anything, and breaking true ties in the family's order. It no longer
+decides who faces whom once a traveler has sorted. Rerun clears the piles with the ballot.
+
 ## The draw
 
 Standard sixteen: 1 v 16, 8 v 9, 5 v 12, 4 v 13, 6 v 11, 3 v 14, 7 v 10, 2 v 15.
