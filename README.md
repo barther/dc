@@ -41,7 +41,10 @@ records what the family decided; identity says who did it.
   to signed-in travelers only. Everything under `/family/` runs Worker-first for that reason.
 - `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, marks
   (completed, fixed, not-this-day), accepted placements, decisions, opinions on decisions,
-  bracket picks, the New York trip row, and pace and rest days (`trip_capacity`, `trip_rest_days`).
+  bracket picks, the New York trip row, pace and rest days (`trip_capacity`, `trip_rest_days`),
+  and catalog observations (`catalog_observations`: what live mode learned about a venue).
+- `test/catalog.test.js` is the admission gate: a catalog ships only if the planner can make
+  humane weeks out of it. `CATALOG.md` is the doctrine for compiling one.
 
 ### Setting up the shared trip
 

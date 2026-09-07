@@ -18,6 +18,10 @@
   // The engine is built over a catalog. Washington is the default; any catalog in the same
   // shape (New York, say) gets its own engine from withCatalog(). Nothing below knows the city.
   function build(catalog) {
+  // No silent fallback: a catalog must say what its travel days are worth and what its train does.
+  // A generated destination that forgot either fails here, not by quietly inheriting Washington.
+  for (const k of ["venues", "bundles", "pairings", "preferred_order", "structural", "copy", "headlines", "geo", "city"]) if (!catalog || !catalog[k]) throw new Error(`catalog is missing ${k}`);
+  for (const k of ["train", "edges", "narrative", "station", "hotel"]) if (!catalog.city[k]) throw new Error(`catalog city block is missing ${k}`);
 
   /* ───────────── Trip facts ───────────── */
 
@@ -28,7 +32,7 @@
   // Bart works until 2 PM Sat Nov 28 (evening boarding is fine) and is back Thu Dec 10 at 2 PM.
   const WORK = { date: "2026-12-10", label: "Thu Dec 10, 2 PM", off: "2026-11-28", offLabel: "Sat Nov 28, 2 PM" };
   // The train's labels come from the catalog's city block; these are Washington's.
-  const TRAIN = (catalog.city && catalog.city.train) || { boardLabel: "evening", arriveWeekend: "~2:12 PM", arriveWeekday: "afternoon, per the timetable", departLabel: "6:30 PM", homeLabel: "~10:30 AM CT" };
+  const TRAIN = catalog.city.train;
 
   /* ───────────── Dates ───────────── */
 
@@ -66,7 +70,7 @@
   const geo = catalog.geo;
   // Travel-day capacity is a city fact, not a train label: Washington's 6:30 PM departure leaves a
   // three-hour last morning; New York's 2:15 PM leaves two. Arrival day never places a venue.
-  const EDGES = (catalog.city && catalog.city.edges) || { departureHours: 3 };
+  const EDGES = catalog.city.edges;
   const NEAR = 1.2, FAR = 3; // miles between a day's two stops: neighbors, or a ride between them
   const MUST_SEE = 13, FINAL_FOUR = 4; // of the family's order: the must-see things, and the ones a short trip keeps
   const TIER_RANK = { protected: 0, high: 1, medium: 2, bonus: 3 };
@@ -75,12 +79,19 @@
   const venueById = Object.fromEntries(catalog.venues.map((v) => [v.id, v]));
 
   // Standing rules live on the venue; date-specific facts arrive as trip constraints.
+  // A season is { from: "MM-DD", to: "MM-DD" }, inclusive, and may wrap the new year.
+  function inSeason(season, d) {
+    const md = `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return season.from <= season.to ? (md >= season.from && md <= season.to) : (md >= season.from || md <= season.to);
+  }
+
   function venueClosed(v, d, external) {
     const c = v.constraints;
     if (c) {
       if (c.weekdays && c.weekdays.includes(d.getDay())) return `${v.name} is closed on ${DOW[d.getDay()]}days`;
       const h = holiday(d);
       if (h && c.holidays && c.holidays.includes(h)) return `${v.name} is closed on ${HOLIDAY_NAMES[h]}`;
+      if (c.season && !inSeason(c.season, d)) return `${v.name} isn't running ${fmtDMD(d)}${c.season.note ? ` (${c.season.note})` : ""}`;
     }
     const day = iso(d);
     for (const x of (external && external.closures) || []) {
@@ -308,7 +319,7 @@
     function whyNoSlot(u) {
       const dates = days.filter((d) => d.kind === "full" || (d.kind === "departure" && u.departureOK));
       const closures = dates.map((d) => u.closed(d.date)).filter(Boolean);
-      if (closures.length === dates.length) return { why: closures[0] + ", every day of the trip", kind: "closed" };
+      if (closures.length === dates.length) return { why: closures[0] + ", every day of the trip", kind: closures.every((c) => /isn't running/.test(c)) ? "season" : "closed" };
       if (u.fixedOn) return { why: `couldn't go on ${fmtDMD(parseISO(u.fixedOn))}`, kind: "fixed" };
       if (today && dates.every((d) => d.past)) return { why: "no days left", kind: "room" };
       if (u.requested && !u.pinned) return { why: "no room without changing the current trip", kind: "room" };
@@ -631,7 +642,7 @@
     return { moves, gain, plan: next, lines, summary: `Nothing gets cut and every day stays balanced. ${lines.join(". ")}.` };
   }
 
-  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, catalog, EDGES, PACE, paceFor, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
+  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, inSeason, catalog, EDGES, PACE, paceFor, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
   }
 
   const isNode = typeof module !== "undefined" && module.exports;

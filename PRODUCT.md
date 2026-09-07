@@ -236,7 +236,9 @@ one family's.
    of code. Asymmetric defaults. Surface confidence in the schedule.
 6. **Catalog observations from live mode.** Every bail, shorten, and swap
    written as evidence against the compiled model. Start now; the loop only
-   compounds if it's collecting.
+   compounds if it's collecting. *Built: `catalog_observations`, written from
+   every live-mode complete, bail, move, and punt with pace, prior-day load,
+   same-day load, and weather.*
 7. **Destination bracket and destination catalog.** Last, per §2.
 
 Deferred, and correctly so: billing, booking links, flight and hotel legs. All

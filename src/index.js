@@ -184,6 +184,36 @@ function bracketFacts(ctx, s) {
   return { ballots, abstained, familyRank: f.familyRank, seeds: Object.fromEntries(ctx.CONTENDERS.map((c) => [c.id, c.seed])) };
 }
 
+/* ───────────── Catalog observations: what the trip says about the catalog ─────────────
+   Written beside the decision log, never instead of it. Only events that carry evidence about
+   load or duration, and only with the context that makes the evidence readable: the pace in
+   force, what else happened that day and the day before, the weather. Generation supplies the
+   prior; trips supply this. */
+const OBSERVED = { complete: "complete", bail: "bail", not_this_day: "moved", punt: "punt" };
+async function recordObservation(ctx, env, db, traveler, intent, before, now) {
+  const result = OBSERVED[intent.type];
+  if (!result) return;
+  // Before the trip, a punt or a move is an opinion, not an observation. Complete and bail only happen live.
+  if ((result === "moved" || result === "punt") && before.phase !== "live") return;
+  const members = intent.members || (intent.venue ? [intent.venue] : []);
+  const unit = Object.values(before.units).find((u) => u.members.some((m) => members.includes(m)));
+  if (!unit) return;
+  const date = intent.date || before.placements[unit.id] || null;
+  const di = date ? before.days.findIndex((d) => ctx.planner.iso(d.date) === date) : -1;
+  const day = di >= 0 ? before.days[di] : null, prev = di > 0 ? before.days[di - 1] : null;
+  const slot = day && day.day && day.day.id === unit.id ? "day" : "night";
+  const short = !!(day && day[slot] && day[slot].shortened);
+  const other = day ? (slot === "day" ? day.night : day.day) : null;
+  const load = (x) => (x ? before.units[x.id].load : "none");
+  let weather = null;
+  if (before.phase === "live" && date) { try { const f = await forecast(env); weather = f && f[date] ? JSON.stringify(f[date]) : null; } catch (e) { weather = null; } }
+  const hours = (m) => { const v = ctx.planner.catalog.venues.find((x) => x.id === m); return v ? (short ? v.min_hours : v.ideal_hours) : null; };
+  const rows = members.map((m) => db.prepare(
+    "INSERT INTO catalog_observations (trip_id, city, venue_id, unit_id, date, traveler_id, result, visit_form, planned_hours, actual_hours, party_pace, prior_day_load, same_day_other, weather, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)"
+  ).bind(ctx.TRIP_ID, ctx.id, m, unit.id, date, traveler.id, result === "complete" && short ? "shortened" : result, short ? "short" : "full", hours(m), before.pace ? before.pace.level : 3, prev ? load(prev.day) : "none", load(other), weather, intent.reason || null, now));
+  if (rows.length) await db.batch(rows);
+}
+
 function publicState(ctx, s) {
   return { id: s.id, start: s.start, nights: s.nights, version: s.version, updated_at: s.updated_at, venues: s.venues, preferences: s.preferences,
     completed: s.completed, fixed: s.fixed, notThisDay: s.notThisDay, placements: s.placements, planner: intents.plannerState(s), bracket: s.family,
@@ -301,6 +331,7 @@ export default {
       const cur = await loadState(ctx, db);
       let fresh = [];
       try { fresh = await evaluateAchievements(ctx, env, db, cur, after, url.origin); } catch (e) { fresh = []; }
+      try { await recordObservation(ctx, env, db, traveler, intent, before, now); } catch (e) {}
       return json({ trip: publicState(ctx, cur), decisions: await decisions(ctx, db), label: after.label, today: todayISO(env), unlocked: fresh });
     }
 
