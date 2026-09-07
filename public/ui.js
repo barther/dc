@@ -13,9 +13,19 @@
 (function () {
   "use strict";
 
-  const P = window.DCPlanner, C = window.DCVenues, B = window.DCBracket;
-  const { DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW } = P;
+  const B = window.DCBracket;
   const $ = (id) => document.getElementById(id);
+  const cityId = (document.cookie.match(/(?:^|;\s*)city=(\w+)/) || [])[1] === "nyc" && window.DCVenuesNYC ? "nyc" : "dc";
+  const C = cityId === "nyc" ? window.DCVenuesNYC : window.DCVenues;
+  const P = window.DCPlanner.withCatalog(C);
+  const { DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW } = P;
+  const city = C.city, N = city.narrative;
+  document.body.dataset.city = cityId;
+  document.querySelectorAll("[data-city-pick]").forEach((b) => { b.classList.toggle("on", b.dataset.cityPick === cityId); b.setAttribute("aria-pressed", String(b.dataset.cityPick === cityId)); });
+  document.querySelector(".city-switch").addEventListener("click", (e) => { const b = e.target.closest("[data-city-pick]"); if (!b || b.dataset.cityPick === cityId) return; document.cookie = `city=${b.dataset.cityPick}; path=/; max-age=31536000; samesite=lax`; location.reload(); });
+  document.title = `${city.title[0]} ${city.title[1]} · inside`;
+  $("hero-title").innerHTML = `${city.title[0]} <em>${city.title[1]}</em>`;
+  document.querySelectorAll(".city-name").forEach((el) => { el.textContent = city.name; });
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const LOAD_NAME = { lo: "Easy", mid: "Real", hi: "Big" };
@@ -35,17 +45,9 @@
       day: { label: "Pack and drive", load: "lo" }, night: { label: "The train is the activity", load: "lo" },
       photo: ["day-1128-anniston-station.webp", "Anniston station at boarding time"],
     }),
-    arrival: {
-      title: "Hello, Washington.",
-      body: ["Roll into Union Station, check into the hotel, unpack, eat. Then, after dark, our first real look at the city: the U.S. Capitol dome lit up against the night sky. No tour. No agenda. Just stand there and take it in."],
-      photo: ["day-1129-union-station.webp", "The main hall at Union Station"],
-    },
-    departureTail: "Lunch, luggage, Union Station, and the Crescent south.",
-    departureEmpty: {
-      title: "Last morning, then home.",
-      body: ["Check out, leave the bags with the hotel, a slow breakfast, and one last walk on the Mall. Lunch, luggage, Union Station, and the Crescent south. Nothing big on purpose."],
-      day: { label: "A slow last morning", load: "lo" },
-    },
+    arrival: { title: N.arrivalTitle, body: [N.arrivalBody], photo: N.arrivalPhoto || null },
+    departureTail: N.departureTail,
+    departureEmpty: { title: "Last morning, then home.", body: [N.lastMorning], day: { label: "A slow last morning", load: "lo" } },
     open: {
       title: "Open day.",
       body: ["Nothing scheduled, on purpose. Whitespace is part of the itinerary."],
@@ -117,7 +119,7 @@
   }
 
   // Getting there: the day's legs from the hotel and back, miles and walk or ride. Straight-line, honest about it.
-  const MODE = { walk: "walk", ride: "a ride", metro: "Metro" };
+  const MODE = { walk: "walk", ride: "a ride", metro: "Metro", subway: "subway" };
   const mi = (m) => m < 0.95 ? `${Math.max(0.1, Math.round(m * 10) / 10)} mi` : `${m.toFixed(1)} mi`;
   function routeLine(d) {
     const r = d.route; if (!r) return "";
@@ -183,7 +185,7 @@
           .bindPopup(`<b>${esc(s.name)}</b><br>${esc(fmtDMD(d.date))} · ${mi(fromHotel)} from the hotel`);
       }
     }
-    L.circleMarker(geo.base.ll, { radius: 7, color: "#a8322c", weight: 2, fillColor: "#a8322c", fillOpacity: 1 }).addTo(map).bindPopup("<b>The hotel</b><br>L'Enfant Plaza");
+    L.circleMarker(geo.base.ll, { radius: 7, color: "#a8322c", weight: 2, fillColor: "#a8322c", fillOpacity: 1 }).addTo(map).bindPopup(`<b>The hotel</b><br>${esc(city.hotel)}`);
     map.fitBounds(L.latLngBounds(all), { padding: [24, 24] });
     maps[id] = map;
   }
@@ -213,8 +215,11 @@
     const ids = br ? br.contenders.map((c) => c.id) : [];
     const mine = br ? B.ranking(br.structure, ids, br.picks) : null; // null until my ballot is done
     const status = fam.status || {};
+    const abstained = (t) => !!(status[t.id] && status[t.id].abstained);
+    const iAbstain = !!(me && status[me.id] && status[me.id].abstained);
     const done = travelers.filter((t) => status[t.id] && status[t.id].complete);
-    const waiting = travelers.filter((t) => !(status[t.id] && status[t.id].complete));
+    const riders = travelers.filter(abstained);
+    const waiting = travelers.filter((t) => !(status[t.id] && status[t.id].complete) && !abstained(t));
 
     // The family's week is the trip: planned from every finished ballot, or from the seeds until there is one.
     const whose = {}; for (const t of travelers) { const st = status[t.id]; if (st && st.champion) (whose[st.champion] = whose[st.champion] || []).push(t.name); }
@@ -224,7 +229,7 @@
 
     // Header: dates, and whether they collide with work.
     $("eyebrow-dates").innerHTML = `${esc(fmtDMD(p.trainOut))} → ${esc(fmtDMDY(p.home))}`.replace(/ /g, "&nbsp;");
-    window.DCTrip = { depart: p.trainOut, arrive: new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate(), 14, 12), home: new Date(p.home.getFullYear(), p.home.getMonth(), p.home.getDate(), 10, 30) };
+
     $("dates-admin").hidden = !isAdmin();
     $("dates-line").hidden = isAdmin();
     if (isAdmin()) {
@@ -238,7 +243,7 @@
     $("foot-dates").textContent = `${fmtMD(p.trainOut)} – ${fmtMD(p.home)}, ${p.home.getFullYear()}`;
 
     renderToday(p);
-    renderBracket(mine);
+    renderBracket(mine, iAbstain);
 
     // Your week: only once your ballot is done, and only from your ballot.
     $("mine").hidden = !mine; $("nav-mine").hidden = !mine;
@@ -250,14 +255,15 @@
     }
 
     // The family's week: behind your own ballot, built from everyone's.
-    const showFamily = !!mine && done.length > 0;
+    const showFamily = (!!mine || iAbstain) && done.length > 0;
     $("week").hidden = !showFamily; $("nav-week").hidden = !showFamily;
     if (showFamily) {
       const allIn = waiting.length === 0;
       $("week-head").textContent = allIn ? "Everyone's ballots, one week." : `${done.length} of ${travelers.length} ballots, one week so far.`;
+      const ride = riders.length ? ` ${list(riders.map((t) => t.name))} ${riders.length === 1 ? "is" : "are"} along for the ride.` : "";
       $("week-intro").textContent = allIn
-        ? "Every ballot is in. Each thing's place is the average of everyone's rank, champions locked to the top, and the same rules pack it into the nights. This is the trip."
-        : `Built from ${list(done.map((t) => t.name))}. Waiting on ${list(waiting.map((t) => t.name))}; the week moves when ${waiting.length === 1 ? "that ballot" : "those ballots"} land${waiting.length === 1 ? "s" : ""}.`;
+        ? `Every ballot is in. Each thing's place is the average of everyone's rank, champions locked to the top, and the same rules pack it into the nights. This is the trip.${ride}`
+        : `Built from ${list(done.map((t) => t.name))}. Waiting on ${list(waiting.map((t) => t.name))}; the week moves when ${waiting.length === 1 ? "that ballot" : "those ballots"} land${waiting.length === 1 ? "s" : ""}.${ride}`;
       $("line").innerHTML = renderWeek(p, p.phase === "live" || p.phase === "after");
       weekMap("map", p);
       renderOrder(fam);
@@ -291,7 +297,7 @@
   // What we're in for: every stop, about how long, tickets or not. So nobody misses the White House inside a night.
   const hoursText = (h) => h >= 1 ? `about ${Number.isInteger(h) ? h : h.toFixed(1).replace(/\.0$/, "")} ${h === 1 ? "hour" : "hours"}` : `about ${Math.round(h * 60)} minutes`;
   const TICKETS = { none: "no tickets", recommended: "tickets recommended", required: "timed tickets required" };
-  const GO_TEXT = { walk: "a walk", ride: "a ride", metro: "one Metro ride" };
+  const GO_TEXT = { walk: "a walk", ride: "a ride", metro: "one Metro ride", subway: "the subway" };
   const fromHotel = (c) => c.miles == null ? "" : ` · ${c.miles < 0.95 ? `${(c.miles * 10 | 0) / 10 || 0.1} mi` : `${c.miles.toFixed(1)} mi`} from the hotel, ${GO_TEXT[c.go] || "a ride"}`;
 
   function inFor(c) {
@@ -313,9 +319,17 @@
     </button>`;
   }
 
-  function renderBracket(mine) {
+  let abstainConfirm = false;
+  function renderBracket(mine, iAbstain) {
     const el = $("bracket-body");
     if (!br) { el.innerHTML = ""; return; }
+    if (iAbstain) {
+      $("bracket-head").textContent = "You're along for the ride.";
+      $("bracket-intro").hidden = true;
+      el.innerHTML = `<div class="ballot"><p class="ballots-in">No ballot from you, on the record. The family's week below doesn't wait on one.</p>
+        <div class="actions"><button type="button" class="ctl" data-bracket="restart">Fill in a bracket after all</button></div></div>`;
+      return;
+    }
     const ids = br.contenders.map((c) => c.id);
     const byId = Object.fromEntries(br.contenders.map((c) => [c.id, c]));
     const r = B.resolve(br.structure, ids, br.picks);
@@ -328,6 +342,9 @@
         <p class="matchup-round"><span class="round">${esc(B.ROUND_NAME[g.round])}</span><span class="sep">·</span><span>pick ${r.picksMade + 1} of ${r.picksNeeded}</span></p>
         <div class="versus">${contenderCard(byId[g.a], g.id)}<span class="vs">or</span>${contenderCard(byId[g.b], g.id)}</div>
         ${hint("Tap the one you'd rather not miss. Saved as you go.")}${sofar}
+        ${abstainConfirm
+          ? `<div class="actions"><span class="ctl-state">No ballot, then. The family's week won't wait on you.</span><button type="button" class="ctl on" data-bracket="abstain">That's right</button><button type="button" class="ctl" data-bracket="keep">Never mind</button></div>`
+          : `<p class="matchup-sofar">Been already? <button type="button" class="link" data-bracket="abstain-ask">I'm here for the train.</button></p>`}
       </div>`;
       return;
     }
@@ -381,6 +398,17 @@
     }
   }
 
+  async function bracketAbstain() {
+    const data = await bracketPost("/api/bracket/abstain", {});
+    if (!data) return;
+    abstainConfirm = false;
+    br.picks = data.picks; br.family = data.family;
+    shared = { ...shared, trip: data.trip };
+    render();
+    const mine = (data.unlocked || []).filter((u) => u.scope === "trip" || u.traveler === me.id);
+    if (mine.length) toast(`Achievement unlocked: ${mine.map((u) => u.name).join(", ")}`);
+  }
+
   async function bracketReset() {
     const data = await bracketPost("/api/bracket/reset", {});
     if (!data) return;
@@ -397,8 +425,10 @@
     const k = b.dataset.bracket;
     if (k === "restart") { bracketReset(); return; }
     if (k === "rerun") { brConfirm = true; render(); }
-    else if (k === "keep") { brConfirm = false; render(); }
+    else if (k === "keep") { brConfirm = false; abstainConfirm = false; render(); }
     else if (k === "reset") bracketReset();
+    else if (k === "abstain-ask") { abstainConfirm = true; render(); }
+    else if (k === "abstain") bracketAbstain();
   });
 
   /* ───────────── Today in Washington, the record, the trophy case ───────────── */
@@ -447,7 +477,7 @@
     const samTotal = trophies.defs.filter((d) => d.track === "scouts" && d.only === "sam").length;
     const bartFirst = standings[0] && standings[0].t.is_admin;
     el.innerHTML = `
-      <div class="mine"><p class="kicker-sm">${esc(me.name)}'s Washington</p>
+      <div class="mine"><p class="kicker-sm">${esc(me.name)}'s ${esc(city.name)}</p>
         ${mine.length ? `<ul class="trophy-list">${mine.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span></li>`).join("")}</ul>` : `<p class="muted">Nothing yet. Go see something.</p>`}
         ${cardTotal ? `<p class="kicker-sm cards-head">Blue cards · ${cards.length} of ${cardTotal} · <a href="/family/scouts" class="cards-map">the map</a></p>
         ${cards.length ? `<ul class="trophy-list cards">${cards.map((d) => `<li><b>${esc(d.name)}</b> <span>${esc(d.description)}</span> <i class="badge-req">${esc(d.badge || "")}</i></li>`).join("")}</ul>` : `<p class="muted">Each one is a merit badge requirement a stop on this trip satisfies. Mark the stop done and it files itself.</p>`}` : ""}

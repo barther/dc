@@ -25,10 +25,11 @@ Christmas Washington, the Tidal Basin loop) or a standalone venue. Accessories
 ride with their bundle and are never contenders. Structural days (the trains,
 arrival night, the Capitol lit on arrival) never enter the bracket.
 
-A bundle's seed is its best member's seed. Today that gives seventeen contenders,
+A bundle's seed is its best member's seed. In Washington that gives seventeen contenders,
 seeded Capitol Hill first and the Spy Museum last. The engine is generic: N
 contenders means a 16-bracket with N − 16 play-in games, so the roster can grow
-without touching the bracket code.
+without touching the bracket code. New York's catalog is twenty-one contenders, a sixteen
+with five play-ins, and each city's ballots are its own.
 
 ## The draw
 
@@ -60,6 +61,10 @@ This is a total order derived only from the picks already made.
 - Ties break by seed.
 - Everyone's ballot weighs the same. Sam's included.
 - Rerun replaces the ballot. The old one is gone; the log says who reran.
+- **Along for the ride.** Anyone can decline to vote, on the record. An abstention counts
+  as "in": the family's week stops waiting, the average runs on the ballots that exist, and
+  Landslide needs every voter, not every traveler. An abstainer still sees the family's week
+  and can fill in a bracket later.
 
 ## What the planner does with it
 

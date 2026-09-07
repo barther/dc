@@ -15,7 +15,9 @@
 (function (root) {
   "use strict";
 
-  const catalog = typeof module !== "undefined" && module.exports ? require("./venues.js") : root.DCVenues;
+  // The engine is built over a catalog. Washington is the default; any catalog in the same
+  // shape (New York, say) gets its own engine from withCatalog(). Nothing below knows the city.
+  function build(catalog) {
 
   /* ───────────── Trip facts ───────────── */
 
@@ -25,7 +27,8 @@
   const MIN_NIGHTS = 1, MAX_NIGHTS = 14;
   // Bart works until 2 PM Sat Nov 28 (evening boarding is fine) and is back Thu Dec 10 at 2 PM.
   const WORK = { date: "2026-12-10", label: "Thu Dec 10, 2 PM", off: "2026-11-28", offLabel: "Sat Nov 28, 2 PM" };
-  const TRAIN = { boardLabel: "evening", arriveWeekend: "~2:12 PM", arriveWeekday: "afternoon, per the timetable", departLabel: "6:30 PM", homeLabel: "~10:30 AM CT" };
+  // The train's labels come from the catalog's city block; these are Washington's.
+  const TRAIN = (catalog.city && catalog.city.train) || { boardLabel: "evening", arriveWeekend: "~2:12 PM", arriveWeekday: "afternoon, per the timetable", departLabel: "6:30 PM", homeLabel: "~10:30 AM CT" };
 
   /* ───────────── Dates ───────────── */
 
@@ -61,6 +64,9 @@
 
   const TIER_WEIGHT = { protected: 1000, high: 200, medium: 100, bonus: 20 };
   const geo = catalog.geo;
+  // Travel-day capacity is a city fact, not a train label: Washington's 6:30 PM departure leaves a
+  // three-hour last morning; New York's 2:15 PM leaves two. Arrival day never places a venue.
+  const EDGES = (catalog.city && catalog.city.edges) || { departureHours: 3 };
   const NEAR = 1.2, FAR = 3; // miles between a day's two stops: neighbors, or a ride between them
   const MUST_SEE = 13, FINAL_FOUR = 4; // of the family's order: the must-see things, and the ones a short trip keeps
   const TIER_RANK = { protected: 0, high: 1, medium: 2, bonus: 3 };
@@ -154,7 +160,8 @@
       // Ranking: must-do, protected, high, headline mediums, requested, then the bench.
       u.rank = u.completedOn ? -3 : u.fixedOn ? -2 : u.pinned ? -1 : u.tier === "protected" ? 0 : u.tier === "high" ? 1 : u.core ? 2 : u.requested ? 2.5 : 3;
       // Departure morning: a LO activity, or a shortened indoor/mixed visit. Never a full outdoor day.
-      u.departureOK = u.period === "day" && (u.load === "lo" || (u.shortenable && u.environment !== "outdoor" && u.min_hours <= 3));
+      // The last morning's capacity is the city's: how many hours exist between checkout and the train.
+      u.departureOK = u.period === "day" && (u.load === "lo" || (u.shortenable && u.environment !== "outdoor" && u.min_hours <= EDGES.departureHours)) && u.min_hours <= EDGES.departureHours;
     }
     return units;
   }
@@ -419,13 +426,9 @@
     const includedVenues = new Set();
     for (const u of units) if (placed[u.id]) u.members.forEach((id) => includedVenues.add(id));
     const has = (id) => includedVenues.has(id);
-    const identity = {
-      civic: has("us-capitol") || has("library-of-congress"),
-      documents: has("national-archives"),
-      memorials: ["lincoln-memorial", "vietnam-memorial", "wwii-memorial", "korean-memorial"].every(has),
-      christmas: has("white-house") && has("national-christmas-tree"),
-      smithsonian: ["air-space", "natural-history", "american-history", "african-american-history"].some(has),
-    };
+    // What makes this trip this trip: the catalog names the tests ({ any: [...] } or { all: [...] }).
+    const identity = {};
+    for (const [k, t] of Object.entries(catalog.identity || {})) identity[k] = t.all ? t.all.every(has) : (t.any || []).some(has);
     const intact = Object.values(identity).every(Boolean);
 
     const cutTier = (t) => excluded.filter((e) => e.unit.tier === t && e.kind !== "punted");
@@ -479,7 +482,7 @@
     for (let i = 1; i < pts.length; i++) {
       const miles = geo.distMi(pts[i - 1].ll, pts[i].ll);
       const dest = pts[i].id === "hotel" ? pts[i - 1] : pts[i];
-      legs.push({ from: pts[i - 1].name, to: pts[i].name, miles, mode: dest.go ? dest.go : miles <= geo.WALK ? "walk" : "ride" });
+      legs.push({ from: pts[i - 1].name, to: pts[i].name, miles, mode: dest.go ? dest.go : miles <= geo.WALK ? "walk" : (geo.ride || "ride") });
     }
     const walked = legs.filter((l) => l.mode === "walk").reduce((a, l) => a + l.miles, 0);
     const rides = legs.filter((l) => l.mode !== "walk").length;
@@ -499,12 +502,12 @@
     else if (ws === "thin") s.work = `One day at home before work ${WORK.label}.`;
     if (early > 0 || ws === "late") s.label = "Runs into work";
 
-    const missing = Object.entries(p.identity).filter(([, ok]) => !ok).map(([k]) => ({ civic: "the Capitol", documents: "the founding documents", memorials: "the memorial night", christmas: "Christmas Washington", smithsonian: "a major Smithsonian" }[k]));
+    const missing = Object.entries(p.identity).filter(([, ok]) => !ok).map(([k]) => (catalog.identity[k] || {}).name || k);
     switch (p.label) {
       case "These dates don't work": s.why = "Nudge the arrival date a day or two and the trip comes back."; break;
       case "A different kind of trip": s.why = `Without ${list(missing)}, this isn't a shorter version of Washington for Christmas. It's a different trip, which is fine, as long as we know it.`; break;
-      case "Minimum recommended": s.why = "This is the shortest version that still feels like the same trip: the civic core, the founding documents, the memorial night, and Christmas Washington."; break;
-      case "Highlights version": s.why = "We're protecting the uniquely Washington things over more museums: the Capitol, the founding documents, Arlington, the memorial night, and Christmas."; break;
+      case "Minimum recommended": s.why = `This is the shortest version that still feels like the same trip: ${list(Object.values(catalog.identity || {}).map((t) => t.name))}.`; break;
+      case "Highlights version": s.why = `We're protecting the things that make this ${catalog.city ? catalog.city.name : "this city"} over more museums: ${list(Object.values(catalog.identity || {}).map((t) => t.name))}.`; break;
       case "First real cut": s.why = "Everything else still fits at a reasonable pace."; break;
       case "Compressed full trip": s.why = "Same major sights, less breathing room."; break;
       case "Extended": s.why = p.openDays ? `Everything we'd recommend is already in. ${p.openDays === 1 ? "One day is open" : `${p.openDays} days are open`}, on purpose. The bench has ideas if the weather's right.` : "Everything from the recommended week, with room for more."; break;
@@ -604,7 +607,12 @@
     return { moves, gain, plan: next, lines, summary: `Nothing gets cut and every day stays balanced. ${lines.join(". ")}.` };
   }
 
-  const engine = { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, catalog, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
-  if (typeof module !== "undefined" && module.exports) { module.exports = engine; return; }
+  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, catalog, EDGES, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
+  }
+
+  const isNode = typeof module !== "undefined" && module.exports;
+  const engine = build(isNode ? require("./venues.js") : root.DCVenues);
+  engine.withCatalog = (c) => Object.assign(build(c), { withCatalog: engine.withCatalog });
+  if (isNode) { module.exports = engine; return; }
   root.DCPlanner = engine;
 })(typeof window !== "undefined" ? window : globalThis);

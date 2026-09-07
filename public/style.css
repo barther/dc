@@ -955,3 +955,11 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .week-map .leaflet-popup-tip { background: var(--paper); }
 .week-map .leaflet-container a { color: var(--red); }
 @media (max-width: 560px) { .week-map { height: 340px; } }
+
+/* ───────────── The city switch: one machine, two cities ───────────── */
+.city-switch { display: inline-flex; border: 1px solid var(--ink); padding: 3px; gap: 3px; background: var(--paper); }
+.city-switch button { font: inherit; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--ink); background: transparent; border: 0; padding: 5px 14px 4px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.city-switch button.on { background: var(--ink); color: var(--paper); cursor: default; }
+.city-switch button:not(.on):hover { color: var(--red); }
+.city-switch button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+body[data-city="nyc"] .hero-nav a[href="/family/scouts"] { display: none; }

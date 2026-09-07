@@ -4,10 +4,31 @@
  */
 (function () {
   "use strict";
-  const P = window.DCPlanner, C = window.DCVenues, B = window.DCBracket;
-  const { DEFAULT, fmtMD, fmtDMD, fmtDMDY, TRAIN } = P;
+  const B = window.DCBracket;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  // The city rides in a cookie; the switch in the header sets it. Washington unless told otherwise.
+  const cityId = (document.cookie.match(/(?:^|;\s*)city=(\w+)/) || [])[1] === "nyc" && window.DCVenuesNYC ? "nyc" : "dc";
+  const C = cityId === "nyc" ? window.DCVenuesNYC : window.DCVenues;
+  const P = window.DCPlanner.withCatalog(C);
+  const { DEFAULT, fmtMD, fmtDMD, fmtDMDY, TRAIN } = P;
+  const city = C.city;
+  document.body.dataset.city = cityId;
+  document.querySelectorAll("[data-city-pick]").forEach((b) => { b.classList.toggle("on", b.dataset.cityPick === cityId); b.setAttribute("aria-pressed", String(b.dataset.cityPick === cityId)); });
+  document.querySelector(".city-switch").addEventListener("click", (e) => { const b = e.target.closest("[data-city-pick]"); if (!b || b.dataset.cityPick === cityId) return; document.cookie = `city=${b.dataset.cityPick}; path=/; max-age=31536000; samesite=lax`; location.reload(); });
+  // Prose that belongs to the city.
+  document.title = `${city.title[0]} ${city.title[1]}`.replace(",  ", ", ");
+  $("hero-title").innerHTML = `${esc(city.title[0])}<br><em>${esc(city.title[1])}</em>`;
+  $("eyebrow-route").innerHTML = `Anniston&nbsp;⇄&nbsp;${esc(city.name)} via the Crescent`;
+  $("lede-city").textContent = city.lede;
+  $("reel-city").textContent = city.reelIntro;
+  $("train-intro").textContent = city.trainIntro;
+  $("home-base").textContent = city.homeBase;
+  $("thesis").textContent = city.thesis;
+  document.querySelectorAll(".station").forEach((el) => { el.textContent = city.station; });
+  document.querySelectorAll(".city-name").forEach((el) => { el.textContent = city.name; });
+  const plate = $("plate-img"); plate.src = `/img/${city.plate.photo}`; plate.alt = city.plate.alt;
+  $("plate-title").textContent = city.plate.title; $("plate-sub").textContent = city.plate.sub;
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const LOAD_NAME = { lo: "Easy", mid: "Real", hi: "Big" };
   const loadBadge = (load) => `<i class="load ${load}">${LOAD_NAME[load] || load}</i>`;
@@ -18,7 +39,8 @@
   const NW = ["", "One night", "Two nights", "Three nights", "Four nights", "Five nights", "Six nights", "Seven nights", "Eight nights", "Nine nights", "Ten nights"];
   $("lede-nights").textContent = NW[p.nights] || `${p.nights} nights`;
   $("lede-span").textContent = p.nights >= 7 ? "the whole week" : p.nights >= 4 ? "all of it" : "every minute of it";
-  window.DCTrip = { depart: p.trainOut, arrive: new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate(), 14, 12), home: new Date(p.home.getFullYear(), p.home.getMonth(), p.home.getDate(), 10, 30) };
+  const ah = (city.train && city.train.arriveHour) || 14.2;
+  window.DCTrip = { depart: p.trainOut, arrive: new Date(p.start.getFullYear(), p.start.getMonth(), p.start.getDate(), Math.floor(ah), Math.round((ah % 1) * 60)), home: new Date(p.home.getFullYear(), p.home.getMonth(), p.home.getDate(), 10, 30) };
   window.dispatchEvent(new CustomEvent("trip:change"));
   const weekend = p.start.getDay() === 0 || p.start.getDay() === 6;
   $("b-out-from").textContent = `${fmtDMD(p.trainOut)} · ${TRAIN.boardLabel}`;
@@ -31,7 +53,7 @@
   // What we're in for: every stop, about how long, tickets or not. So nobody misses the White House inside a night.
   const hoursText = (h) => h >= 1 ? `about ${Number.isInteger(h) ? h : h.toFixed(1).replace(/\.0$/, "")} ${h === 1 ? "hour" : "hours"}` : `about ${Math.round(h * 60)} minutes`;
   const TICKETS = { none: "no tickets", recommended: "tickets recommended", required: "timed tickets required" };
-  const GO_TEXT = { walk: "a walk", ride: "a ride", metro: "one Metro ride" };
+  const GO_TEXT = { walk: "a walk", ride: "a ride", metro: "one Metro ride", subway: "the subway" };
   const fromHotel = (c) => c.miles == null ? "" : ` · ${c.miles < 0.95 ? `${(c.miles * 10 | 0) / 10 || 0.1} mi` : `${c.miles.toFixed(1)} mi`} from the hotel, ${GO_TEXT[c.go] || "a ride"}`;
 
   function inFor(c) {
@@ -60,7 +82,7 @@
   fetch("/api/me", { headers: { accept: "application/json" }, redirect: "manual" })
     .then((r) => (r.ok ? r.json() : null))
     .then((mj) => {
-      if (mj && mj.traveler) door(`You're <b>${esc(mj.traveler.name)}</b>. The bracket, the week, and the list are inside.`, "/family", "Go inside");
+      if (mj && mj.traveler) door(`You're <b>${esc(mj.traveler.name)}</b>. The ${esc(city.name)} bracket and the week are inside.`, "/family", "Go inside");
       else if (mj && mj.why && mj.why !== "not_signed_in") door(`Signed in, but not on the trip. ${esc(mj.why)}.`, "/family", "Try again");
       else door("This is the pitch. The family votes with a bracket, and the week follows the vote.", "/family", "Family, sign in");
     })

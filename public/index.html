@@ -34,18 +34,22 @@
   <p class="eyebrow">
     <span id="eyebrow-dates"></span>
     <span class="star" aria-hidden="true">✦</span>
-    <span>Anniston&nbsp;⇄&nbsp;Washington via the Crescent</span>
+    <span id="eyebrow-route">Anniston&nbsp;⇄&nbsp;Washington via the Crescent</span>
   </p>
-  <h1>Washington,<br><em>for Christmas.</em></h1>
+  <h1 id="hero-title">Washington,<br><em>for Christmas.</em></h1>
+  <div class="city-switch" role="group" aria-label="Which city">
+    <button type="button" data-city-pick="dc" aria-pressed="true">DC</button>
+    <button type="button" data-city-pick="nyc" aria-pressed="false">NYC</button>
+  </div>
   <div class="ornament" aria-hidden="true"><span></span><i>✦</i><span></span></div>
   <figure class="plate">
-    <img class="photo" src="/img/hero-capitol-night.webp" alt="The U.S. Capitol at night" fetchpriority="high">
-    <figcaption class="plate-label"><span class="plate-title">The Capitol</span><span class="plate-sub">lit for the night</span></figcaption>
+    <img class="photo" id="plate-img" src="/img/hero-capitol-night.webp" alt="The U.S. Capitol at night" fetchpriority="high">
+    <figcaption class="plate-label"><span class="plate-title" id="plate-title">The Capitol</span><span class="plate-sub" id="plate-sub">lit for the night</span></figcaption>
   </figure>
   <p class="lede">
-    <span id="lede-nights"></span> in the capital. Sleeper cars there and back. The Capitol lit up at night,
+    <span id="lede-nights"></span> <span id="lede-city">in the capital. Sleeper cars there and back. The Capitol lit up at night,
     dinosaurs, the Hope Diamond, the actual Declaration of Independence, and a whole city
-    dressed for Christmas. Bart, Jess, Sam, and Nanny. All of us, together, <span id="lede-span">the whole week</span>.
+    dressed for Christmas.</span> Bart, Jess, Sam, and Nanny. All of us, together, <span id="lede-span">the whole week</span>.
   </p>
 
   <div class="countdown" id="countdown" aria-live="polite">
@@ -73,7 +77,7 @@
       <p class="kicker" data-kicker>What's on the table</p>
       <h2>Seventeen things worth the trip.</h2>
       <p class="intro" id="reel-intro">
-        Everything Washington has for us, and no schedule yet. The family ranks these; the week builds itself from the ranking.
+        <span id="reel-city">Everything Washington has for us, and no schedule yet.</span> The family ranks these; the week builds itself from the ranking.
         <span class="reel-easy"><i class="load lo">Easy</i> a stroll, <i class="load mid">Real</i> a real outing, <i class="load hi">Big</i> the whole battery.</span>
       </p>
     </div>
@@ -87,9 +91,9 @@
       <p class="kicker" data-kicker>Getting there</p>
       <h2>The train <em>is</em> the trip.</h2>
       <p class="intro">
-        No airport. No rental car. We board the Amtrak Crescent in Anniston after Bart gets off work,
+        <span id="train-intro">No airport. No rental car. We board the Amtrak Crescent in Anniston after Bart gets off work,
         settle into two sleeper rooms across the hall from each other, sleep through Georgia and the Carolinas,
-        and wake up in Virginia. Sunday afternoon we roll into Union Station, three blocks from the Capitol.
+        and wake up in Virginia. Sunday afternoon we roll into Union Station, three blocks from the Capitol.</span>
       </p>
     </div>
 
@@ -108,12 +112,12 @@
       <div class="board-row" role="row">
         <span role="cell"><b>Crescent 20</b><small>Northbound</small></span>
         <span role="cell"><b>Anniston, AL</b><small id="b-out-from"></small></span>
-        <span role="cell"><b>Washington Union Station</b><small id="b-out-to"></small></span>
+        <span role="cell"><b class="station">Washington Union Station</b><small id="b-out-to"></small></span>
         <span role="cell"><b>Overnight</b><small>2 sleeper rooms</small></span>
       </div>
       <div class="board-row" role="row">
         <span role="cell"><b>Crescent 19</b><small>Southbound</small></span>
-        <span role="cell"><b>Washington Union Station</b><small id="b-back-from"></small></span>
+        <span role="cell"><b class="station">Washington Union Station</b><small id="b-back-from"></small></span>
         <span role="cell"><b>Anniston, AL</b><small id="b-back-to"></small></span>
         <span role="cell"><b>Overnight</b><small>2 sleeper rooms</small></span>
       </div>
@@ -127,7 +131,7 @@
     <ul class="perks">
       <li><span class="star" aria-hidden="true">✦</span> <b>Your own room on a train.</b> Beds fold down, the window is yours, and somebody brings dinner to you.</li>
       <li><span class="star" aria-hidden="true">✦</span> <b>Evening boarding.</b> Anniston lets us leave at a civilized hour instead of waiting up past midnight in Atlanta.</li>
-      <li><span class="star" aria-hidden="true">✦</span> <b>Home base on the Mall.</b> We're aiming for L'Enfant Plaza, a short walk from Air &amp; Space, Natural History, and the Washington Monument, with a one-seat Metro ride to Arlington.</li>
+      <li><span class="star" aria-hidden="true">✦</span> <b>Home base.</b> <span id="home-base">We're aiming for L'Enfant Plaza, a short walk from Air &amp; Space, Natural History, and the Washington Monument, with a one-seat Metro ride to Arlington.</span></li>
     </ul>
   </section>
 
@@ -159,7 +163,7 @@
 
     <blockquote class="thesis">
       <span class="stars" aria-hidden="true">✦ ✦ ✦</span>
-      <p>Leave Washington feeling like we actually saw Washington, without needing a vacation from the vacation.</p>
+      <p id="thesis">Leave Washington feeling like we actually saw Washington, without needing a vacation from the vacation.</p>
     </blockquote>
   </section>
 
@@ -172,10 +176,11 @@
     <img class="photo" src="/img/family.webp" alt="Bart, Jess, Sam, and Nanny" loading="lazy">
   </figure>
   <p><b>Bart · Jess · Sam · Nanny</b></p>
-  <p><span id="foot-dates"></span> · Anniston to Washington and back on the Crescent · Hotel and tour reservations still being locked in.</p>
+  <p><span id="foot-dates"></span> · Anniston to <span class="city-name">Washington</span> and back on the Crescent · Hotel and tour reservations still being locked in.</p>
 </footer>
 
 <script src="/venues.js"></script>
+<script src="/venues-nyc.js"></script>
 <script src="/planner.js"></script>
 <script src="/bracket.js"></script>
 <script src="/pitch.js"></script>

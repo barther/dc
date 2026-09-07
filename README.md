@@ -29,8 +29,9 @@ records what the family decided; identity says who did it.
   seeded from the regret list), a 16-bracket with play-ins for anything past sixteen, a total order
   from one completed ballot, and the family's order from every completed ballot (mean rank,
   champions locked to the top, ties to the seed). Pure, shared by the browser and the Worker.
-  Ballots live in D1 (`bracket_picks`); `GET /api/bracket`, `POST /api/bracket/pick`, and
-  `POST /api/bracket/reset` are the routes. The planner takes the family's order as an external
+  Ballots live in D1 (`bracket_picks`); `GET /api/bracket`, `POST /api/bracket/pick`,
+  `POST /api/bracket/reset`, and `POST /api/bracket/abstain` (along for the ride: no ballot,
+  on the record, and the family's week stops waiting) are the routes. The planner takes the family's order as an external
   input and schedules by it. The doctrine is in `BRACKET.md`.
 - `public/achievements.js` is the achievement catalog and a pure evaluator. Unlocks are written
   to KV once and never removed. `/api/achievements` feeds the trophy case and the standings.
@@ -39,8 +40,8 @@ records what the family decided; identity says who did it.
 - `public/family/scouts.html` is Sam's Photography map (the merit badge plan), served by the Worker at `/family/scouts`
   to signed-in travelers only. Everything under `/family/` runs Worker-first for that reason.
 - `migrations/` is the D1 schema: travelers, identities, trip, venue state, preferences, marks
-  (completed, fixed, not-this-day), accepted placements, decisions, opinions on decisions, and
-  bracket picks.
+  (completed, fixed, not-this-day), accepted placements, decisions, opinions on decisions,
+  bracket picks, and the New York trip row.
 
 ### Setting up the shared trip
 
@@ -106,6 +107,12 @@ the family fills in brackets, the family's order replaces the authored seeds and
 planner packs that order into the week (see `BRACKET.md`). Until a ballot is finished, the week
 runs on the recommended trip. Three files, one direction of data flow:
 
+- Two cities, one machine. `public/venues.js` is Washington and `public/venues-nyc.js` is New
+  York, in the same shape: venues, bundles, pairings, structural days, copy, geography, the
+  identity test, and the city's own prose and train facts. The planner is a factory
+  (`DCPlanner.withCatalog(catalog)`), the bracket takes a catalog, and the Worker keeps a
+  context per city (`dc-2026`, `nyc-2026`) with its own ballots, marks, decisions, and trophies.
+  The switch in the header sets a `city` cookie that the pages and the Worker both read.
 - `public/venues.js` is the source of truth: every experience with its seed, tier, day/night,
   LO/MID/HI load, environment, hours, closures, bundle, and coordinates. The hotel at L'Enfant
   Plaza is the base; straight-line miles decide walk or ride. Plus the bundle catalog, the

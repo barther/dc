@@ -112,3 +112,15 @@ test("every contender knows how far it is from the hotel and whether that's a wa
   assert.equal(arl.go, "metro");
   for (const c of cs) assert.ok(typeof c.miles === "number" && c.miles >= 0, c.id);
 });
+
+test("the New York catalog seeds twenty-one contenders: a sixteen with five play-ins", () => {
+  const NYC = require("../public/venues-nyc.js");
+  const ny = B.contenders(NYC);
+  assert.equal(ny.length, 21);
+  assert.equal(B.structure(ny.length).games.filter((g) => g.round === "playin").length, 5);
+  assert.equal(ny[0].id, "rockefeller-christmas");
+  const xmas = ny.find((c) => c.id === "rockefeller-christmas");
+  assert.deepEqual(xmas.stops.map((s) => s.id), ["rockefeller-christmas", "fifth-avenue-christmas", "st-patricks"]);
+  assert.ok(ny.every((c) => NYC.copy[c.id] && NYC.copy[c.id].body.length), "every contender has copy");
+  assert.equal(ny.find((c) => c.id === "liberty-ellis").go, "subway");
+});

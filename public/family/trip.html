@@ -35,13 +35,17 @@
     <span class="star" aria-hidden="true">✦</span>
     <span>Inside the gate</span>
   </p>
-  <h1><a href="/">Washington, <em>for Christmas.</em></a></h1>
+  <h1><a href="/" id="hero-title">Washington, <em>for Christmas.</em></a></h1>
+  <div class="city-switch" role="group" aria-label="Which city">
+    <button type="button" data-city-pick="dc" aria-pressed="true">DC</button>
+    <button type="button" data-city-pick="nyc" aria-pressed="false">NYC</button>
+  </div>
   <div class="ornament" aria-hidden="true"><span></span><i>✦</i><span></span></div>
 
   <p class="identity" id="identity" hidden></p>
 
   <section class="today" id="today" hidden>
-    <p class="kicker-sm">Today in Washington</p>
+    <p class="kicker-sm">Today in <span class="city-name">Washington</span></p>
     <div id="today-body"></div>
   </section>
 
@@ -124,11 +128,12 @@
     <img class="photo" src="/img/family.webp" alt="Bart, Jess, Sam, and Nanny" loading="lazy">
   </figure>
   <p><b>Bart · Jess · Sam · Nanny</b></p>
-  <p><span id="foot-dates"></span> · Anniston to Washington and back on the Crescent · Hotel and tour reservations still being locked in.</p>
+  <p><span id="foot-dates"></span> · Anniston to <span class="city-name">Washington</span> and back on the Crescent · Hotel and tour reservations still being locked in.</p>
 </footer>
 
 <script src="/vendor/leaflet/leaflet.js"></script>
 <script src="/venues.js"></script>
+<script src="/venues-nyc.js"></script>
 <script src="/planner.js"></script>
 <script src="/bracket.js"></script>
 <script src="/ui.js"></script>

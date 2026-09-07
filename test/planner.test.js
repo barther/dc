@@ -329,3 +329,28 @@ test("geography: every day has a route from the hotel, Arlington is a Metro ride
   // Geography never overrides pacing: still no HI/HI day anywhere.
   for (const d of q.days) if (d.day && d.night) assert.ok(!(q.units[d.day.id].load === "hi" && q.units[d.night.id].load === "hi"));
 });
+
+test("another city, same machine: the New York catalog plans a week under the same rules", () => {
+  const NYC = require("../public/venues-nyc.js");
+  const E = P.withCatalog(NYC);
+  const p = E.plan({ start: "2026-11-29", nights: 7 });
+  assert.equal(p.headline.total, 13);
+  assert.ok(p.headline.kept >= 12, `${p.headline.kept} of 13`);
+  for (const d of p.days) if (d.day && d.night) assert.ok(!(p.units[d.day.id].load === "hi" && p.units[d.night.id].load === "hi"), "no HI/HI in New York either");
+  assert.ok(p.intact, "the tree, an icon, a museum, and a show are all in");
+  // Travel-day capacity is the city's. New York's 2:15 PM train leaves a two-hour last morning:
+  // nothing that needs more than two hours ever lands there, across every start date and length.
+  assert.equal(E.EDGES.departureHours, 2); assert.equal(P.EDGES.departureHours, 3);
+  for (const cfg of allTrips()) {
+    const q = E.plan(cfg);
+    const last = q.days[q.days.length - 1];
+    if (last.day) assert.ok(q.units[last.day.id].min_hours <= 2, `${cfg.start} ${cfg.nights}: ${q.units[last.day.id].name} on a two-hour morning`);
+  }
+  // Washington's three-hour morning still takes a shortened museum.
+  assert.equal(dep(P.plan({ start: "2026-11-29", nights: 7 })), "american-history");
+  const routes = p.days.filter((d) => d.route);
+  assert.ok(routes.every((d) => d.route.legs.every((l) => ["walk", "subway"].includes(l.mode))), "New York rides are the subway");
+  // The Washington engine is untouched by the New York one.
+  assert.equal(P.plan({ start: "2026-11-29", nights: 7 }).label, "Recommended");
+  assert.equal(P.catalog.city.id, "dc"); assert.equal(E.catalog.city.id, "nyc");
+});

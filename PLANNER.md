@@ -246,6 +246,16 @@ lands on the record. Photography is the badge; Sam already holds Citizenship in 
 never count toward the family standings or toward "everyone has four"; the game stays fair and
 the counselor still gets a timestamped record.
 
+**The city is a catalog, not a fork.** Everything Washington-specific lives in `venues.js`: the
+venues, the bundles, the identity test ("without the Capitol this is a different trip"), the
+prose for the structural days, the train's labels, the hotel. New York is the same shape in
+`venues-nyc.js`. One switch in the header picks the city; each city has its own trip, ballots,
+week, and trophy case, and the same rules run over both. Adding a third city is a data file. The travel days' capacity is a city fact too: the catalog
+says how many hours the last morning holds between checkout and the train (three in Washington
+behind a 6:30 PM departure, two in New York behind a 2:15 PM one), and the planner places the
+last morning against that number, not against a label. Seven nights are not the same seven
+nights in every city.
+
 **Geography breaks ties; it never overrides pacing.** Every venue has coordinates and the hotel is
 the base. A day's two stops within about a mile of each other earn a point; stops three miles
 apart cost three, because that's a ride between them. Both are below the load doctrine and the
