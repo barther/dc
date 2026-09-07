@@ -1,0 +1,266 @@
+/* ─────────────────────────────────────────────────────────────
+   New York, for Christmas — Midtown Deco.
+   Black lobby, brass trim, deep green; Josefin Sans (display,
+   uppercase, tracked) and Jost (text). Loads after style.css and
+   overrides it wherever [data-city="nyc"] is set. On the site that
+   attribute is on <body>; add data-ground="dark" beside it for the
+   dark page ground. The hero is a black panel on either ground.
+
+   Fonts: https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&family=Jost:ital,wght@0,400;0,500;0,600;1,400&display=swap
+   Nothing carries over from DC: no stars, no double rules, no
+   invitation frame. The lozenge ◆, banded rules (thick ink + brass
+   hairline), stepped brass ornaments, and bracketed photo corners
+   replace them.
+   ───────────────────────────────────────────────────────────── */
+
+[data-city="nyc"] {
+  --paper:   #efe9db;
+  --ink:     #14130f;
+  --ink-2:   #3a3830;
+  --muted:   #6a655a;
+  --rule:    #cbc3b0;
+  --brass:   #8a6a24;
+  --green:   #1f4a39;
+  --danger:  #a4442a;
+  /* DC roles remapped so every existing rule lands in the new palette */
+  --red:     var(--brass);
+  --gold:    var(--green);
+
+  --display: "Josefin Sans", "Futura", "Century Gothic", sans-serif;
+  --text:    "Jost", "Futura", "Century Gothic", sans-serif;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--text);
+  font-size: 17px;
+  color-scheme: light;
+}
+[data-city="nyc"][data-ground="dark"] {
+  --paper:   #121310;
+  --ink:     #efe9db;
+  --ink-2:   #cfc8b8;
+  --muted:   #9a937f;
+  --rule:    #33342d;
+  --brass:   #d6b25a;
+  --green:   #6fa58c;
+  --danger:  #d8775a;
+  color-scheme: dark;
+}
+[data-city="nyc"] a { color: var(--brass); }
+[data-city="nyc"] a:hover { color: var(--ink); }
+[data-city="nyc"] a:focus-visible, [data-city="nyc"] summary:focus-visible,
+[data-city="nyc"] button:focus-visible, [data-city="nyc"] input:focus-visible { outline-color: var(--brass); }
+
+/* ───────────── Type ───────────── */
+[data-city="nyc"] h1, [data-city="nyc"] h2, [data-city="nyc"] h3 {
+  font-family: var(--display); font-weight: 700; text-transform: uppercase;
+}
+[data-city="nyc"] h1 { font-size: clamp(38px, 6.5vw, 64px); line-height: 0.98; letter-spacing: 0.06em; }
+[data-city="nyc"] h1 em { display: block; color: var(--brass); font-style: normal; font-weight: 600; font-size: 0.5em; letter-spacing: 0.3em; margin-top: 0.5em; }
+[data-city="nyc"] h2 { font-size: clamp(24px, 3.6vw, 34px); line-height: 1.1; letter-spacing: 0.1em; font-weight: 600; }
+[data-city="nyc"] h2 em { font-style: normal; color: var(--brass); }
+[data-city="nyc"] h3 { font-size: 18px; line-height: 1.25; letter-spacing: 0.12em; font-weight: 600; }
+[data-city="nyc"] .rule h3, [data-city="nyc"] .reel-item h3 { font-size: 18px; }
+[data-city="nyc"] .featured h3 { font-style: normal; color: var(--brass); }
+
+[data-city="nyc"] .kicker, [data-city="nyc"] .eyebrow, [data-city="nyc"] .stop-date b, [data-city="nyc"] .board-head,
+[data-city="nyc"] .half small, [data-city="nyc"] .countdown span, [data-city="nyc"] .legend, [data-city="nyc"] .foot b,
+[data-city="nyc"] .hero-nav a, [data-city="nyc"] .art, [data-city="nyc"] .kicker-sm, [data-city="nyc"] .unit-label,
+[data-city="nyc"] .override-label, [data-city="nyc"] .reel-meta, [data-city="nyc"] .c-meta, [data-city="nyc"] .matchup-round,
+[data-city="nyc"] .verdict, [data-city="nyc"] .in-for-head, [data-city="nyc"] .plate-title, [data-city="nyc"] .bench-meta {
+  font-family: var(--display); font-weight: 600; letter-spacing: 0.24em; font-size: 12px;
+}
+[data-city="nyc"] .kicker { color: var(--brass); display: flex; align-items: center; gap: 12px; }
+[data-city="nyc"] .kicker::before { content: ""; width: 28px; height: 3px; background: var(--brass); }
+[data-city="nyc"] .art { color: var(--brass); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; }
+[data-city="nyc"] .thesis p { font-family: var(--display); font-style: normal; text-transform: uppercase; letter-spacing: 0.08em; font-size: clamp(20px, 2.8vw, 28px); line-height: 1.3; font-weight: 600; }
+[data-city="nyc"] .stop-date span, [data-city="nyc"] .tile b, [data-city="nyc"] .stepper-controls b, [data-city="nyc"] .round,
+[data-city="nyc"] .reel-seed, [data-city="nyc"] .today-date, [data-city="nyc"] .dates-fact b, [data-city="nyc"] .cell b,
+[data-city="nyc"] .bench-name, [data-city="nyc"] .seed-name b, [data-city="nyc"] .c-title, [data-city="nyc"] .panel-head,
+[data-city="nyc"] .board-row span:first-child b, [data-city="nyc"] .bonus summary, [data-city="nyc"] .canon, [data-city="nyc"] .ballot-list li,
+[data-city="nyc"] .fam-table td.n, [data-city="nyc"] .fam-table td.name, [data-city="nyc"] .standings li, [data-city="nyc"] .pace b,
+[data-city="nyc"] .trophy-list li b, [data-city="nyc"] .record .record-list b, [data-city="nyc"] .record-trophy, [data-city="nyc"] .bench-head {
+  font-family: var(--display); font-weight: 600;
+}
+[data-city="nyc"] .canon { font-size: 16px; letter-spacing: 0.04em; }
+[data-city="nyc"] .canon li::before { color: var(--brass); font-family: var(--text); }
+[data-city="nyc"] .canon li:last-child { font-style: normal; color: var(--brass); }
+[data-city="nyc"] .vs { font-style: normal; color: var(--brass); font-family: var(--display); letter-spacing: 0.2em; font-size: 14px; }
+
+/* Italic asides become plain, quieter text (Jost italic is fine, but the Deco voice is upright) */
+[data-city="nyc"] .countdown-label, [data-city="nyc"] figcaption, [data-city="nyc"] .hint, [data-city="nyc"] .board-row small,
+[data-city="nyc"] .reel-short, [data-city="nyc"] .c-short, [data-city="nyc"] .plate-sub, [data-city="nyc"] .seed-name small,
+[data-city="nyc"] .stops li span, [data-city="nyc"] .muted, [data-city="nyc"] .today-weather, [data-city="nyc"] .champ-mark { font-style: normal; }
+[data-city="nyc"] .plate-sub { font-family: var(--text); font-size: 15px; letter-spacing: 0.04em; }
+
+/* ───────────── The lozenge replaces the star ───────────── */
+[data-city="nyc"] .star, [data-city="nyc"] .stars, [data-city="nyc"] .ornament i { font-size: 0; color: var(--brass); }
+[data-city="nyc"] .star::before, [data-city="nyc"] .ornament i::before { content: "◆"; font-size: 10px; vertical-align: 1px; }
+[data-city="nyc"] .stars::before { content: "◆ ◆ ◆"; font-size: 10px; letter-spacing: 0.4em; }
+[data-city="nyc"] .ballot-list li:first-child span::after { content: " ◆"; font-size: 0.7em; color: var(--brass); }
+[data-city="nyc"] .stop.different .options li::before { content: "◆ "; color: var(--brass); font-size: 0.7em; }
+[data-city="nyc"] .verdict .sep, [data-city="nyc"] .matchup-round .sep, [data-city="nyc"] .leg-arrow, [data-city="nyc"] .log-entry::after { color: var(--brass); }
+
+/* Stepped brass ornament: a Deco setback, three bars */
+[data-city="nyc"] .ornament { max-width: 300px; gap: 10px; }
+[data-city="nyc"] .ornament span {
+  height: 7px; background:
+    linear-gradient(var(--brass), var(--brass)) 0 0 / 100% 1px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) 0 3px / 100% 1px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) 0 6px / 100% 1px no-repeat;
+}
+
+/* Banded rule: thick ink line with a brass hairline above. Replaces every double rule. */
+[data-city="nyc"] .board, [data-city="nyc"] .line, [data-city="nyc"] .thesis, [data-city="nyc"] .bench-wrap, [data-city="nyc"] .trophies,
+[data-city="nyc"] .reel-cta, [data-city="nyc"] .family-order, [data-city="nyc"] #family-order {
+  position: relative; border-top: 4px solid var(--ink); margin-top: 8px;
+}
+[data-city="nyc"] .board::before, [data-city="nyc"] .line::before, [data-city="nyc"] .thesis::before, [data-city="nyc"] .bench-wrap::before,
+[data-city="nyc"] .trophies::before, [data-city="nyc"] .reel-cta::before, [data-city="nyc"] .family-order::before, [data-city="nyc"] #family-order::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -9px; border-top: 1px solid var(--brass);
+}
+[data-city="nyc"] .board { border-bottom: 4px solid var(--ink); }
+[data-city="nyc"] .stop.last { border-bottom: 4px solid var(--ink); }
+[data-city="nyc"] .fam-table tr.must-see-line td { border-bottom: 3px solid var(--brass); }
+[data-city="nyc"] .board-head { border-bottom-color: var(--brass); }
+[data-city="nyc"] .reel-item { border-top: 1px solid var(--brass); }
+[data-city="nyc"] .foot { border-top: 4px solid var(--ink); position: relative; }
+[data-city="nyc"] .foot::before { content: ""; position: absolute; left: 0; right: 0; top: -9px; border-top: 1px solid var(--brass); }
+
+/* ───────────── Hero: the lobby ─────────────
+   Black on either ground. Local palette so every child rule reads right. */
+[data-city="nyc"] .hero {
+  --ink: #efe9db; --ink-2: #cfc8b8; --muted: #9a937f; --rule: #33342d; --brass: #d6b25a; --green: #6fa58c;
+  background: #14130f; color: var(--ink);
+  max-width: 820px; margin-top: 24px; padding: 64px 48px 40px; gap: 22px;
+}
+[data-city="nyc"] .hero::after {
+  inset: 14px; border: 1px solid var(--brass); outline: 0;
+  /* bracketed corners, heavier than the hairline */
+  background:
+    linear-gradient(var(--brass), var(--brass)) left top / 28px 3px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) left top / 3px 28px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) right top / 28px 3px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) right top / 3px 28px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) left bottom / 28px 3px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) left bottom / 3px 28px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) right bottom / 28px 3px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) right bottom / 3px 28px no-repeat;
+}
+[data-city="nyc"] .hero.inside { padding: 56px 40px 28px; }
+[data-city="nyc"] .eyebrow { color: var(--brass); }
+[data-city="nyc"] .lede { font-size: 17px; line-height: 1.6; color: var(--ink-2); }
+[data-city="nyc"] .countdown { border: 0; gap: 8px; max-width: 480px; }
+[data-city="nyc"] .tile { border: 1px solid var(--brass); padding: 14px 6px 10px; }
+[data-city="nyc"] .tile b { font-size: clamp(26px, 4.8vw, 36px); }
+[data-city="nyc"] .tile:last-child b { color: var(--brass); }
+[data-city="nyc"] .tile span { color: var(--muted); letter-spacing: 0.22em; font-family: var(--display); font-size: 10px; }
+[data-city="nyc"] .countdown-label { color: var(--muted); margin-top: -6px; letter-spacing: 0.06em; }
+[data-city="nyc"] .hero-nav a { color: var(--ink); border-bottom: 1px solid var(--brass); }
+[data-city="nyc"] .hero-nav a:hover { color: var(--brass); }
+[data-city="nyc"] .identity .who, [data-city="nyc"] .verdict, [data-city="nyc"] .verdict b { color: var(--ink); }
+[data-city="nyc"] .today, [data-city="nyc"] .explainer { border: 1px solid var(--brass); outline: 0; }
+[data-city="nyc"] .change summary, [data-city="nyc"] .reset { border-bottom-color: var(--brass); }
+[data-city="nyc"] .change-body { border-color: var(--rule); }
+[data-city="nyc"] .field input[type="date"] { border-bottom-color: var(--brass); }
+[data-city="nyc"] .stepper-controls { border-bottom-color: var(--brass); }
+[data-city="nyc"] .stepper-controls button { border-radius: 0; border-color: var(--brass); color: var(--brass); }
+[data-city="nyc"] .stepper-controls button:hover:not(:disabled) { background: var(--brass); color: #14130f; }
+
+/* City switch */
+[data-city="nyc"] .city-switch { border-color: var(--brass); background: transparent; }
+[data-city="nyc"] .city-switch button { color: var(--ink); font-family: var(--display); }
+[data-city="nyc"] .city-switch button.on { background: var(--brass); color: #14130f; }
+[data-city="nyc"] .city-switch button:not(.on):hover { color: var(--brass); }
+
+/* ───────────── Photos: bracketed corners instead of a frame ───────────── */
+[data-city="nyc"] .photo.ready { border-color: transparent; }
+[data-city="nyc"] .plate, [data-city="nyc"] .banner, [data-city="nyc"] .inset, [data-city="nyc"] .stop-photo, [data-city="nyc"] .reel-photo, [data-city="nyc"] .c-photo {
+  padding: 10px; border: 0;
+}
+[data-city="nyc"] figure:has(.photo.ready) {
+  background:
+    linear-gradient(var(--brass), var(--brass)) left top / 22px 2px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) left top / 2px 22px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) right top / 22px 2px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) right top / 2px 22px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) left bottom / 22px 2px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) left bottom / 2px 22px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) right bottom / 22px 2px no-repeat,
+    linear-gradient(var(--brass), var(--brass)) right bottom / 2px 22px no-repeat;
+}
+[data-city="nyc"] .plate:has(.photo.ready) { border: 0; }
+[data-city="nyc"] .plate-label::before { border-top: 3px solid var(--brass); width: 28px; margin-left: -14px; }
+[data-city="nyc"] .plate-title { color: var(--brass); }
+[data-city="nyc"] .family .photo { border-radius: 0; }
+[data-city="nyc"] .family .photo.ready { outline: 1px solid var(--brass); outline-offset: 4px; }
+[data-city="nyc"] .featured .stop-photo .photo.ready { border-color: transparent; }
+
+/* ───────────── Day cards, badges, controls ───────────── */
+[data-city="nyc"] .stop.featured { border-left: 4px solid var(--brass); padding-left: 16px; }
+[data-city="nyc"] .stop.late { border-left: 4px solid var(--danger); padding-left: 16px; }
+[data-city="nyc"] .stop.late h3 { color: var(--danger); }
+[data-city="nyc"] .stop.today { border-left: 4px solid var(--green); padding-left: 16px; }
+[data-city="nyc"] .stop.today h3::before { color: var(--green); }
+[data-city="nyc"] .featured .stop-date b { color: var(--brass); }
+
+[data-city="nyc"] .load, [data-city="nyc"] .fit, [data-city="nyc"] .reel-rank, [data-city="nyc"] .c-go {
+  font-family: var(--display); letter-spacing: 0.18em; font-weight: 600; padding: 3px 7px 1px;
+}
+[data-city="nyc"] .load.mid { color: var(--green); }
+[data-city="nyc"] .load.hi { color: var(--brass); }
+[data-city="nyc"] .fit.acceptable { color: var(--brass); }
+[data-city="nyc"] .fit.poor { color: var(--danger); }
+[data-city="nyc"] .reel-rank { border-color: var(--brass); color: var(--ink); }
+
+[data-city="nyc"] .ctl, [data-city="nyc"] .pace, [data-city="nyc"] .contender { font-family: var(--text); }
+[data-city="nyc"] .ctl { font-family: var(--display); letter-spacing: 0.16em; padding: 5px 10px 3px; border-color: var(--rule); }
+[data-city="nyc"] .ctl:hover { border-color: var(--brass); }
+[data-city="nyc"] .ctl.on { color: #14130f; background: var(--brass); border-color: var(--brass); }
+[data-city="nyc"] .pref.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+[data-city="nyc"] .pref.on.must { background: var(--brass); border-color: var(--brass); color: #14130f; }
+[data-city="nyc"] .pref.on.good { background: var(--green); border-color: var(--green); color: #fff; }
+[data-city="nyc"][data-ground="dark"] .pref.on.good { color: #14130f; }
+[data-city="nyc"] .pref.on.meh, [data-city="nyc"] .pref.on.punt { background: var(--muted); border-color: var(--muted); color: var(--paper); }
+[data-city="nyc"] .vote.must { border-color: var(--brass); color: var(--brass); }
+[data-city="nyc"] .vote.good { border-color: var(--green); color: var(--green); }
+[data-city="nyc"] .vote { border-radius: 0; }
+[data-city="nyc"] .override { border-top: 1px dashed var(--brass); }
+[data-city="nyc"] .override-label, [data-city="nyc"] .ctl-state, [data-city="nyc"] .whatif-banner, [data-city="nyc"] .admin-note { color: var(--brass); }
+[data-city="nyc"] .verdict-work.tight, [data-city="nyc"] .verdict-work.late { color: var(--danger); }
+[data-city="nyc"] .pace.on { border-color: var(--brass); outline-color: var(--brass); }
+[data-city="nyc"] .seed-pick .ctl.on { background: var(--brass); border-color: var(--brass); color: #14130f; }
+[data-city="nyc"] .legend-box, [data-city="nyc"] .tradeoffs, [data-city="nyc"] .bonus, [data-city="nyc"] .change-body { border-color: var(--rule); }
+[data-city="nyc"] .panel { border-color: var(--brass); background: color-mix(in oklab, var(--green) 8%, transparent); }
+[data-city="nyc"] .contender { border-color: var(--rule); background: transparent; }
+[data-city="nyc"] .contender:hover, [data-city="nyc"] .contender:focus-visible { outline: 1px solid var(--brass); outline-offset: 0; border-color: var(--brass); }
+[data-city="nyc"] .contender:active { background: color-mix(in oklab, var(--brass) 10%, transparent); }
+[data-city="nyc"] .c-go { color: var(--brass); border-color: var(--brass); }
+[data-city="nyc"] .contender:hover .c-go { background: var(--brass); color: #14130f; }
+[data-city="nyc"] .c-seed, [data-city="nyc"] .reel-seed, [data-city="nyc"] .ballot-list li b, [data-city="nyc"] .fam-table td.n, [data-city="nyc"] .fam-table tr.champ td.name { color: var(--brass); }
+
+/* Strip and block */
+[data-city="nyc"] .block { background: var(--ink); color: var(--paper); border-color: var(--ink); font-family: var(--display); }
+[data-city="nyc"] .block .seg.train { background: var(--brass); color: #14130f; }
+[data-city="nyc"] .block .grip { color: var(--paper); }
+[data-city="nyc"] .block.late { background: var(--danger); border-color: var(--danger); }
+[data-city="nyc"] .block.late .seg.train { background: var(--brass); }
+[data-city="nyc"] .cell { border-bottom-color: var(--brass); }
+[data-city="nyc"] .cell.month::before { color: var(--brass); font-family: var(--display); }
+[data-city="nyc"] .cell.work { background: repeating-linear-gradient(135deg, var(--rule) 0 2px, transparent 2px 5px); }
+
+/* Toast, map, misc */
+[data-city="nyc"] .toast { background: var(--brass); color: #14130f; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); }
+[data-city="nyc"] .week-map { border-color: var(--brass); }
+[data-city="nyc"] .week-map .leaflet-popup-content-wrapper { background: var(--paper); color: var(--ink); }
+[data-city="nyc"] .week-map .leaflet-popup-tip { background: var(--paper); }
+[data-city="nyc"] .log-open { border-left-color: var(--brass); }
+[data-city="nyc"] .signin, [data-city="nyc"] .cards-map { border-bottom-color: var(--brass); color: var(--brass); }
+[data-city="nyc"] .opine-note { background: transparent; }
+[data-city="nyc"] .perks b { color: var(--ink); }
+
+@media (max-width: 560px) {
+  [data-city="nyc"] .hero { padding: 52px 28px 28px; }
+  [data-city="nyc"] .hero::after { inset: 10px; }
+  [data-city="nyc"] .stop.featured, [data-city="nyc"] .stop.late, [data-city="nyc"] .stop.today { padding-left: 10px; }
+}

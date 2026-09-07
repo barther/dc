@@ -64,7 +64,10 @@
 
   // The reel: every contender, seeded, with its copy. Sizzle, not schedule.
   const figure = (photo) => photo ? `<figure class="reel-photo"><img class="photo" src="/img/${photo[0]}" alt="${esc(photo[1])}" loading="lazy"><figcaption>${esc(photo[1])}</figcaption></figure>` : "";
-  $("reel-list").innerHTML = B.contenders(C).map((c) => {
+  const contenders = B.contenders(C);
+  const COUNT = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen", "Twenty", "Twenty-one", "Twenty-two", "Twenty-three", "Twenty-four", "Twenty-five"];
+  $("reel-head").textContent = `${COUNT[contenders.length] || contenders.length} things worth the trip.`;
+  $("reel-list").innerHTML = contenders.map((c) => {
     const cp = C.copy[c.id] || { title: c.name, body: [] };
     return `<li class="reel-item" id="reel-${c.id}">
       <div class="reel-meta"><span class="reel-seed">${c.seed}</span>${loadBadge(c.load)}<span class="reel-when">${c.period === "day" ? "Day" : "Night"}</span></div>

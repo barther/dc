@@ -116,6 +116,10 @@ runs on the recommended trip. Three files, one direction of data flow:
   (`DCPlanner.withCatalog(catalog)`), the bracket takes a catalog, and the Worker keeps a
   context per city (`dc-2026`, `nyc-2026`) with its own ballots, marks, decisions, and trophies.
   The switch in the header sets a `city` cookie that the pages and the Worker both read.
+  New York also has its own skin: `public/nyc.css` loads after `style.css` on both pages and
+  overrides it only under `[data-city="nyc"]` (Midtown Deco: black lobby, brass, deep green,
+  Josefin Sans and Jost). Washington's Americana in `style.css` is untouched. Add
+  `data-ground="dark"` beside `data-city` on `<body>` for the dark page ground.
 - `public/venues.js` is the source of truth: every experience with its seed, tier, day/night,
   LO/MID/HI load, environment, hours, closures, bundle, and coordinates. The hotel at L'Enfant
   Plaza is the base; straight-line miles decide walk or ride. Plus the bundle catalog, the
