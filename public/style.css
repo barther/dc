@@ -975,3 +975,15 @@ body[data-city="nyc"] .hero-nav a[href="/family/scouts"] { display: none; }
 .pace:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .pace-line { font-size: 15px; color: var(--ink-2); text-align: center; max-width: 52ch; }
 .pace-line b { color: var(--ink); font-weight: 600; }
+
+/* ───────────── The seeding round ───────────── */
+.seeding { display: grid; gap: 14px; }
+.seed-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.seed-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.seed-name { display: grid; gap: 1px; }
+.seed-name b { font-family: var(--display); font-weight: 400; font-size: 18px; line-height: 1.2; }
+.seed-name small { font-style: italic; color: var(--muted); font-size: 13px; }
+.seed-pick { display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.seed-pick .ctl { white-space: nowrap; }
+.seed-pick .ctl.on { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+@media (max-width: 640px) { .seed-list li { grid-template-columns: 1fr; } .seed-pick { justify-content: flex-start; } }

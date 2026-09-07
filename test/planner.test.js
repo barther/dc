@@ -30,17 +30,24 @@ test("default dates generate the recommended trip", () => {
 });
 
 test("the ladder emerges from the rules", () => {
+  // From Fri Dec 4, when every seasonal venue is running. Before the tree is lit, a short trip is
+  // honestly a different kind of trip (see the validity-window test), not a rung on this ladder.
   const rungs = { 6: ["Compressed full trip", 13], 5: ["First real cut", 12], 4: ["Highlights version", 11], 3: ["Minimum recommended", 10], 2: ["A different kind of trip", null] };
   for (const [n, [label, kept]] of Object.entries(rungs)) {
-    const p = plan({ nights: +n });
+    const p = plan({ start: "2026-12-04", nights: +n });
     assert.equal(p.label, label, `${n} nights`);
     if (kept) assert.equal(p.headline.kept, kept, `${n} nights kept`);
   }
-  assert.equal(plan({ nights: 5 }).excluded.map((e) => e.unit.id).filter((id) => ["american-history", "natural-history", "arlington"].includes(id)).join(), "american-history");
-  assert.equal(dep(plan({ nights: 5 })), "natural-history");
-  assert.equal(dep(plan({ nights: 4 })), "air-space");
-  assert.ok(included(plan({ nights: 4 }), "arlington"), "4 nights keeps Arlington");
+  const S = { start: "2026-12-04" };
+  assert.equal(plan({ ...S, nights: 5 }).excluded.map((e) => e.unit.id).filter((id) => ["american-history", "natural-history", "arlington"].includes(id)).join(), "american-history");
+  assert.equal(dep(plan({ ...S, nights: 5 })), "natural-history");
+  assert.equal(dep(plan({ ...S, nights: 4 })), "air-space");
+  assert.ok(included(plan({ ...S, nights: 4 }), "arlington"), "4 nights keeps Arlington");
   assert.equal(plan({ nights: 8 }).label, "Extended");
+  // Before the tree is lit, a short trip can't be Christmas Washington, and the label says so honestly.
+  const early = plan({ nights: 3 });
+  assert.equal(early.label, "A different kind of trip");
+  assert.ok(early.excluded.some((e) => e.unit.id === "christmas-washington" && e.kind === "season"));
 });
 
 test("no HI/HI day, ever", () => {
@@ -194,8 +201,8 @@ test("a forced HI/MID pairing is flagged in the preview, not silently accepted",
 });
 
 test("an action that destroys trip identity requires an explicit choice", () => {
-  const before = plan({ nights: 3 });
-  const after = plan({ nights: 3 }, { pinned: ["national-gallery", "spy-museum", "african-american-history"] }, before);
+  const before = plan({ start: "2026-12-04", nights: 3 });
+  const after = plan({ start: "2026-12-04", nights: 3 }, { pinned: ["national-gallery", "spy-museum", "african-american-history"] }, before);
   const d = P.diff(before, after, ["national-gallery", "spy-museum", "african-american-history"]);
   assert.ok(d.identityChanged);
   assert.ok(d.messages[0].startsWith("This changes the kind of trip"));

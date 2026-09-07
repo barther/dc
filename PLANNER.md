@@ -269,6 +269,27 @@ back. Desire aggregates by consensus and capacity by minimum, and the two never 
 it, whatever was there moves, completed days stay put, and the log says who called it. Taking
 it back is one tap. This is how day three gets easier without the vacation failing.
 
+**A catalog is admitted by the planner, not by a reader.** `test/catalog.test.js` is the gate
+every catalog passes before it ships: coordinates near the hotel, hours and closures that
+parse, seeds dense, no reservation left unknown, weather complete, bundles of one period with
+two or more members whose hours fit a slot and accessories in the other slot, thirteen
+headlines, sixteen or more contenders each with copy. Then the behavioral half: the planner
+builds every length from one night to fourteen without a HI/HI day, a week keeps enough of the
+must-see things, every contender can be scheduled at some length, a weather swap is legal or
+absent, and nothing longer than the last morning lands on it. A catalog without its own city
+block, travel-day edges, or train facts fails loudly instead of inheriting Washington's.
+
+**Seasonal venues have windows.** A Christmas tree is a venue for five weeks. `constraints.season`
+is a from-to window, inclusive and allowed to wrap the year, and outside it the venue is closed
+with a reason that says so. The tree at Rockefeller Center isn't running on November 30.
+
+**Trips are evidence.** Every live-mode complete, bail, move, and punt is written as a catalog
+observation beside the decision log: the venue, the day, whether the visit was the full or the
+short form, the catalog's hours for that form, the pace in force, the previous day's load, the
+other slot's load, and the weather. That's what tells "Arlington is harder than we thought" from
+"we had already done something big that morning." The December trip is the first calibration
+run for the ruler every other city will be measured against.
+
 **Geography breaks ties; it never overrides pacing.** Every venue has coordinates and the hotel is
 the base. A day's two stops within about a mile of each other earn a point; stops three miles
 apart cost three, because that's a ride between them. Both are below the load doctrine and the

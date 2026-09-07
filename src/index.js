@@ -82,14 +82,19 @@ async function loadPicks(ctx, db) {
 }
 
 // Where the family stands: each ballot's state, and the order the planner schedules by.
+const bucketsOf = (p) => { const b = {}; for (const [k, v] of Object.entries(p || {})) if (k.startsWith("bucket:")) b[k.slice(7)] = v | 0; return b; };
+// Each traveler's bracket is drawn from their own seeding round; without one, the authored order.
+const drawFor = (ctx, t, p) => bracket.draw(ctx.CIDS, bucketsOf(p), `${ctx.TRIP_ID}:${t}`);
+
 function familyFromPicks(ctx, picks, travelers) {
   const ballots = {}, status = {};
   for (const t of travelers) {
     const p = picks[t] || {};
-    if (p.abstain) { status[t] = { complete: false, abstained: true, picksMade: 0, picksNeeded: ctx.STRUCT.picksNeeded, champion: null }; continue; }
-    const r = bracket.resolve(ctx.STRUCT, ctx.CIDS, p);
-    const ranking = r.complete ? bracket.ranking(ctx.STRUCT, ctx.CIDS, p) : null;
-    status[t] = { complete: r.complete, picksMade: r.picksMade, picksNeeded: r.picksNeeded, champion: ranking ? ranking[0] : null };
+    if (p.abstain) { status[t] = { complete: false, abstained: true, seeded: false, picksMade: 0, picksNeeded: ctx.STRUCT.picksNeeded, champion: null }; continue; }
+    const ids = drawFor(ctx, t, p);
+    const r = bracket.resolve(ctx.STRUCT, ids, p);
+    const ranking = r.complete ? bracket.ranking(ctx.STRUCT, ids, p) : null;
+    status[t] = { complete: r.complete, seeded: Object.keys(bucketsOf(p)).length > 0, picksMade: r.picksMade, picksNeeded: r.picksNeeded, champion: ranking ? ranking[0] : null };
     if (ranking) ballots[t] = ranking;
   }
   const order = bracket.familyOrder(ballots, ctx.CIDS);
@@ -182,6 +187,36 @@ function bracketFacts(ctx, s) {
   const ballots = {}, abstained = [];
   for (const [t, st] of Object.entries(f.status)) { if (st.complete) ballots[t] = { champion: st.champion }; if (st.abstained) abstained.push(t); }
   return { ballots, abstained, familyRank: f.familyRank, seeds: Object.fromEntries(ctx.CONTENDERS.map((c) => [c.id, c.seed])) };
+}
+
+/* ───────────── Catalog observations: what the trip says about the catalog ─────────────
+   Written beside the decision log, never instead of it. Only events that carry evidence about
+   load or duration, and only with the context that makes the evidence readable: the pace in
+   force, what else happened that day and the day before, the weather. Generation supplies the
+   prior; trips supply this. */
+const OBSERVED = { complete: "complete", bail: "bail", not_this_day: "moved", punt: "punt" };
+async function recordObservation(ctx, env, db, traveler, intent, before, now) {
+  const result = OBSERVED[intent.type];
+  if (!result) return;
+  // Before the trip, a punt or a move is an opinion, not an observation. Complete and bail only happen live.
+  if ((result === "moved" || result === "punt") && before.phase !== "live") return;
+  const members = intent.members || (intent.venue ? [intent.venue] : []);
+  const unit = Object.values(before.units).find((u) => u.members.some((m) => members.includes(m)));
+  if (!unit) return;
+  const date = intent.date || before.placements[unit.id] || null;
+  const di = date ? before.days.findIndex((d) => ctx.planner.iso(d.date) === date) : -1;
+  const day = di >= 0 ? before.days[di] : null, prev = di > 0 ? before.days[di - 1] : null;
+  const slot = day && day.day && day.day.id === unit.id ? "day" : "night";
+  const short = !!(day && day[slot] && day[slot].shortened);
+  const other = day ? (slot === "day" ? day.night : day.day) : null;
+  const load = (x) => (x ? before.units[x.id].load : "none");
+  let weather = null;
+  if (before.phase === "live" && date) { try { const f = await forecast(env); weather = f && f[date] ? JSON.stringify(f[date]) : null; } catch (e) { weather = null; } }
+  const hours = (m) => { const v = ctx.planner.catalog.venues.find((x) => x.id === m); return v ? (short ? v.min_hours : v.ideal_hours) : null; };
+  const rows = members.map((m) => db.prepare(
+    "INSERT INTO catalog_observations (trip_id, city, venue_id, unit_id, date, traveler_id, result, visit_form, planned_hours, actual_hours, party_pace, prior_day_load, same_day_other, weather, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)"
+  ).bind(ctx.TRIP_ID, ctx.id, m, unit.id, date, traveler.id, result === "complete" && short ? "shortened" : result, short ? "short" : "full", hours(m), before.pace ? before.pace.level : 3, prev ? load(prev.day) : "none", load(other), weather, intent.reason || null, now));
+  if (rows.length) await db.batch(rows);
 }
 
 function publicState(ctx, s) {
@@ -301,6 +336,7 @@ export default {
       const cur = await loadState(ctx, db);
       let fresh = [];
       try { fresh = await evaluateAchievements(ctx, env, db, cur, after, url.origin); } catch (e) { fresh = []; }
+      try { await recordObservation(ctx, env, db, traveler, intent, before, now); } catch (e) {}
       return json({ trip: publicState(ctx, cur), decisions: await decisions(ctx, db), label: after.label, today: todayISO(env), unlocked: fresh });
     }
 
@@ -326,7 +362,7 @@ export default {
       const traveler = await travelerFor(db, await identify(request, env), env);
       if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       const s = await loadState(ctx, db);
-      return json({ contenders: ctx.CONTENDERS, structure: ctx.STRUCT, me: traveler.id, picks: s.picks[traveler.id] || {}, family: s.family });
+      return json({ contenders: ctx.CONTENDERS, structure: ctx.STRUCT, me: traveler.id, picks: s.picks[traveler.id] || {}, draw: drawFor(ctx, traveler.id, s.picks[traveler.id]), family: s.family });
     }
 
     // One pick: the next undecided game, one of its two contenders. Saved as you go.
@@ -336,10 +372,11 @@ export default {
       let body; try { body = await request.json(); } catch (e) { return json({ error: "Bad JSON." }, 400); }
       const s = await loadState(ctx, db);
       const mine = s.picks[traveler.id] || {};
-      const cur = bracket.resolve(ctx.STRUCT, ctx.CIDS, mine);
+      const myIds = drawFor(ctx, traveler.id, mine);
+      const cur = bracket.resolve(ctx.STRUCT, myIds, mine);
       if (!cur.next) return json({ error: "Your bracket is finished. Rerun it to change it." }, 409);
       if (body.game !== cur.next.id) return json({ error: "That's not the game on the screen.", picks: mine }, 409);
-      if (!bracket.valid(ctx.STRUCT, ctx.CIDS, mine, body.game, body.winner)) return json({ error: "Pick one of the two." }, 400);
+      if (!bracket.valid(ctx.STRUCT, myIds, mine, body.game, body.winner)) return json({ error: "Pick one of the two." }, 400);
       const now = new Date().toISOString();
       await db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(trip_id, traveler_id, game) DO UPDATE SET winner = excluded.winner, at = excluded.at").bind(ctx.TRIP_ID, traveler.id, body.game, body.winner, now).run();
       const next = await loadState(ctx, db);
@@ -354,6 +391,26 @@ export default {
     }
 
     // Rerun: the old ballot is gone, and the log says so.
+    // The seeding round: three coarse buckets that decide who faces whom, and nothing else.
+    // Only before the first pick; after that, rerun clears everything and the round comes back.
+    if (url.pathname === "/api/bracket/seed" && request.method === "POST") {
+      const traveler = await travelerFor(db, await identify(request, env), env);
+      if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      let body; try { body = await request.json(); } catch (e) { return json({ error: "Bad JSON." }, 400); }
+      const s = await loadState(ctx, db);
+      const had = s.family.status[traveler.id];
+      if (had && had.picksMade) return json({ error: "Your bracket is under way. Rerun it to seed again." }, 409);
+      const buckets = body.buckets || {};
+      const rows = ctx.CIDS.map((id) => { const b = buckets[id] | 0; return b >= 1 && b <= 3 ? b : 2; });
+      const now = new Date().toISOString();
+      await db.batch([
+        db.prepare("DELETE FROM bracket_picks WHERE trip_id = ? AND traveler_id = ?").bind(ctx.TRIP_ID, traveler.id),
+        ...ctx.CIDS.map((id, i) => db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, traveler.id, `bucket:${id}`, String(rows[i]), now)),
+      ]);
+      const next = await loadState(ctx, db);
+      return json({ picks: next.picks[traveler.id] || {}, draw: drawFor(ctx, traveler.id, next.picks[traveler.id]), family: next.family, trip: publicState(ctx, next) });
+    }
+
     // Along for the ride: no ballot, on the record. Counts as in, so the family's week stops waiting.
     if (url.pathname === "/api/bracket/abstain" && request.method === "POST") {
       const traveler = await travelerFor(db, await identify(request, env), env);
@@ -381,7 +438,7 @@ export default {
       if (had && had.abstained) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ wasAbstain: true }), `${traveler.name} is filling in a bracket after all.`).run();
       else if (had && had.picksMade) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ wasComplete: had.complete, champion: had.champion }), had.complete ? `${traveler.name} reran their bracket. The old ballot (${ctx.contenderName(had.champion)} on top) is gone until the new one is finished.` : `${traveler.name} started their bracket over.`).run();
       const next = await loadState(ctx, db);
-      return json({ picks: {}, family: next.family, trip: publicState(ctx, next), decisions: await decisions(ctx, db) });
+      return json({ picks: {}, draw: ctx.CIDS, family: next.family, trip: publicState(ctx, next), decisions: await decisions(ctx, db) });
     }
 
     // Family-only pages live under /family/ so the same Access application covers them.

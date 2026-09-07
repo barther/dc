@@ -9,6 +9,7 @@
  *   valid(struct, ids, picks, game, winner) → bool
  *   ranking(struct, ids, picks) → [id] best first, length n, no ties
  *   familyOrder(ballots, ids) → [{ id, mean, protected, ranks }]
+ *   draw(ids, buckets, salt)  → [id] a personal seed order from three coarse buckets
  *
  * See BRACKET.md for the doctrine.
  */
@@ -48,6 +49,18 @@
     out.sort((a, b) => a.seed - b.seed);
     out.forEach((c, i) => { c.seed = i + 1; });
     return out;
+  }
+
+  // The seeding round. Three coarse buckets (1 definitely interested, 2 could be good, 3 probably
+  // not) become a personal seed order: bucket by bucket, with a stable shuffle inside each, keyed
+  // by the salt (the trip and the traveler). The standard draw then spreads the top bucket across
+  // the quarters, so favorites can't meet before the quarterfinals. That is the whole job: the
+  // buckets never score, never protect, and never enter the family's order. No buckets, no change.
+  function draw(ids, buckets, salt) {
+    if (!buckets || !Object.keys(buckets).length) return ids.slice();
+    const hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; };
+    const tier = (id) => { const b = buckets[id] | 0; return b >= 1 && b <= 3 ? b : 2; };
+    return ids.slice().sort((a, b) => (tier(a) - tier(b)) || (hash(`${salt}:${a}`) - hash(`${salt}:${b}`)) || (ids.indexOf(a) - ids.indexOf(b)));
   }
 
   // A 16-bracket, plus one play-in per contender past sixteen. Fewer than sixteen is byes.
@@ -131,7 +144,7 @@
     return rows;
   }
 
-  const api = { contenders, structure, resolve, valid, ranking, familyOrder, ROUND_NAME, DRAW };
+  const api = { contenders, structure, resolve, valid, ranking, familyOrder, draw, ROUND_NAME, DRAW };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
   root.DCBracket = api;
 })(typeof window !== "undefined" ? window : globalThis);
