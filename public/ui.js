@@ -258,7 +258,8 @@
 
     const fam = shared.trip.bracket || { familyRank: [], champions: [], status: {}, order: [] };
     const ids = br ? (br.draw || br.contenders.map((c) => c.id)) : []; // my own draw, from my seeding round
-    const mine = br ? B.ranking(br.structure, ids, br.picks) : null; // null until my ballot is done
+    const stale = !!(br && fam.status && fam.status[me.id] && fam.status[me.id].stale);
+    const mine = br && !stale ? B.ranking(br.structure, ids, br.picks) : null; // null until my ballot is done, or while the field changed under it
     const status = fam.status || {};
     const abstained = (t) => !!(status[t.id] && status[t.id].abstained);
     const iAbstain = !!(me && status[me.id] && status[me.id].abstained);
@@ -415,6 +416,20 @@
     }
     const ids = br.draw || br.contenders.map((c) => c.id);
     const byId = Object.fromEntries(br.contenders.map((c) => [c.id, c]));
+    // The field changed under this ballot. It counts for nothing until it is rerun, and it says so.
+    const st = (br.family.status || {})[me.id];
+    if (st && st.stale) {
+      const gone = st.stale.gone.filter((id) => !byId[id]);
+      const parts = [];
+      if (gone.length) parts.push(`${list(gone.map((id) => `"${id.replace(/-/g, " ")}"`))} ${gone.length === 1 ? "is" : "are"} no longer on the table`);
+      if (st.stale.joined) parts.push(`${st.stale.joined} new ${st.stale.joined === 1 ? "thing has" : "things have"} joined it`);
+      if (!parts.length) parts.push("the matchups no longer line up");
+      $("bracket-head").textContent = "The field changed.";
+      $("bracket-intro").hidden = true;
+      el.innerHTML = `<div class="ballot"><p class="ballots-in">Since your ballot: ${esc(parts.join(", and "))}. A ballot from the old field can't be trusted, so it doesn't count until you run it again.</p>
+        <div class="actions"><button type="button" class="ctl on" data-bracket="restart">Rerun my bracket</button></div></div>`;
+      return;
+    }
     const r = B.resolve(br.structure, ids, br.picks);
     const seeded = Object.keys(br.picks || {}).some((k) => k.startsWith("bucket:"));
     if (!mine && !seeded && !r.picksMade) { renderSeeding(); return; }

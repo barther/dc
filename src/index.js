@@ -95,6 +95,9 @@ function familyFromPicks(ctx, picks, travelers) {
     const p = picks[t] || {};
     if (p.abstain) { status[t] = { complete: false, abstained: true, seeded: false, picksMade: 0, picksNeeded: ctx.STRUCT.picksNeeded, champion: null }; continue; }
     const ids = drawFor(ctx, t, p);
+    // A ballot the field changed under is not a ballot: it neither counts nor continues until rerun.
+    const stale = Object.keys(p).length ? bracket.stale(ctx.STRUCT, ids, p) : null;
+    if (stale) { status[t] = { complete: false, stale, seeded: Object.keys(bucketsOf(p)).length > 0, picksMade: 0, picksNeeded: ctx.STRUCT.picksNeeded, champion: null, promoted: [], challenged: [] }; continue; }
     const r = bracket.resolve(ctx.STRUCT, ids, p);
     const info = r.complete ? bracket.rankingInfo(ctx.STRUCT, ids, p) : null;
     const ranking = info ? info.order : null;
@@ -423,6 +426,7 @@ export default {
       let body; try { body = await request.json(); } catch (e) { return json({ error: "Bad JSON." }, 400); }
       const s = await loadState(ctx, db);
       const mine = s.picks[traveler.id] || {};
+      if (s.family.status[traveler.id] && s.family.status[traveler.id].stale) return json({ error: "The field changed since this ballot started. Rerun it.", picks: mine }, 409);
       const myIds = drawFor(ctx, traveler.id, mine);
       const cur = bracket.resolve(ctx.STRUCT, myIds, mine);
       if (!cur.next) return json({ error: "Your bracket is finished. Rerun it to change it." }, 409);
@@ -559,6 +563,7 @@ export default {
       const had = s.family.status[traveler.id];
       await db.prepare("DELETE FROM bracket_picks WHERE trip_id = ? AND traveler_id = ?").bind(ctx.TRIP_ID, traveler.id).run();
       if (had && had.abstained) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ wasAbstain: true }), `${traveler.name} is filling in a bracket after all.`).run();
+      else if (had && had.stale) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ stale: had.stale }), `${traveler.name} is rerunning their bracket because the field changed.`).run();
       else if (had && had.picksMade) await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, new Date().toISOString(), traveler.id, "bracket_reset", JSON.stringify({ wasComplete: had.complete, champion: had.champion }), had.complete ? `${traveler.name} reran their bracket. The old ballot (${ctx.contenderName(had.champion)} on top) is gone until the new one is finished.` : `${traveler.name} started their bracket over.`).run();
       const next = await loadState(ctx, db);
       return json({ picks: {}, draw: ctx.CIDS, family: next.family, trip: publicState(ctx, next), decisions: await decisions(ctx, db) });

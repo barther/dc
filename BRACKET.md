@@ -105,6 +105,10 @@ would gain voting power.
 - Ties break by seed.
 - Everyone's ballot weighs the same. Sam's included.
 - Rerun replaces the ballot. The old one is gone; the log says who reran.
+- **The field changed.** If a contender is renamed, removed, or added after a ballot is in, the
+  old picks name strangers and the draw no longer lines up. The engine does not quietly ignore
+  the picks that stopped matching. A ballot the field changed under counts for nothing, shows
+  what changed, and asks for a rerun; the log says why.
 - **Along for the ride.** Anyone can decline to vote, on the record. An abstention counts
   as "in": the family's week stops waiting, the average runs on the ballots that exist, and
   Landslide needs every voter, not every traveler. An abstainer still sees the family's week

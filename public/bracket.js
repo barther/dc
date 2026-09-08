@@ -14,6 +14,9 @@
  *   questions(order, cuts, picks, opts) → [{ a, b, cut, reason }]  boundary questions, at most two
  *   ladder(order, id, depth)  → [id] the rungs above id, nearest first
  *   challengesUsed(picks)     → n ladders opened on this ballot
+ *   stale(struct, ids, picks) → null, or { gone: [id], joined: n, games: [gameId] } when the field
+ *                               changed under a ballot: picks name a stranger, or a game whose
+ *                               pairing no longer matches. A stale ballot is not a ballot.
  *
  * Picks carry more than games. Prefixed keys ride in the same object and every reader
  * ignores what it doesn't own (no game id contains a colon):
@@ -231,6 +234,35 @@
     return order.slice(Math.max(0, p - depth), p).reverse();
   }
 
+  // The field changed under a ballot: a contender renamed or removed, or one added so the draw
+  // shifted. resolve() ignores a pick that names a non-participant, which would quietly turn a
+  // finished ballot into an unfinished one with no explanation. Say so instead.
+  function stale(struct, ids, picks) {
+    picks = picks || {};
+    const known = new Set(ids);
+    const gone = new Set(), games = [];
+    const gameIds = new Set(struct.games.map((g) => g.id));
+    const r = resolve(struct, ids, picks);
+    const byGame = Object.fromEntries(r.games.map((g) => [g.id, g]));
+    for (const [k, v] of Object.entries(picks)) {
+      if (k === "abstain") continue;
+      if (k.startsWith("bucket:") || k.startsWith("ladder:")) { if (!known.has(k.split(":")[1])) gone.add(k.split(":")[1]); continue; }
+      if (k.startsWith("chal:")) { for (const id of k.slice(5).split(":")) if (!known.has(id)) gone.add(id); if (!known.has(v)) gone.add(v); continue; }
+      if (k.startsWith("close:")) { if (!gameIds.has(k.slice(6))) games.push(k.slice(6)); continue; }
+      if (k.startsWith("asked:")) continue;
+      // a game pick
+      if (!known.has(v)) { gone.add(v); games.push(k); continue; }
+      const g = byGame[k];
+      if (!g) { games.push(k); continue; }
+      if (g.ready && v !== g.a && v !== g.b) games.push(k);
+    }
+    // Seeded ballots have one bucket row per contender; anyone without one joined since.
+    const buckets = Object.keys(picks).filter((k) => k.startsWith("bucket:")).map((k) => k.slice(7));
+    const joined = buckets.length ? ids.filter((id) => !buckets.includes(id)).length : 0;
+    if (!gone.size && !games.length && !joined) return null;
+    return { gone: [...gone], joined, games };
+  }
+
   // Ladders opened on this ballot. Boundary questions are the system's and cost nothing.
   const challengesUsed = (picks) => Object.keys(picks || {}).filter((k) => k.startsWith("ladder:")).length;
 
@@ -248,7 +280,7 @@
     return rows;
   }
 
-  const api = { contenders, structure, resolve, valid, ranking, rankingInfo, familyOrder, draw, questions, ladder, challengesUsed, pairKey, ROUND_NAME, DRAW, BLOCKS };
+  const api = { contenders, structure, resolve, valid, ranking, rankingInfo, familyOrder, draw, questions, ladder, challengesUsed, stale, pairKey, ROUND_NAME, DRAW, BLOCKS };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
   root.DCBracket = api;
 })(typeof window !== "undefined" ? window : globalThis);

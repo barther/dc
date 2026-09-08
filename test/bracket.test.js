@@ -318,3 +318,24 @@ test("the budget counts ladders opened, not boundary answers", () => {
   assert.equal(B.challengesUsed(picks), 2, "two ladders, whatever the boundary questions did");
   assert.equal(B.challengesUsed({ ...chalkPicks, [B.pairKey(base[3], base[4])]: base[4] }), 0);
 });
+
+test("a ballot the field changed under says so instead of quietly coming apart", () => {
+  const picks = { ...chalkPicks, "bucket:capitol-hill": "1", ...Object.fromEntries(ids.map((id) => [`bucket:${id}`, "2"])), "close:r16-1": "1", [B.pairKey(base[5], base[6])]: base[6], "ladder:zoolights": "1" };
+  assert.equal(B.stale(s17, ids, picks), null, "the same field is not stale");
+  assert.equal(B.stale(s17, ids, {}), null, "an empty ballot has nothing to be stale about");
+  // A contender removed: its rows name a stranger and the games it sat in no longer line up.
+  const without = ids.filter((id) => id !== "zoolights");
+  const st = B.stale(B.structure(without.length), without, picks);
+  assert.ok(st && st.gone.includes("zoolights"));
+  assert.ok(st.games.length > 0, "the games it played are named");
+  // A contender added: the seeding round has no row for it and the draw shifted.
+  const plus = ids.concat(["new-thing"]);
+  const st2 = B.stale(B.structure(plus.length), plus, picks);
+  assert.ok(st2 && st2.joined === 1);
+  // A rename is a removal and an addition at once.
+  const renamed = ids.map((id) => (id === "georgetown" ? "georgetown-canal" : id));
+  const st3 = B.stale(s17, renamed, picks);
+  assert.ok(st3.gone.includes("georgetown") && st3.joined === 1);
+  // Without a seeding round, a changed draw still shows up in the games.
+  assert.ok(B.stale(B.structure(without.length), without, chalkPicks).games.length > 0);
+});
