@@ -488,7 +488,7 @@ export default {
       const same = (q) => (q.a === a && q.b === b) || (q.a === b && q.b === a);
       const lad = ladderFor(ctx, s, traveler.id);
       const onLadder = lad.open && same(lad.open.next);
-      const offered = questionsFor(ctx, s, traveler.id).some(same);
+      const offered = questionsFor(ctx, s, traveler.id).find(same);
       if (!onLadder && !offered) return json({ error: "That pair isn't on the table." }, 409);
       const before = drivingOrder(s, traveler.id);
       const loser = winner === a ? b : a;
@@ -497,6 +497,9 @@ export default {
         const climbed = lad.open.climbed + 1;
         const state = winner !== lad.open.id || climbed >= LADDER_DEPTH ? "closed" : String(climbed); // stop on loss, or at the top rung
         stmts.push(db.prepare("UPDATE bracket_picks SET winner = ?, at = ? WHERE trip_id = ? AND traveler_id = ? AND game = ?").bind(state, now, ctx.TRIP_ID, traveler.id, `ladder:${lad.open.id}`));
+      } else {
+        // A boundary question answered: that cut has had its one question on this ballot.
+        stmts.push(db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(trip_id, traveler_id, game) DO UPDATE SET winner = excluded.winner, at = excluded.at").bind(ctx.TRIP_ID, traveler.id, `asked:${offered.cut}`, bracket.pairKey(a, b), now));
       }
       await db.batch(stmts);
       const next = await loadState(ctx, db);
