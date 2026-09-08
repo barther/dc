@@ -75,8 +75,7 @@
 
   <nav class="hero-nav" aria-label="Sections" data-family hidden>
     <a href="#bracket">The bracket</a>
-    <a href="#mine" id="nav-mine" hidden>Your week</a>
-    <a href="#week" id="nav-week" hidden>The family's week</a>
+    <a href="#week" id="nav-week" hidden>The week</a>
     <a href="#trophies">Trophies</a>
     <a href="/family/scouts">Sam's map</a>
     <a href="/">The pitch</a>
@@ -95,26 +94,20 @@
     <div id="bracket-body"><!-- rendered by ui.js --></div>
   </section>
 
-  <!-- ───────────── YOUR WEEK ───────────── -->
-  <section id="mine" class="section" data-family hidden>
-    <div class="section-head">
-      <p class="kicker" data-kicker>Your week</p>
-      <h2>What your ballot builds.</h2>
-      <p class="intro" id="mine-intro">Your ranking, packed into the nights we have. One <i class="load hi">Big</i> thing a day, and a Big day gets an <i class="load lo">Easy</i> night. Whatever didn't fit, didn't fit.</p>
-    </div>
-    <div id="map-mine"></div>
-    <ol class="line" id="line-mine"><!-- rendered by ui.js --></ol>
-  </section>
-
-  <!-- ───────────── THE FAMILY'S WEEK ───────────── -->
+  <!-- ───────────── THE WEEK ───────────── -->
   <section id="week" class="section" data-family hidden>
     <div class="section-head">
-      <p class="kicker" data-kicker>The family's week</p>
+      <p class="kicker" data-kicker>The week</p>
       <h2 id="week-head">Everyone's ballots, one week.</h2>
       <p class="intro" id="week-intro"></p>
+      <div class="week-view unit-controls" id="week-view" role="group" aria-label="Whose week" hidden>
+        <button type="button" class="ctl on" data-week-view="family" aria-pressed="true">Everyone's</button>
+        <button type="button" class="ctl" data-week-view="mine" aria-pressed="false">Just my ballot</button>
+      </div>
     </div>
-    <div id="map"></div>
     <ol class="line" id="line"><!-- rendered by ui.js --></ol>
+    <span class="hint line-hint">Tap a day for the whole card: the place, the route, and what's left to say about it.</span>
+    <div id="map"></div>
     <div class="family-order" id="family-order" hidden></div>
   </section>
 
