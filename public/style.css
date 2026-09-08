@@ -241,12 +241,47 @@ main { display: grid; gap: 64px; padding-top: 64px; }
   border-top: 3px double var(--ink);
 }
 .stop {
+  display: block;
+  padding: 0;
+  border-bottom: 1px solid var(--rule);
+}
+/* The day row: the whole week reads on one screen. The card underneath is a tap away. */
+.day-row {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr) auto 14px; gap: 0 20px; align-items: center;
+  width: 100%; padding: 12px 0; font: inherit; color: var(--ink); background: none; border: 0; text-align: left; cursor: pointer;
+}
+.day-row:hover .row-title { color: var(--red); }
+.day-row:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+.row-date { display: grid; gap: 2px; align-content: start; grid-column: 1; }
+.row-title { grid-column: 2; }
+.row-loads { grid-column: 3; }
+.row-caret { grid-column: 4; }
+.row-date b { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; }
+.featured .row-date b { color: var(--red); }
+.row-date span { font-family: var(--display); font-size: 18px; line-height: 1; }
+.row-title { font-family: var(--display); font-size: 19px; line-height: 1.2; text-wrap: pretty; }
+.featured .row-title { font-style: italic; }
+.row-champ { color: var(--red); font-style: normal; font-size: 14px; margin-right: 6px; vertical-align: 2px; }
+.row-note { display: block; font-family: var(--text); font-style: italic; font-size: 14px; line-height: 1.35; color: var(--muted); margin-top: 3px; }
+.row-loads { display: inline-flex; gap: 4px; }
+.row-caret { width: 8px; height: 8px; border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); transform: rotate(45deg); transition: transform 0.15s; margin: -4px 4px 0 0; }
+.stop.open .row-caret { transform: rotate(-135deg); margin-top: 4px; }
+.stop.past .row-title::after { content: " · earlier"; font-family: var(--text); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.stop.today .row-title::before { content: "Today · "; font-family: var(--text); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+.day-detail {
   display: grid;
   grid-template-columns: 96px 1fr;
   gap: 0 20px;
-  padding: 24px 0;
-  border-bottom: 1px solid var(--rule);
+  padding: 6px 0 24px;
 }
+/* The row already says the date; the open card keeps only the champion's mark in that column. */
+.day-detail .stop-date b, .day-detail .stop-date > span { display: none; }
+.day-detail .champ-mark { margin-top: 0; }
+.line-hint { margin-top: -18px; font-style: italic; }
+.week-view { margin-top: 8px; }
+.fold summary { cursor: pointer; list-style: none; display: inline-block; margin-top: 6px; padding-bottom: 2px; border-bottom: 1px solid var(--gold); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; color: var(--red); }
+.fold summary::-webkit-details-marker { display: none; }
+.fold[open] summary { margin-bottom: 8px; }
 .stop.last { border-bottom: 3px double var(--ink); }
 .stop.featured {
   border-left: 3px solid var(--red);
@@ -439,7 +474,13 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 @media (max-width: 560px) {
   .hero { padding: 80px 36px 32px; }
   .hero::after { inset: 40px 16px 0; }
-  .stop { grid-template-columns: 72px 1fr; gap: 0 14px; }
+  .day-detail { grid-template-columns: 72px 1fr; gap: 0 14px; }
+  .day-row { grid-template-columns: 60px minmax(0, 1fr) 14px; gap: 0 12px; }
+  .row-date { grid-row: 1 / span 2; }
+  .row-title { grid-row: 1; }
+  .row-caret { grid-column: 3; grid-row: 1 / span 2; }
+  .row-loads { grid-column: 2; grid-row: 2; justify-self: start; margin-top: 6px; }
+  .row-title { font-size: 17px; }
   .stop.featured { margin-left: -14px; padding-left: 11px; }
   .stop-body:has(.stop-photo) .stop-photo { order: -1; }
 }
@@ -885,7 +926,7 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .ballot-list li b { font-weight: 400; color: var(--red); font-variant-numeric: tabular-nums; }
 .ballot-list li i { font-style: normal; font-family: var(--text); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 .ballot-list li:first-child { font-size: 22px; }
-.ballot-list li:first-child span::after { content: " ✦"; color: var(--gold); }
+.ballot-list li:first-child .star { color: var(--gold); font-size: 0.8em; margin-right: 4px; }
 .family-order { display: grid; gap: 10px; border-top: 3px double var(--ink); padding-top: 18px; margin-top: 18px; }
 .ballots-in { color: var(--ink-2); max-width: none; }
 .table-wrap { overflow-x: auto; }

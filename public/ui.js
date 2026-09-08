@@ -80,6 +80,8 @@
   let br = null;        // /api/bracket: contenders, structure, my picks, the family's standing
   let brConfirm = false;
   let familyPlan = null; // the family's plan, for live actions
+  let weekView = "family"; // "family" or "mine": which week the strip shows
+  let orderOpen = false; // the family's order, past the must-see line
   const signedIn = () => !!me;
   const isAdmin = () => !!(me && me.is_admin);
   const inside = () => !!(shared && signedIn());
@@ -129,10 +131,24 @@
     return `<div class="route"><span class="route-head">Getting there · ${esc(sum)}</span><span class="legs"><span class="leg"><span class="leg-to">Hotel</span></span><span class="leg-arrow">→</span>${legs}</span></div>`;
   }
 
-  function card(p, d, title, body, photo, halvesHtml, featured, late, controls) {
-    const cls = ["stop", featured ? "featured" : "", d.kind === "home" ? "last" : "", late ? "late" : "", d.past ? "past" : "", d.isToday ? "today" : ""].filter(Boolean).join(" ");
-    return `<li class="${cls}"><div class="stop-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span>${featured ? `<em class="champ-mark">✦ ${esc(featured)}</em>` : ""}</div>
-      <div class="stop-body"><h3>${esc(title)}</h3>${figure(photo, "stop-photo", p)}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${d.kind === "full" || d.kind === "departure" ? routeLine(d) : ""}${controls}</div></li>`;
+  // A day on the week: one line by default (date, what, how heavy), the whole card a tap away.
+  // Open days persist across re-renders; today opens itself during the trip.
+  const openDays = new Set();
+  function card(p, d, title, body, photo, hv, featured, late, controls, note) {
+    const key = iso(d.date);
+    if (d.isToday && !openDays.has("seen:" + key)) { openDays.add("seen:" + key); openDays.add(key); }
+    const open = openDays.has(key);
+    const cls = ["stop", featured ? "featured" : "", d.kind === "home" ? "last" : "", late ? "late" : "", d.past ? "past" : "", d.isToday ? "today" : "", open ? "open" : ""].filter(Boolean).join(" ");
+    const badges = hv ? `<span class="row-loads">${loadBadge(hv.day.load)}${hv.night ? loadBadge(hv.night.load) : ""}</span>` : "";
+    const halvesHtml = hv ? halves(hv.day, hv.night || C.structural.rest) : "";
+    return `<li class="${cls}" data-day="${key}">
+      <button type="button" class="day-row" data-toggle-day="${key}" aria-expanded="${open}">
+        <span class="row-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span></span>
+        <span class="row-title">${featured ? `<i class="row-champ" title="${esc(featured)}">✦</i>` : ""}${esc(title)}${note ? `<small class="row-note">${esc(note)}</small>` : ""}</span>
+        ${badges}<span class="row-caret" aria-hidden="true"></span>
+      </button>
+      <div class="day-detail" ${open ? "" : "hidden"}><div class="stop-date"><b>${DOW[d.date.getDay()]}</b><span>${fmtMD(d.date)}</span>${featured ? `<em class="champ-mark">✦ ${esc(featured)}</em>` : ""}</div>
+      <div class="stop-body"><h3>${esc(title)}</h3>${figure(photo, "stop-photo", p)}${body.map((t) => `<p>${esc(t)}</p>`).join("")}${halvesHtml}${d.kind === "full" || d.kind === "departure" ? routeLine(d) : ""}${controls}</div></div></li>`;
   }
 
   // A pause: anyone can call one on a future day; whoever called it, or anyone, can take it back.
@@ -144,8 +160,8 @@
     return `<div class="actions"><button type="button" class="ctl" data-act="rest_day" data-date="${date}">Call a pause</button></div>`;
   }
 
-  function renderFull(p, d, liveMode, isFamily) {
-    if (d.rest) return card(p, d, "Rest day.", ["Nothing scheduled. Whatever was here moved to another day, and the week re-planned around the pause."], null, halves(C.structural.open, C.structural.rest), false, false, restControls(d, isFamily));
+  function renderFull(p, d, liveMode, isFamily, note) {
+    if (d.rest) return card(p, d, "Rest day.", ["Nothing scheduled. Whatever was here moved to another day, and the week re-planned around the pause."], null, { day: C.structural.open, night: C.structural.rest }, false, false, restControls(d, isFamily), note);
     const du = d.day ? p.units[d.day.id] : null, nu = d.night ? p.units[d.night.id] : null;
     const dc = du ? unitCopy(du) : null, nc = nu ? unitCopy(nu) : null;
     let title, body = [];
@@ -159,16 +175,16 @@
     const featured = champion(p, du) || champion(p, nu);
     const photo = (dc && dc.photo) || (nc && nc.photo) || null;
     const controls = (du ? doneRow(du, d, liveMode) : "") + (nu ? doneRow(nu, d, liveMode) : "") + restControls(d, isFamily);
-    return card(p, d, title, body, photo, halves(du ? { label: du.short, load: du.load } : C.structural.open, nu ? { label: nu.short, load: nu.load } : C.structural.rest), featured, false, controls);
+    return card(p, d, title, body, photo, { day: du ? { label: du.short, load: du.load } : C.structural.open, night: nu ? { label: nu.short, load: nu.load } : C.structural.rest }, featured, false, controls, note);
   }
 
-  function renderDeparture(p, d, liveMode) {
+  function renderDeparture(p, d, liveMode, note) {
     const du = d.day ? p.units[d.day.id] : null;
-    if (!du) { const n = NARRATIVE.departureEmpty; return card(p, d, n.title, n.body, null, halves(n.day, C.structural.departure.night), false, false, ""); }
+    if (!du) { const n = NARRATIVE.departureEmpty; return card(p, d, n.title, n.body, null, { day: n.day, night: C.structural.departure.night }, false, false, "", note); }
     const c = unitCopy(du);
     const title = d.day.shortened ? `${cap(c.title)}, shortened, then home.` : `${cap(c.title)}, then home.`;
     const body = c.short ? c.short.slice() : [...c.body, NARRATIVE.departureTail];
-    return card(p, d, title, body, c.photo || null, halves({ label: d.day.shortened ? `${du.short}, a couple of hours` : du.short, load: d.day.shortened ? "mid" : du.load }, C.structural.departure.night), champion(p, du), false, doneRow(du, d, liveMode));
+    return card(p, d, title, body, c.photo || null, { day: { label: d.day.shortened ? `${du.short}, a couple of hours` : du.short, load: d.day.shortened ? "mid" : du.load }, night: C.structural.departure.night }, champion(p, du), false, doneRow(du, d, liveMode), note);
   }
 
   // One map of the week: the hotel, every stop, each day's loop. Leaflet on OpenStreetMap tiles,
@@ -201,19 +217,37 @@
     maps[id] = map;
   }
 
-  function renderWeek(p, liveMode, isFamily) {
+  // Where two weeks disagree: the same date, a different day or night. One line, on that day only.
+  const slotId = (x) => (x ? x.id : "");
+  function differs(d, other) {
+    if (!other || (d.kind !== "full" && d.kind !== "departure")) return null;
+    const o = other.days.find((x) => iso(x.date) === iso(d.date));
+    if (!o || o.kind !== d.kind) return null;
+    if (!!o.rest === !!d.rest && slotId(o.day) === slotId(d.day) && slotId(o.night) === slotId(d.night)) return null;
+    return o;
+  }
+  function altLine(o, other, lead) {
+    if (o.rest) return `${lead}: a rest day`;
+    const du = o.day ? other.units[o.day.id] : null, nu = o.night ? other.units[o.night.id] : null;
+    if (!du && !nu) return `${lead}: an open day`;
+    return `${lead}: ${[du && du.short, nu && nu.short].filter(Boolean).join(", then ")}`;
+  }
+  function renderWeek(p, liveMode, isFamily, other, lead) {
     const out = [];
     const t = NARRATIVE.train(p.work.early);
-    out.push(card(p, { date: p.trainOut, kind: "train" }, t.title, t.body, t.photo, halves(t.day, t.night), false, p.work.early > 0, ""));
+    out.push(card(p, { date: p.trainOut, kind: "train" }, t.title, t.body, t.photo, { day: t.day, night: t.night }, false, p.work.early > 0, ""));
     for (const d of p.days) {
-      if (d.kind === "arrival") { const a = NARRATIVE.arrival; out.push(card(p, d, a.title, a.body, a.photo, halves(C.structural.arrival.day, C.structural.arrival.night), false, false, "")); }
-      else if (d.kind === "full") out.push(renderFull(p, d, liveMode, isFamily));
-      else out.push(renderDeparture(p, d, liveMode));
+      const o = differs(d, other);
+      const note = o ? altLine(o, other, lead) : null;
+      if (d.kind === "arrival") { const a = NARRATIVE.arrival; out.push(card(p, d, a.title, a.body, a.photo, { day: C.structural.arrival.day, night: C.structural.arrival.night }, false, false, "")); }
+      else if (d.kind === "full") out.push(renderFull(p, d, liveMode, isFamily, note));
+      else out.push(renderDeparture(p, d, liveMode, note));
     }
     const h = NARRATIVE.home(p);
-    out.push(card(p, { date: p.home, kind: "home" }, h.title, h.body, h.photo, "", false, h.late, ""));
+    out.push(card(p, { date: p.home, kind: "home" }, h.title, h.body, h.photo, null, false, h.late, ""));
     return out.join("");
   }
+  const countDiffs = (p, other) => p.days.filter((d) => differs(d, other)).length;
 
   /* ───────────── The page ───────────── */
 
@@ -257,27 +291,35 @@
     renderPace(p);
     renderBracket(mine, iAbstain);
 
-    // Your week: only once your ballot is done, and only from your ballot.
-    $("mine").hidden = !mine; $("nav-mine").hidden = !mine;
-    if (mine) {
-      const my = planFrom(mine, [mine[0]], null, { [mine[0]]: ["you"] });
-      $("mine-intro").innerHTML = `Your ranking, packed into ${my.nights} ${my.nights === 1 ? "night" : "nights"}. One <i class="load hi">Big</i> thing a day, and a Big day gets an <i class="load lo">Easy</i> night.${my.headline.kept < my.headline.total ? ` ${my.headline.total - my.headline.kept} of your top thirteen didn't fit.` : ""}`;
-      $("line-mine").innerHTML = renderWeek(my, false);
-      weekMap("map-mine", my);
-    }
-
-    // The family's week: behind your own ballot, built from everyone's.
-    const showFamily = (!!mine || iAbstain) && done.length > 0;
-    $("week").hidden = !showFamily; $("nav-week").hidden = !showFamily;
-    if (showFamily) {
+    // One week. The family's plan is the trip; your own ballot's week is a flip of the switch,
+    // and the days where the two disagree say so. Nothing here until your ballot is in or you've abstained.
+    const showWeek = (!!mine || iAbstain) && done.length > 0;
+    $("week").hidden = !showWeek; $("nav-week").hidden = !showWeek;
+    if (showWeek) {
+      const my = mine ? planFrom(mine, [mine[0]], null, { [mine[0]]: ["you"] }) : null;
+      const solo = mine && done.length === 1 && done[0].id === me.id; // only my ballot is in: the two weeks are one
+      if (!my || solo) weekView = "family";
       const allIn = waiting.length === 0;
-      $("week-head").textContent = allIn ? "Everyone's ballots, one week." : `${done.length} of ${travelers.length} ballots, one week so far.`;
       const ride = riders.length ? ` ${list(riders.map((t) => t.name))} ${riders.length === 1 ? "is" : "are"} along for the ride.` : "";
-      $("week-intro").textContent = allIn
-        ? `Every ballot is in. Each thing's place is the average of everyone's rank, champions locked to the top, and the same rules pack it into the nights. This is the trip.${ride}`
-        : `Built from ${list(done.map((t) => t.name))}. Waiting on ${list(waiting.map((t) => t.name))}; the week moves when ${waiting.length === 1 ? "that ballot" : "those ballots"} land${waiting.length === 1 ? "s" : ""}.${ride}`;
-      $("line").innerHTML = renderWeek(p, p.phase === "live" || p.phase === "after", true);
-      weekMap("map", p);
+      const nd = my && !solo ? countDiffs(p, my) : 0;
+      const diffLine = !my || solo ? "" : nd === 0 ? " Your ballot alone builds the same week." : ` Your ballot alone would change ${nd === 1 ? "one day" : `${nd} days`}; ${nd === 1 ? "it's" : "they're"} marked.`;
+      $("week-view").hidden = !my || solo;
+      $("week-view").querySelectorAll("[data-week-view]").forEach((b) => { b.classList.toggle("on", b.dataset.weekView === weekView); b.setAttribute("aria-pressed", String(b.dataset.weekView === weekView)); });
+      if (weekView === "mine") {
+        $("week-head").textContent = "What your ballot builds.";
+        $("week-intro").innerHTML = `Your ranking alone, packed into ${my.nights} ${my.nights === 1 ? "night" : "nights"}. One <i class="load hi">Big</i> thing a day, and a Big day gets an <i class="load lo">Easy</i> night.${my.headline.kept < my.headline.total ? ` ${my.headline.total - my.headline.kept} of your top thirteen didn't fit.` : ""} The family's week is the trip; this is your side of it.`;
+        $("line").innerHTML = renderWeek(my, false, false, p, "The family");
+        weekMap("map", my);
+      } else {
+        $("week-head").textContent = solo ? "What your ballot builds." : allIn ? "Everyone's ballots, one week." : `${done.length} of ${travelers.length} ballots, one week so far.`;
+        $("week-intro").textContent = solo
+          ? `Yours is the first ballot in. Until the others land, the family's week is your week: one Big thing a day, and a Big day gets an Easy night.${ride}`
+          : allIn
+          ? `Every ballot is in. Each thing's place is the average of everyone's rank, champions locked to the top, and the same rules pack it into the nights. This is the trip.${ride}${diffLine}`
+          : `Built from ${list(done.map((t) => t.name))}. Waiting on ${list(waiting.map((t) => t.name))}; the week moves when ${waiting.length === 1 ? "that ballot" : "those ballots"} land${waiting.length === 1 ? "s" : ""}.${ride}${diffLine}`;
+        $("line").innerHTML = renderWeek(p, p.phase === "live" || p.phase === "after", true, solo ? null : my, "Your ballot");
+        weekMap("map", p);
+      }
       renderOrder(fam);
     }
 
@@ -365,6 +407,7 @@
       const g = r.next;
       $("bracket-head").textContent = "Fill in your bracket.";
       $("bracket-intro").hidden = false;
+      $("bracket-intro").textContent = `${br.contenders.length} things, one bracket, one matchup at a time. Finish it and the week appears, built from your ranking by the house rules.`;
       const sofar = r.picksMade ? `<p class="matchup-sofar">${r.picksMade} of ${r.picksNeeded} picked. <button type="button" class="link" data-bracket="restart">Start over</button></p>` : "";
       el.innerHTML = `<div class="matchup">
         <p class="matchup-round"><span class="round">${esc(B.ROUND_NAME[g.round])}</span><span class="sep">·</span><span>pick ${r.picksMade + 1} of ${r.picksNeeded}</span></p>
@@ -382,7 +425,10 @@
       ? `<div class="actions"><span class="ctl-state">Sure? Your week disappears until the new ballot is finished.</span><button type="button" class="ctl on" data-bracket="reset">Yes, rerun it</button><button type="button" class="ctl" data-bracket="keep">Keep it</button></div>`
       : `<div class="actions"><button type="button" class="ctl" data-bracket="rerun">Rerun my bracket</button></div>`;
     el.innerHTML = `<div class="ballot">
-      <ol class="ballot-list">${mine.map((id, i) => `<li><b>${i + 1}</b><span>${esc(byId[id].name)}${byId[id].bundle ? `<small>${esc(byId[id].short)}</small>` : ""}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
+      <ol class="ballot-list">${mine.slice(0, 4).map((id, i) => `<li><b>${i + 1}</b><span>${i === 0 ? `<span class="star" aria-label="your champion">${cityId === "nyc" ? "◆" : "✦"}</span>` : ""}${esc(byId[id].name)}${byId[id].bundle ? `<small>${esc(byId[id].short)}</small>` : ""}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
+      <details class="fold"><summary>All ${mine.length}, in your order</summary>
+        <ol class="ballot-list" start="5">${mine.slice(4).map((id, i) => `<li><b>${i + 5}</b><span>${esc(byId[id].name)}${byId[id].bundle ? `<small>${esc(byId[id].short)}</small>` : ""}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
+      </details>
       ${rerun}
     </div>`;
   }
@@ -409,11 +455,13 @@
     el.hidden = false;
     const byId = Object.fromEntries(br.contenders.map((c) => [c.id, c]));
     const head = travelers.map((t) => `<th title="${esc(t.name)}">${esc(t.name[0])}</th>`).join("");
-    const rows = fam.order.map((row, i) => `<tr class="${row.protected ? "champ" : ""}${i === 12 ? " must-see-line" : ""}">
+    const more = Math.max(0, fam.order.length - 13);
+    const rows = fam.order.map((row, i) => `<tr class="${row.protected ? "champ" : ""}${i === 12 ? " must-see-line" : ""}${i >= 13 && !orderOpen ? " folded" : ""}"${i >= 13 && !orderOpen ? " hidden" : ""}>
       <td class="n">${i + 1}</td><td class="name">${row.protected ? '<span class="star" aria-label="champion">✦</span> ' : ""}${esc(byId[row.id] ? byId[row.id].name : row.id)}${byId[row.id] && byId[row.id].bundle ? `<small>${esc(byId[row.id].short)}</small>` : ""}</td>
       ${travelers.map((t) => `<td class="r">${row.ranks[t.id] || "–"}</td>`).join("")}<td class="avg">${row.mean.toFixed(1)}</td></tr>`).join("");
     el.innerHTML = `<p class="kicker-sm">The family's order</p>
       <div class="table-wrap"><table class="fam-table"><thead><tr><th>#</th><th>Thing</th>${head}<th>Avg</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${more ? `<div class="actions"><button type="button" class="ctl" data-order-fold>${orderOpen ? "Just the must-see thirteen" : `The other ${more}`}</button></div>` : ""}
       ${hint("✦ somebody's champion, locked to the top. Lower average is better. The top thirteen are the must-see things.")}`;
   }
 
@@ -609,6 +657,17 @@
   // Live actions on the family's week, and the weather swap.
   const venueName = (id) => (C.venues.find((v) => v.id === id) || {}).name || id;
   document.addEventListener("click", (e) => {
+    const day = e.target.closest("[data-toggle-day]");
+    if (day) {
+      const key = day.dataset.toggleDay, li = day.closest("li");
+      const open = !openDays.has(key);
+      if (open) openDays.add(key); else openDays.delete(key);
+      li.classList.toggle("open", open); day.setAttribute("aria-expanded", String(open)); li.querySelector(".day-detail").hidden = !open;
+      return;
+    }
+    const wv = e.target.closest("[data-week-view]");
+    if (wv) { if (wv.dataset.weekView !== weekView) { weekView = wv.dataset.weekView; render(); } return; }
+    if (e.target.closest("[data-order-fold]")) { orderOpen = !orderOpen; render(); return; }
     const sw = e.target.closest("button[data-swap]");
     if (sw && live && live.suggestion) {
       send({ type: "swap", moves: live.suggestion.moves.map((m) => ({ venue: m.venue, date: m.date, name: m.name })), reason: live.weather && live.weather[today] ? live.weather[today].summary : "weather" });

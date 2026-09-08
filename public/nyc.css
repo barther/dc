@@ -97,7 +97,7 @@
 [data-city="nyc"] .star, [data-city="nyc"] .stars, [data-city="nyc"] .ornament i { font-size: 0; color: var(--brass); }
 [data-city="nyc"] .star::before, [data-city="nyc"] .ornament i::before { content: "◆"; font-size: 10px; vertical-align: 1px; }
 [data-city="nyc"] .stars::before { content: "◆ ◆ ◆"; font-size: 10px; letter-spacing: 0.4em; }
-[data-city="nyc"] .ballot-list li:first-child span::after { content: " ◆"; font-size: 0.7em; color: var(--brass); }
+[data-city="nyc"] .ballot-list li:first-child .star { color: var(--brass); font-size: 0.7em; }
 [data-city="nyc"] .stop.different .options li::before { content: "◆ "; color: var(--brass); font-size: 0.7em; }
 [data-city="nyc"] .verdict .sep, [data-city="nyc"] .matchup-round .sep, [data-city="nyc"] .leg-arrow, [data-city="nyc"] .log-entry::after { color: var(--brass); }
 
@@ -121,6 +121,16 @@
 }
 [data-city="nyc"] .board { border-bottom: 4px solid var(--ink); }
 [data-city="nyc"] .stop.last { border-bottom: 4px solid var(--ink); }
+[data-city="nyc"] .row-date b { font-family: var(--display); font-weight: 600; letter-spacing: 0.24em; font-size: 11px; }
+[data-city="nyc"] .row-date span { font-family: var(--display); font-weight: 600; letter-spacing: 0.04em; font-size: 16px; }
+[data-city="nyc"] .row-title { font-family: var(--display); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 15px; }
+[data-city="nyc"] .featured .row-title { font-style: normal; color: var(--brass); }
+[data-city="nyc"] .day-row:hover .row-title { color: var(--brass); }
+[data-city="nyc"] .row-champ { color: var(--brass); }
+[data-city="nyc"] .row-note { font-family: var(--text); text-transform: none; letter-spacing: 0; font-weight: 400; }
+[data-city="nyc"] .row-caret { border-color: var(--brass); }
+[data-city="nyc"] .stop.today .row-title::before { color: var(--green); }
+[data-city="nyc"] .fold summary { font-family: var(--display); letter-spacing: 0.24em; color: var(--brass); border-bottom-color: var(--brass); }
 [data-city="nyc"] .fam-table tr.must-see-line td { border-bottom: 3px solid var(--brass); }
 [data-city="nyc"] .board-head { border-bottom-color: var(--brass); }
 [data-city="nyc"] .reel-item { border-top: 1px solid var(--brass); }

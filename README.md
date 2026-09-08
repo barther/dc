@@ -12,8 +12,9 @@ records what the family decided; identity says who did it.
 - `public/` is the site. Two pages: `index.html` with `pitch.js` is the public pitch at `/`
   (the reel of every contender, the train, the house rules, no schedule); `family/trip.html`
   with `ui.js` is the family's page at `/family`, served by the Worker behind Cloudflare
-  Access: your bracket, then your week built from your ballot, then the family's week built
-  from everyone's, then the trophy case. Nothing else is on display.
+  Access: your bracket, then the week built from every finished ballot (one line per day; the
+  whole card a tap away; a switch flips it to what your ballot alone would build), then the
+  trophy case. Nothing else is on display.
 - `src/index.js` is the Worker. It serves the site, reads the shared trip from D1, and accepts
   **intents** from signed-in travelers (`POST /api/intent`). The planner is authoritative about
   whether a state is valid; D1 is authoritative about which valid state the family accepted.
@@ -128,10 +129,13 @@ runs on the recommended trip. Three files, one direction of data flow:
   state (punts, pins) and returns a plan: each day's day and night assignment, what was cut or
   shortened, the tradeoffs worth explaining, and a label derived from what survived.
 - `public/ui.js` renders `/family`: the bracket screens (one matchup at a time, then your
-  ballot), your week from your ranking, the family's week from everyone's, the leave-home and
-  back-home dates for Bart (both travel days are the train's, so hotel nights = home − leave − 2),
-  and, during the trip, Mark done and the weather swap. Each day card carries its route from the
-  hotel with miles and walk or ride per leg, and each week has a map (Leaflet, vendored under
+  ballot: your final four, the rest folded), one week as a strip of day rows (date, what, how
+  heavy; the full card opens on a tap, and the days where your own ballot would have built
+  something else say so on the row), a switch between the family's week and your ballot's,
+  the leave-home and back-home dates for Bart (both travel days are the train's, so hotel
+  nights = home − leave − 2), and, during the trip, Mark done and the weather swap. Each open
+  card carries its route from the hotel with miles and walk or ride per leg, and the week has
+  a map (Leaflet, vendored under
   `public/vendor/leaflet`, on OpenStreetMap tiles). The planner's other intents (punt, pin,
   ask, prefer, not this day) are still accepted by the Worker; the page just doesn't offer them.
 
