@@ -26,6 +26,7 @@ function cityContext(engine, tripId) {
   const CIDS = CONTENDERS.map((c) => c.id);
   return {
     id: engine.catalog.city.id, TRIP_ID: tripId, planner: engine, CONTENDERS, CIDS, STRUCT: bracket.structure(CIDS.length),
+    CUTS: { protect: engine.FINAL_FOUR, mustSee: engine.MUST_SEE }, // where the order changes the trip
     contenderName: (id) => (CONTENDERS.find((c) => c.id === id) || {}).name || id,
     validVenue: (id) => engine.catalog.venues.some((v) => v.id === id),
     venueName: (id) => (engine.catalog.venues.find((v) => v.id === id) || {}).name || id,
@@ -73,9 +74,11 @@ async function loadState(ctx, db) {
 }
 
 // Everyone's bracket picks: { traveler: { game: winner } }. Survives the table not existing yet.
+// Rows come back in time order and the object keeps key order, so chal: rows apply oldest first
+// and a re-answered pair (same key, newer `at`) moves to the end: later evidence wins.
 async function loadPicks(ctx, db) {
   try {
-    const rows = (await db.prepare("SELECT traveler_id, game, winner FROM bracket_picks WHERE trip_id = ?").bind(ctx.TRIP_ID).all()).results;
+    const rows = (await db.prepare("SELECT traveler_id, game, winner FROM bracket_picks WHERE trip_id = ? ORDER BY at, rowid").bind(ctx.TRIP_ID).all()).results;
     const picks = {}; for (const r of rows) (picks[r.traveler_id] = picks[r.traveler_id] || {})[r.game] = r.winner;
     return picks;
   } catch (e) { return {}; }
@@ -93,13 +96,61 @@ function familyFromPicks(ctx, picks, travelers) {
     if (p.abstain) { status[t] = { complete: false, abstained: true, seeded: false, picksMade: 0, picksNeeded: ctx.STRUCT.picksNeeded, champion: null }; continue; }
     const ids = drawFor(ctx, t, p);
     const r = bracket.resolve(ctx.STRUCT, ids, p);
-    const ranking = r.complete ? bracket.ranking(ctx.STRUCT, ids, p) : null;
-    status[t] = { complete: r.complete, seeded: Object.keys(bucketsOf(p)).length > 0, picksMade: r.picksMade, picksNeeded: r.picksNeeded, champion: ranking ? ranking[0] : null };
+    const info = r.complete ? bracket.rankingInfo(ctx.STRUCT, ids, p) : null;
+    const ranking = info ? info.order : null;
+    status[t] = { complete: r.complete, seeded: Object.keys(bucketsOf(p)).length > 0, picksMade: r.picksMade, picksNeeded: r.picksNeeded, champion: ranking ? ranking[0] : null, promoted: info ? info.promoted : [], challenged: info ? info.challenged : [] };
     if (ranking) ballots[t] = ranking;
   }
   const order = bracket.familyOrder(ballots, ctx.CIDS);
   return { status, ballots, order, familyRank: order.map((r) => r.id), champions: order.filter((r) => r.protected).map((r) => r.id) };
 }
+
+/* ───────────── Close calls, ladders, boundary questions: refining one ballot ─────────────
+   Everything here refines a personal ranking. The family's order stays mean rank with
+   champions locked; closeness and challenges never cross ballots. */
+
+const LADDER_DEPTH = 3, LADDER_BUDGET = 2;
+
+// The order that drives the schedule: the family's once two ballots are in, else this traveler's own.
+function drivingOrder(s, t) {
+  const done = Object.values(s.family.status).filter((x) => x.complete).length;
+  return done >= 2 ? s.family.familyRank : (s.family.ballots[t] || []);
+}
+
+// This traveler's open ladder, if any: the contender, the rungs, and the next question.
+function ladderFor(ctx, s, t) {
+  const p = s.picks[t] || {}, mine = s.family.ballots[t];
+  const used = bracket.challengesUsed(p);
+  const out = { used, budget: LADDER_BUDGET, open: null };
+  if (!mine) return out;
+  for (const [k, v] of Object.entries(p)) {
+    if (!k.startsWith("ladder:") || v === "closed") continue;
+    const id = k.slice(7), climbed = v | 0;
+    const rungs = bracket.ladder(mine, id, LADDER_DEPTH - climbed);
+    if (!rungs.length || climbed >= LADDER_DEPTH) continue;
+    out.open = { id, climbed, next: { a: id, b: rungs[0] }, left: LADDER_DEPTH - climbed };
+    break;
+  }
+  return out;
+}
+
+// The boundary questions for this traveler, against the order that drives the schedule.
+function questionsFor(ctx, s, t) {
+  const p = s.picks[t] || {}, mine = s.family.ballots[t];
+  if (!mine) return [];
+  const order = drivingOrder(s, t);
+  const games = bracket.resolve(ctx.STRUCT, drawFor(ctx, t, p), p).games;
+  const means = Object.fromEntries(s.family.order.map((r) => [r.id, r.mean]));
+  const myRank = Object.fromEntries(mine.map((id, i) => [id, i + 1]));
+  return bracket.questions(order, ctx.CUTS, p, { games, promoted: s.family.status[t].promoted, means, mine: myRank });
+}
+
+// Which side of each cut a contender sits on, in the driving order. A move across a cut is the only thing worth logging.
+function cutSide(ctx, order, id) {
+  const i = order.indexOf(id);
+  return i < 0 ? "out" : i < ctx.CUTS.protect ? "protect" : i < ctx.CUTS.mustSee ? "mustSee" : "out";
+}
+const CUT_WORD = { protect: "inside the top four now, so a short trip keeps it", mustSee: "inside the must-see thirteen now, so a normal week schedules it", out: "outside the must-see thirteen now" };
 
 async function travelerFor(db, identity, env) {
   if (!identity || !identity.email) return null;
@@ -362,7 +413,7 @@ export default {
       const traveler = await travelerFor(db, await identify(request, env), env);
       if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
       const s = await loadState(ctx, db);
-      return json({ contenders: ctx.CONTENDERS, structure: ctx.STRUCT, me: traveler.id, picks: s.picks[traveler.id] || {}, draw: drawFor(ctx, traveler.id, s.picks[traveler.id]), family: s.family });
+      return json({ contenders: ctx.CONTENDERS, structure: ctx.STRUCT, cuts: ctx.CUTS, me: traveler.id, picks: s.picks[traveler.id] || {}, draw: drawFor(ctx, traveler.id, s.picks[traveler.id]), family: s.family, questions: questionsFor(ctx, s, traveler.id), ladder: ladderFor(ctx, s, traveler.id) });
     }
 
     // One pick: the next undecided game, one of its two contenders. Saved as you go.
@@ -378,7 +429,8 @@ export default {
       if (body.game !== cur.next.id) return json({ error: "That's not the game on the screen.", picks: mine }, 409);
       if (!bracket.valid(ctx.STRUCT, myIds, mine, body.game, body.winner)) return json({ error: "Pick one of the two." }, 400);
       const now = new Date().toISOString();
-      await db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(trip_id, traveler_id, game) DO UPDATE SET winner = excluded.winner, at = excluded.at").bind(ctx.TRIP_ID, traveler.id, body.game, body.winner, now).run();
+      const upsert = (game, winner) => db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(trip_id, traveler_id, game) DO UPDATE SET winner = excluded.winner, at = excluded.at").bind(ctx.TRIP_ID, traveler.id, game, winner, now);
+      await db.batch([upsert(body.game, body.winner), ...(body.close === true ? [upsert(`close:${body.game}`, "1")] : [])]);
       const next = await loadState(ctx, db);
       const st = next.family.status[traveler.id];
       let fresh = [];
@@ -388,6 +440,74 @@ export default {
         try { const ext = external(ctx, env, next); const p = ctx.planner.plan({ start: next.start, nights: next.nights }, intents.plannerState(next), { placements: next.placements }, ext); fresh = await evaluateAchievements(ctx, env, db, next, p, url.origin); } catch (e) { fresh = []; }
       }
       return json({ picks: next.picks[traveler.id] || {}, family: next.family, trip: publicState(ctx, next), decisions: await decisions(ctx, db), unlocked: fresh });
+    }
+
+    // Was that close? Mark or unmark a decided matchup, before or after the ballot is finished.
+    // The forced winner stands; the closeness lifts the loser one block on this ballot only.
+    if (url.pathname === "/api/bracket/close" && request.method === "POST") {
+      const traveler = await travelerFor(db, await identify(request, env), env);
+      if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      let body; try { body = await request.json(); } catch (e) { return json({ error: "Bad JSON." }, 400); }
+      const s = await loadState(ctx, db);
+      const mine = s.picks[traveler.id] || {};
+      const g = bracket.resolve(ctx.STRUCT, drawFor(ctx, traveler.id, mine), mine).games.find((x) => x.id === body.game);
+      if (!g || !g.winner || g.auto) return json({ error: "That matchup isn't decided on your ballot.", picks: mine }, 409);
+      const now = new Date().toISOString();
+      if (body.close === false) await db.prepare("DELETE FROM bracket_picks WHERE trip_id = ? AND traveler_id = ? AND game = ?").bind(ctx.TRIP_ID, traveler.id, `close:${body.game}`).run();
+      else await db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, '1', ?) ON CONFLICT(trip_id, traveler_id, game) DO UPDATE SET at = excluded.at").bind(ctx.TRIP_ID, traveler.id, `close:${body.game}`, now).run();
+      const next = await loadState(ctx, db);
+      return json({ picks: next.picks[traveler.id] || {}, family: next.family, trip: publicState(ctx, next), questions: questionsFor(ctx, next, traveler.id), ladder: ladderFor(ctx, next, traveler.id) });
+    }
+
+    // A challenge: open a ladder on a contender you think sits too low, or answer a rung or a
+    // boundary question. Arbitrary pairs are refused: that would be an override wearing a
+    // comparison's clothes. A ladder climbs one neighbor at a time, stops on a loss, and there
+    // are two per ballot. Boundary questions are the system's and cost nothing.
+    if (url.pathname === "/api/bracket/challenge" && request.method === "POST") {
+      const traveler = await travelerFor(db, await identify(request, env), env);
+      if (!traveler) return json({ error: "Sign in as a traveler first.", signin: "/family" }, 401);
+      let body; try { body = await request.json(); } catch (e) { return json({ error: "Bad JSON." }, 400); }
+      const s = await loadState(ctx, db);
+      const mine = s.picks[traveler.id] || {}, ballot = s.family.ballots[traveler.id];
+      if (!ballot) return json({ error: "Finish your bracket first." }, 409);
+      const now = new Date().toISOString();
+      const reply = async (extra) => { const next = await loadState(ctx, db); return json({ picks: next.picks[traveler.id] || {}, family: next.family, trip: publicState(ctx, next), decisions: await decisions(ctx, db), questions: questionsFor(ctx, next, traveler.id), ladder: ladderFor(ctx, next, traveler.id), ...extra }); };
+      if (body.open) {
+        const id = String(body.open);
+        if (!ctx.CIDS.includes(id)) return json({ error: "Not a contender." }, 400);
+        const cur = ladderFor(ctx, s, traveler.id);
+        if (cur.open) return json({ error: `Finish the ladder on ${ctx.contenderName(cur.open.id)} first.` }, 409);
+        if (cur.used >= LADDER_BUDGET) return json({ error: "Two ladders per ballot, and you've used both. Rerun the bracket for a clean slate." }, 409);
+        if (mine[`ladder:${id}`] != null) return json({ error: `${ctx.contenderName(id)} already had its ladder.` }, 409);
+        if (!bracket.ladder(ballot, id, LADDER_DEPTH).length) return json({ error: `${ctx.contenderName(id)} is already on top.` }, 409);
+        await db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, '0', ?)").bind(ctx.TRIP_ID, traveler.id, `ladder:${id}`, now).run();
+        return reply({});
+      }
+      const { a, b, winner } = body;
+      if (!a || !b || a === b || (winner !== a && winner !== b)) return json({ error: "Pick one of the two." }, 400);
+      const same = (q) => (q.a === a && q.b === b) || (q.a === b && q.b === a);
+      const lad = ladderFor(ctx, s, traveler.id);
+      const onLadder = lad.open && same(lad.open.next);
+      const offered = questionsFor(ctx, s, traveler.id).some(same);
+      if (!onLadder && !offered) return json({ error: "That pair isn't on the table." }, 409);
+      const before = drivingOrder(s, traveler.id);
+      const loser = winner === a ? b : a;
+      const stmts = [db.prepare("INSERT INTO bracket_picks (trip_id, traveler_id, game, winner, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(trip_id, traveler_id, game) DO UPDATE SET winner = excluded.winner, at = excluded.at").bind(ctx.TRIP_ID, traveler.id, bracket.pairKey(a, b), winner, now)];
+      if (onLadder) {
+        const climbed = lad.open.climbed + 1;
+        const state = winner !== lad.open.id || climbed >= LADDER_DEPTH ? "closed" : String(climbed); // stop on loss, or at the top rung
+        stmts.push(db.prepare("UPDATE bracket_picks SET winner = ?, at = ? WHERE trip_id = ? AND traveler_id = ? AND game = ?").bind(state, now, ctx.TRIP_ID, traveler.id, `ladder:${lad.open.id}`));
+      }
+      await db.batch(stmts);
+      const next = await loadState(ctx, db);
+      // The log hears about it only when something crossed a cut line in the order that drives the schedule.
+      const after = drivingOrder(next, traveler.id);
+      const moved = [winner, loser].filter((id) => cutSide(ctx, before, id) !== cutSide(ctx, after, id));
+      if (moved.length) {
+        const id = moved.includes(winner) ? winner : loser;
+        await db.prepare("INSERT INTO decisions (trip_id, at, traveler_id, type, payload, summary) VALUES (?, ?, ?, ?, ?, ?)").bind(ctx.TRIP_ID, now, traveler.id, "bracket_challenge", JSON.stringify({ a, b, winner, ladder: onLadder ? lad.open.id : null, moved }), `${traveler.name} moved ${ctx.contenderName(winner)} above ${ctx.contenderName(loser)}. ${ctx.contenderName(id)} is ${CUT_WORD[cutSide(ctx, after, id)]}.`).run();
+      }
+      return reply({ moved });
     }
 
     // Rerun: the old ballot is gone, and the log says so.

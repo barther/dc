@@ -148,3 +148,169 @@ test("the seeding round: buckets decide who faces whom, and nothing else", () =>
   const ballot = B.ranking(s, mine, fill(s, mine, (g) => (mine.indexOf(g.a) < mine.indexOf(g.b) ? g.a : g.b)));
   assert.deepEqual(B.familyOrder({ sam: ballot }, ids).map((x) => x.id), ballot, "the family's order is built from results only");
 });
+
+/* ───────────── Close calls, challenges, boundary questions ───────────── */
+
+const s17 = B.structure(17);
+const chalkPicks = fill(s17, ids, chalk);
+const base = B.ranking(s17, ids, chalkPicks);
+// Pure chalk: the champion (seed 1) beat the 16 slot in r16-1. That loser heads the r16 block: 9th.
+const r16Loser = B.resolve(s17, ids, chalkPicks).games.find((g) => g.id === "r16-1").loser;
+
+test("a close loss lifts the loser exactly one block, and flags never stack", () => {
+  assert.equal(base.indexOf(r16Loser), 8, "home: first of the round-of-16 losers");
+  const lifted = B.ranking(s17, ids, { ...chalkPicks, "close:r16-1": "1" });
+  assert.equal(lifted.indexOf(r16Loser), 5, "one block up: behind the native who lost to the same conqueror later");
+  // A second close flag on a game it did not lose changes nothing; a contender loses once.
+  const twice = B.ranking(s17, ids, { ...chalkPicks, "close:r16-1": "1", "close:r8-1": "1", "close:final": "1" });
+  assert.equal(twice.indexOf(r16Loser), 5);
+  // The play-in loser lifts into the round-of-16 block, and no further. With one play-in its
+  // conqueror went the least far of anyone, so it keeps the same seat; the block is what changed.
+  const pl = base[16];
+  const plUp = B.rankingInfo(s17, ids, { ...chalkPicks, "close:p1": "1" });
+  assert.deepEqual(plUp.promoted, [pl]); assert.equal(plUp.order.indexOf(pl), 16);
+  // With five play-ins (New York), a close play-in loss lands ahead of every other play-in loser.
+  const NYC = require("../public/venues-nyc.js");
+  const ny = B.contenders(NYC).map((c) => c.id), sN = B.structure(ny.length);
+  const pN = fill(sN, ny, (g) => (ny.indexOf(g.a) < ny.indexOf(g.b) ? g.a : g.b));
+  const rN = B.resolve(sN, ny, pN);
+  const plLosers = rN.games.filter((g) => g.round === "playin").map((g) => g.loser);
+  const liftedN = B.ranking(sN, ny, { ...pN, "close:p1": "1" });
+  const me = rN.games.find((g) => g.id === "p1").loser;
+  assert.ok(liftedN.indexOf(me) <= 16, "inside the round-of-16 block");
+  for (const other of plLosers) if (other !== me) assert.ok(liftedN.indexOf(other) > liftedN.indexOf(me), `${other} stays behind`);
+});
+
+test("a close loss in the quarterfinals sorts to the front of its own block and never reaches the top four", () => {
+  const games = B.resolve(s17, ids, chalkPicks).games;
+  const r8 = games.filter((g) => g.round === "r8");
+  for (const g of r8) {
+    const o = B.ranking(s17, ids, { ...chalkPicks, [`close:${g.id}`]: "1" });
+    assert.deepEqual(o.slice(0, 4), base.slice(0, 4), "the top four are settled by real games");
+    assert.ok(o.indexOf(g.loser) >= 4 && o.indexOf(g.loser) <= 7, `${g.loser} stays in the quarterfinal block`);
+  }
+  // Every quarterfinal close at once: still the same block, still behind the top four.
+  const all = B.ranking(s17, ids, { ...chalkPicks, ...Object.fromEntries(r8.map((g) => [`close:${g.id}`, "1"])) });
+  assert.deepEqual(all.slice(0, 8), base.slice(0, 8));
+});
+
+test("the Intrepid case: a close round-of-16 loss to the eventual champion finishes 6th, not 9th", () => {
+  const NYC = require("../public/venues-nyc.js");
+  const ny = B.contenders(NYC).map((c) => c.id);
+  const s = B.structure(ny.length);
+  // Intrepid takes the 16 slot; seed 1 (A) beats it in r16-1 and goes on to win the final.
+  const A = ny[0], intrepid = "intrepid";
+  const order = ny.filter((id) => id !== intrepid); order.splice(15, 0, intrepid);
+  const picks = fill(s, order, (g) => (g.a === intrepid && g.round === "playin" ? intrepid : g.b === intrepid && g.round === "playin" ? intrepid : order.indexOf(g.a) < order.indexOf(g.b) ? g.a : g.b));
+  const r = B.resolve(s, order, picks);
+  const game = r.games.find((g) => g.round === "r16" && (g.a === intrepid || g.b === intrepid));
+  assert.equal(game.winner, A); assert.equal(game.loser, intrepid);
+  const before = B.ranking(s, order, picks);
+  assert.equal(before[0], A);
+  assert.equal(before.indexOf(intrepid), 8, "buried nine deep");
+  const after = B.ranking(s, order, { ...picks, [`close:${game.id}`]: "1" });
+  assert.equal(after.indexOf(intrepid), 5, "lifted into the quarterfinal block, behind the native A also beat");
+  assert.equal(after.length, ny.length); assert.equal(new Set(after).size, ny.length);
+});
+
+test("a promoted contender sorts behind a native with the same conqueror", () => {
+  const games = B.resolve(s17, ids, chalkPicks).games;
+  const champ = base[0];
+  const nativeLoser = games.find((g) => g.round === "r8" && g.winner === champ).loser;
+  const o = B.ranking(s17, ids, { ...chalkPicks, "close:r16-1": "1" });
+  assert.equal(o.indexOf(nativeLoser), 4);
+  assert.equal(o.indexOf(r16Loser), 5);
+});
+
+test("ranking stays a total order under any mix of promotions and challenges", () => {
+  const games = B.resolve(s17, ids, chalkPicks).games;
+  const closes = Object.fromEntries(games.filter((g) => !g.auto).map((g) => [`close:${g.id}`, "1"]));
+  const chals = {};
+  for (let i = 0; i < ids.length; i += 3) chals[B.pairKey(ids[i], ids[(i + 5) % ids.length])] = ids[(i + 5) % ids.length];
+  for (const picks of [{ ...chalkPicks, ...closes }, { ...chalkPicks, ...chals }, { ...chalkPicks, ...closes, ...chals }]) {
+    const o = B.ranking(s17, ids, picks);
+    assert.equal(o.length, 17); assert.equal(new Set(o).size, 17);
+    assert.deepEqual([...o].sort(), [...ids].sort());
+  }
+  const info = B.rankingInfo(s17, ids, { ...chalkPicks, "close:r16-1": "1" });
+  assert.deepEqual(info.promoted, [r16Loser]);
+});
+
+test("a challenge moves the winner to just before the loser and nothing else", () => {
+  const w = base[10], l = base[6];
+  const o = B.ranking(s17, ids, { ...chalkPicks, [B.pairKey(w, l)]: w });
+  assert.equal(o.indexOf(w), 6); assert.equal(o.indexOf(l), 7);
+  const rest = (arr) => arr.filter((x) => x !== w);
+  assert.deepEqual(rest(o), rest(base), "everything else keeps its relative order");
+  // A challenge the loser already trails is a no-op.
+  assert.deepEqual(B.ranking(s17, ids, { ...chalkPicks, [B.pairKey(base[2], base[9])]: base[2] }), base);
+  // Unknown ids are ignored.
+  assert.deepEqual(B.ranking(s17, ids, { ...chalkPicks, "chal:nope:zzz": "nope" }), base);
+});
+
+test("challenges apply in key order, which the Worker keeps as time order; the later one is honored last", () => {
+  const [P, Q, R] = [base[5], base[6], base[7]];
+  const first = B.ranking(s17, ids, { ...chalkPicks, [B.pairKey(P, R)]: R, [B.pairKey(Q, R)]: Q });
+  assert.deepEqual(first.slice(5, 8), [Q, R, P]);
+  const flipped = B.ranking(s17, ids, { ...chalkPicks, [B.pairKey(Q, R)]: Q, [B.pairKey(P, R)]: R });
+  assert.deepEqual(flipped.slice(5, 8), [R, P, Q]);
+});
+
+test("an intransitive challenge set terminates and yields a valid total order", () => {
+  const [a, b, c] = [base[4], base[5], base[6]];
+  const o = B.ranking(s17, ids, { ...chalkPicks, [B.pairKey(c, a)]: c, [B.pairKey(a, b)]: a, [B.pairKey(b, c)]: b });
+  assert.equal(o.length, 17); assert.equal(new Set(o).size, 17);
+  assert.deepEqual(new Set(o.slice(4, 7)), new Set([a, b, c]), "the three stay in their block; the last answer is the one that holds");
+});
+
+test("intensity never crosses ballots: same personal rankings, different close and challenge rows, byte-identical family order", () => {
+  // A close flag on the quarterfinal loser already first in its block, and a challenge its winner already leads: the ranking is unchanged.
+  const games = B.resolve(s17, ids, chalkPicks).games;
+  const g = games.find((x) => x.round === "r8" && x.winner === base[0]);
+  const loud = { ...chalkPicks, [`close:${g.id}`]: "1", [B.pairKey(base[1], base[12])]: base[1], "ladder:zoolights": "closed" };
+  const quiet = chalkPicks;
+  assert.deepEqual(B.ranking(s17, ids, loud), B.ranking(s17, ids, quiet));
+  const nanny = B.ranking(s17, ids, fill(s17, ids, (x) => (x.a === "national-cathedral" || x.b === "national-cathedral" ? "national-cathedral" : chalk(x))));
+  const fam = (p) => JSON.stringify(B.familyOrder({ bart: B.ranking(s17, ids, p), nanny }, ids));
+  assert.equal(fam(loud), fam(quiet));
+  assert.equal(B.challengesUsed(loud), 1); assert.equal(B.challengesUsed(quiet), 0);
+});
+
+test("boundary questions straddle a cut, skip pairs already compared, and ask at most one per cut", () => {
+  const games = B.resolve(s17, ids, chalkPicks).games;
+  const cuts = { protect: 4, mustSee: 13 };
+  const qs = B.questions(base, cuts, chalkPicks, { games, promoted: [], means: {}, mine: {} });
+  assert.ok(qs.length <= 2);
+  const cutNames = qs.map((q) => q.cut);
+  assert.equal(new Set(cutNames).size, cutNames.length, "one per cut");
+  for (const q of qs) {
+    const k = cuts[q.cut], ia = base.indexOf(q.a), ib = base.indexOf(q.b);
+    assert.ok(ia >= k - 2 && ia < k && ib >= k && ib < k + 2, `${q.a} vs ${q.b} straddles the ${q.cut} cut`);
+    assert.ok(!games.some((g) => (g.a === q.a && g.b === q.b) || (g.a === q.b && g.b === q.a)), "never a bracket game they already played");
+    assert.ok(q.reason.length > 10);
+  }
+  // A pair already challenged is never asked again; with every straddling pair compared, nothing is asked.
+  const answered = { ...chalkPicks };
+  for (const x of base.slice(2, 4)) for (const y of base.slice(4, 6)) answered[B.pairKey(x, y)] = x;
+  for (const x of base.slice(11, 13)) for (const y of base.slice(13, 15)) answered[B.pairKey(x, y)] = x;
+  assert.deepEqual(B.questions(base, cuts, answered, { games }), []);
+  // A promoted contender on the bubble is asked about first.
+  const lifted = B.questions(base, cuts, chalkPicks, { games, promoted: [base[4]], means: {}, mine: {} });
+  assert.ok(lifted.find((q) => q.cut === "protect" && (q.a === base[4] || q.b === base[4])));
+  // Cuts past the end of the order ask nothing.
+  assert.deepEqual(B.questions(base.slice(0, 3), cuts, chalkPicks, { games }), []);
+});
+
+test("a ladder climbs nearest-first and never starts above the immediate neighbor", () => {
+  assert.deepEqual(B.ladder(base, base[9]), [base[8], base[7], base[6]]);
+  assert.deepEqual(B.ladder(base, base[9], 1), [base[8]]);
+  assert.deepEqual(B.ladder(base, base[1]), [base[0]]);
+  assert.deepEqual(B.ladder(base, base[0]), []);
+  assert.deepEqual(B.ladder(base, "nope"), []);
+});
+
+test("the budget counts ladders opened, not boundary answers", () => {
+  const picks = { ...chalkPicks, "ladder:zoolights": "1", "ladder:georgetown": "closed", [B.pairKey(base[3], base[4])]: base[4], [B.pairKey(base[12], base[13])]: base[13] };
+  assert.equal(B.challengesUsed(picks), 2, "two ladders, whatever the boundary questions did");
+  assert.equal(B.challengesUsed({ ...chalkPicks, [B.pairKey(base[3], base[4])]: base[4] }), 0);
+});

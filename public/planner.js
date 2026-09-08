@@ -642,7 +642,7 @@
     return { moves, gain, plan: next, lines, summary: `Nothing gets cut and every day stays balanced. ${lines.join(". ")}.` };
   }
 
-  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, inSeason, catalog, EDGES, PACE, paceFor, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
+  return { plan, summarize, diff, fitOptions, suggestSwap, weatherFit, FIT_RANK, buildUnits, inSeason, catalog, EDGES, PACE, paceFor, MUST_SEE, FINAL_FOUR, DEFAULT, MIN_NIGHTS, MAX_NIGHTS, WORK, TRAIN, workStatus, workBuffer, workEarly, parseISO, iso, addDays, fmtMD, fmtDMD, fmtDMDY, DOW, MON, holiday };
   }
 
   const isNode = typeof module !== "undefined" && module.exports;

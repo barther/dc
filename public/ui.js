@@ -383,11 +383,26 @@
       ${c.bundle ? `<span class="c-short">${esc(c.short)}</span>` : ""}
       <span class="c-body">${esc(cp.body[0] || "")}</span>
       ${inFor(c)}
-      <span class="c-go">This one</span>
+      <span class="c-go">Protect this one</span>
     </button>`;
   }
 
   let abstainConfirm = false;
+  let lastPick = null; // { game, winner }: the matchup just decided, so "was that close?" can be answered after the fact
+  const closeGames = () => Object.keys(br.picks || {}).filter((k) => k.startsWith("close:")).map((k) => k.slice(6));
+  // One optional tap after a pick. Never a modal, never required; gone at the next pick.
+  function closeLine(byId) {
+    if (!lastPick || !br.picks[lastPick.game]) return "";
+    const name = byId[lastPick.winner] ? byId[lastPick.winner].name : "That one";
+    return br.picks[`close:${lastPick.game}`]
+      ? `<p class="close-line">${esc(name)} it is. A close one, noted. <button type="button" class="link" data-close="0" data-game="${lastPick.game}">Never mind</button></p>`
+      : `<p class="close-line">${esc(name)} it is. Was that close? <button type="button" class="ctl" data-close="1" data-game="${lastPick.game}">Yes</button></p>`;
+  }
+  // A pair on the table: a ladder rung or a boundary question. Same framing as a matchup, smaller.
+  function pairCard(a, b, byId, kicker, why) {
+    const side = (id) => `<button type="button" class="ctl pair-pick" data-chal-a="${a}" data-chal-b="${b}" data-chal-win="${id}">${esc(byId[id] ? byId[id].name : id)}</button>`;
+    return `<div class="pair"><p class="kicker-sm">${esc(kicker)}</p><p class="pair-q">Which should we protect more?</p><div class="pair-sides">${side(a)}<span class="vs">or</span>${side(b)}</div>${why ? hint(why) : ""}</div>`;
+  }
   function renderBracket(mine, iAbstain) {
     const el = $("bracket-body");
     if (!br) { el.innerHTML = ""; return; }
@@ -407,12 +422,15 @@
       const g = r.next;
       $("bracket-head").textContent = "Fill in your bracket.";
       $("bracket-intro").hidden = false;
-      $("bracket-intro").textContent = `${br.contenders.length} things, one bracket, one matchup at a time. Finish it and the week appears, built from your ranking by the house rules.`;
+      $("bracket-intro").textContent = `${br.contenders.length} things, one bracket, one matchup at a time. Each matchup asks which to protect more; you're not cutting the other one. Finish it and the week appears, built from your ranking by the house rules.`;
       const sofar = r.picksMade ? `<p class="matchup-sofar">${r.picksMade} of ${r.picksNeeded} picked. <button type="button" class="link" data-bracket="restart">Start over</button></p>` : "";
       el.innerHTML = `<div class="matchup">
+        ${closeLine(byId)}
         <p class="matchup-round"><span class="round">${esc(B.ROUND_NAME[g.round])}</span><span class="sep">·</span><span>pick ${r.picksMade + 1} of ${r.picksNeeded}</span></p>
+        <p class="matchup-q">Which should we protect more?</p>
+        <p class="matchup-why">You're not cutting the other one. This decides what survives if the week gets tight.</p>
         <div class="versus">${contenderCard(byId[g.a], g.id)}<span class="vs">or</span>${contenderCard(byId[g.b], g.id)}</div>
-        ${hint("Tap the one you'd rather not miss. Saved as you go.")}${sofar}
+        ${hint("Tap the one to protect. Saved as you go.")}${sofar}
         ${abstainConfirm
           ? `<div class="actions"><span class="ctl-state">No ballot, then. The family's week won't wait on you.</span><button type="button" class="ctl on" data-bracket="abstain">That's right</button><button type="button" class="ctl" data-bracket="keep">Never mind</button></div>`
           : `<p class="matchup-sofar">Been already? <button type="button" class="link" data-bracket="abstain-ask">I'm here for the train.</button></p>`}
@@ -424,11 +442,26 @@
     const rerun = brConfirm
       ? `<div class="actions"><span class="ctl-state">Sure? Your week disappears until the new ballot is finished.</span><button type="button" class="ctl on" data-bracket="reset">Yes, rerun it</button><button type="button" class="ctl" data-bracket="keep">Keep it</button></div>`
       : `<div class="actions"><button type="button" class="ctl" data-bracket="rerun">Rerun my bracket</button></div>`;
+    // What the ranking is made of: close calls lift a loser one block; the marks say which.
+    const info = B.rankingInfo(br.structure, ids, br.picks) || { promoted: [], challenged: [] };
+    const promoted = new Set(info.promoted), challenged = new Set(info.challenged);
+    const closeLost = new Set(closeGames().map((gid) => (r.games.find((x) => x.id === gid) || {}).loser).filter(Boolean));
+    const lad = br.ladder || { used: 0, budget: 2, open: null };
+    const canLadder = (id, i) => i > 0 && !lad.open && lad.used < lad.budget && br.picks[`ladder:${id}`] == null;
+    const mark = (id) => promoted.has(id) ? `<em class="lifted">lifted, you called this one close</em>` : closeLost.has(id) ? `<em class="lifted quiet">a close one</em>` : challenged.has(id) ? `<em class="lifted quiet">moved up on a challenge</em>` : "";
+    const row = (id, i) => `<li${promoted.has(id) ? ' class="promoted"' : ""}><b>${i + 1}</b><span>${i === 0 ? `<span class="star" aria-label="your champion">${cityId === "nyc" ? "◆" : "✦"}</span>` : ""}${esc(byId[id].name)}${byId[id].bundle ? `<small>${esc(byId[id].short)}</small>` : ""}${mark(id)}</span><i>${byId[id].seed} seed${canLadder(id, i) ? ` <button type="button" class="link" data-ladder-open="${id}">Too low?</button>` : ""}</i></li>`;
+    const cuts = br.cuts || { protect: 4, mustSee: 13 };
+    const table = (br.questions || []).map((q) => pairCard(q.a, q.b, byId, "On the bubble", q.reason)).join("");
+    const rung = lad.open ? pairCard(lad.open.next.a, lad.open.next.b, byId, `Too low? Rung ${lad.open.climbed + 1} of 3`, `${byId[lad.open.id].name} climbs one neighbor at a time. A loss ends the ladder.`) : "";
     el.innerHTML = `<div class="ballot">
-      <ol class="ballot-list">${mine.slice(0, 4).map((id, i) => `<li><b>${i + 1}</b><span>${i === 0 ? `<span class="star" aria-label="your champion">${cityId === "nyc" ? "◆" : "✦"}</span>` : ""}${esc(byId[id].name)}${byId[id].bundle ? `<small>${esc(byId[id].short)}</small>` : ""}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
+      ${closeLine(byId)}
+      <p class="ballots-in">In a normal week the top ${cuts.mustSee} of these are in, and a short trip keeps the top ${cuts.protect}. This was about the order.</p>
+      <ol class="ballot-list">${mine.slice(0, 4).map(row).join("")}</ol>
       <details class="fold"><summary>All ${mine.length}, in your order</summary>
-        <ol class="ballot-list" start="5">${mine.slice(4).map((id, i) => `<li><b>${i + 5}</b><span>${esc(byId[id].name)}${byId[id].bundle ? `<small>${esc(byId[id].short)}</small>` : ""}</span><i>${byId[id].seed} seed</i></li>`).join("")}</ol>
+        <ol class="ballot-list" start="5">${mine.slice(4).map((id, i) => row(id, i + 4)).join("")}</ol>
+        ${hint(`"Too low?" opens a ladder: one neighbor at a time, up to three, and a loss ends it. ${lad.budget - lad.used === 0 ? "Both ladders used." : `${lad.budget - lad.used} of ${lad.budget} ladders left.`}`)}
       </details>
+      ${rung}${table}
       ${rerun}
     </div>`;
   }
@@ -473,10 +506,23 @@
     return data;
   }
 
+  function takeBracket(data) { br.picks = data.picks; br.family = data.family; if (data.questions) br.questions = data.questions; if (data.ladder) br.ladder = data.ladder; }
+  async function bracketClose(game, close) {
+    const data = await bracketPost("/api/bracket/close", { game, close });
+    if (!data) return;
+    takeBracket(data); shared = { ...shared, trip: data.trip }; render();
+  }
+  async function bracketChallenge(body) {
+    const data = await bracketPost("/api/bracket/challenge", body);
+    if (!data) return;
+    takeBracket(data); shared = { ...shared, trip: data.trip }; render();
+    if (data.moved && data.moved.length) toast("That one crossed a line the schedule cares about. The week moved.");
+  }
   async function bracketPick(game, winner) {
     const data = await bracketPost("/api/bracket/pick", { game, winner });
     if (!data) return;
-    br.picks = data.picks; br.family = data.family;
+    lastPick = { game, winner };
+    takeBracket(data);
     shared = { ...shared, trip: data.trip };
     const st = data.family.status[me.id];
     render();
@@ -523,6 +569,12 @@
     if (sb) { seedPick[sb.dataset.seed] = +sb.dataset.bucket; renderSeeding(); return; }
     const pick = e.target.closest("[data-pick]");
     if (pick) { bracketPick(pick.dataset.game, pick.dataset.pick); return; }
+    const cl = e.target.closest("[data-close]");
+    if (cl) { bracketClose(cl.dataset.game, cl.dataset.close === "1"); return; }
+    const lo = e.target.closest("[data-ladder-open]");
+    if (lo) { bracketChallenge({ open: lo.dataset.ladderOpen }); return; }
+    const ch = e.target.closest("[data-chal-win]");
+    if (ch) { bracketChallenge({ a: ch.dataset.chalA, b: ch.dataset.chalB, winner: ch.dataset.chalWin }); return; }
     const b = e.target.closest("[data-bracket]"); if (!b) return;
     const k = b.dataset.bracket;
     if (k === "restart") { bracketReset(); return; }
