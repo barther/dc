@@ -79,7 +79,9 @@ Seventeen contenders is seventeen taps.
     the two just inside and the two just outside are looked at, in the order that drives the
     schedule: this traveler's own until two ballots are in, the family's after that. A pair
     that straddles the cut and was never compared directly is asked, one per cut, two at
-    most, preferring a pair where one side was lifted by a close call, where the family's
+    most, and each cut asks only once per ballot: an answer moves the means, a new pair
+    drifts onto the bubble, and without that stop the asking would never end. Rerun clears
+    it. The question prefers a pair where one side was lifted by a close call, where the family's
     means are within one place, where this traveler disagrees most with the family, and
     where the pair sits right on the line. Arbitrary pairs are refused: that would be an
     override wearing a comparison's clothes.

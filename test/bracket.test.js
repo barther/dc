@@ -299,6 +299,10 @@ test("boundary questions straddle a cut, skip pairs already compared, and ask at
   assert.ok(lifted.find((q) => q.cut === "protect" && (q.a === base[4] || q.b === base[4])));
   // Cuts past the end of the order ask nothing.
   assert.deepEqual(B.questions(base.slice(0, 3), cuts, chalkPicks, { games }), []);
+  // Each cut asks once per ballot: an answered cut stays quiet however the order drifts.
+  const once = B.questions(base, cuts, { ...chalkPicks, "asked:protect": "chal:x:y" }, { games });
+  assert.ok(once.every((q) => q.cut !== "protect") && once.length === 1);
+  assert.deepEqual(B.questions(base, cuts, { ...chalkPicks, "asked:protect": "1", "asked:mustSee": "1" }, { games }), []);
 });
 
 test("a ladder climbs nearest-first and never starts above the immediate neighbor", () => {

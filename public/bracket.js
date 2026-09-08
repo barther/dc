@@ -21,6 +21,7 @@
  *   close:<game>    "1"           that matchup was a close call
  *   chal:<a>:<b>    <winner id>   a challenge, a < b lexically; key order is time order
  *   ladder:<id>     "0".."3" | "closed"   a ladder opened on <id>: rungs climbed, or done
+ *   asked:<cut>     <pair key>    a boundary question at that cut was answered; each cut asks once per ballot
  *
  * See BRACKET.md for the doctrine.
  */
@@ -193,14 +194,16 @@
   // in this order: one of them was close-promoted (that order is inference, not evidence); the
   // family's means are within 1.0 (the group is undecided); this traveler's ranks differ most from
   // the family's means (their answer moves the aggregate most); adjacent to the cut (it decides
-  // the boundary outright). One per cut, two at most.
+  // the boundary outright). One per cut, two at most, and each cut asks once per ballot: an
+  // answer moves the means, a new pair drifts onto the bubble, and without that stop the
+  // asking never ends. After that the ladder is the correction path.
   //   opts: { games: resolved games for this traveler, promoted: [id], means: {id: mean}, mine: {id: rank} }
   function questions(order, cuts, picks, opts) {
     opts = opts || {};
     const games = opts.games || [], promoted = new Set(opts.promoted || []), means = opts.means || {}, mine = opts.mine || {};
     const out = [];
     for (const [name, k] of Object.entries(cuts || {})) {
-      if (!(k >= 1) || k >= order.length) continue;
+      if (!(k >= 1) || k >= order.length || (picks || {})[`asked:${name}`]) continue;
       const inside = order.slice(Math.max(0, k - 2), k), outside = order.slice(k, k + 2);
       const cands = [];
       for (const x of inside) for (const y of outside) {
