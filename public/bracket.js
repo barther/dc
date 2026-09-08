@@ -8,8 +8,19 @@
  *   resolve(struct, ids, picks) → { games, next, complete, picksMade, picksNeeded }
  *   valid(struct, ids, picks, game, winner) → bool
  *   ranking(struct, ids, picks) → [id] best first, length n, no ties
+ *   rankingInfo(struct, ids, picks) → { order, promoted: [id], challenged: [id] }
  *   familyOrder(ballots, ids) → [{ id, mean, protected, ranks }]
  *   draw(ids, buckets, salt)  → [id] a personal seed order from three coarse buckets
+ *   questions(order, cuts, picks, opts) → [{ a, b, cut, reason }]  boundary questions, at most two
+ *   ladder(order, id, depth)  → [id] the rungs above id, nearest first
+ *   challengesUsed(picks)     → n ladders opened on this ballot
+ *
+ * Picks carry more than games. Prefixed keys ride in the same object and every reader
+ * ignores what it doesn't own (no game id contains a colon):
+ *   bucket:<id>     "1"–"3"       the seeding round
+ *   close:<game>    "1"           that matchup was a close call
+ *   chal:<a>:<b>    <winner id>   a challenge, a < b lexically; key order is time order
+ *   ladder:<id>     "0".."3" | "closed"   a ladder opened on <id>: rungs climbed, or done
  *
  * See BRACKET.md for the doctrine.
  */
@@ -114,21 +125,111 @@
     return !!(g && g.ready && !g.auto && (winner === g.a || winner === g.b));
   }
 
-  // A total order from one completed bracket. Later rounds first; within a round,
-  // losers are ordered by how far their conqueror went.
-  function ranking(struct, ids, picks) {
+  // A total order from one completed bracket. The top four are settled by real games (the final
+  // and the third-place match). Everyone else lost once, in some round; a round is a block, and
+  // within a block losers sort by how far their conqueror went.
+  //
+  // Close calls: a loss the picker called close lifts the loser exactly one block, never into the
+  // top four, and never past a native of that block with the same conqueror (the native lost
+  // later, on more evidence). Losses do not stack: one contender loses once.
+  //
+  // Challenges: after promotion, each chal: row moves its winner to just before its loser, if the
+  // loser was ahead. Applied in key order, which the Worker keeps as time order, so later evidence
+  // wins. No transitive closure, no cycle repair: every move is a permutation, so the result is
+  // always a total order.
+  const BLOCKS = ["r8", "r16", "playin"];
+  function rankingInfo(struct, ids, picks) {
+    picks = picks || {};
     const r = resolve(struct, ids, picks);
     if (!r.complete) return null;
     const by = Object.fromEntries(r.games.map((g) => [g.id, g]));
-    const order = [by.final.winner, by.final.loser, by.third.winner, by.third.loser];
-    const pos = new Map(order.map((id, i) => [id, i]));
-    for (const round of ["r8", "r16", "playin"]) {
+    const top = [by.final.winner, by.final.loser, by.third.winner, by.third.loser];
+    // Base pass: the conqueror's finishing position, with no promotion in play.
+    const basePos = new Map(top.map((id, i) => [id, i]));
+    let n = top.length;
+    for (const round of BLOCKS) {
       const losers = r.games.filter((g) => g.round === round && g.loser).map((g) => ({ id: g.loser, beatenBy: g.winner }));
-      losers.sort((x, y) => pos.get(x.beatenBy) - pos.get(y.beatenBy));
-      for (const l of losers) { pos.set(l.id, order.length); order.push(l.id); }
+      losers.sort((x, y) => basePos.get(x.beatenBy) - basePos.get(y.beatenBy));
+      for (const l of losers) basePos.set(l.id, n++);
     }
-    return order;
+    // Promotion pass.
+    const losers = [];
+    r.games.forEach((g, seq) => {
+      if (!BLOCKS.includes(g.round) || !g.loser) return;
+      const home = BLOCKS.indexOf(g.round);
+      const block = picks[`close:${g.id}`] ? Math.max(0, home - 1) : home;
+      losers.push({ id: g.loser, beatenBy: g.winner, home, block, promoted: block !== home, seq });
+    });
+    const order = top.slice();
+    for (let b = 0; b < BLOCKS.length; b++) {
+      const block = losers.filter((l) => l.block === b);
+      block.sort((x, y) => (basePos.get(x.beatenBy) - basePos.get(y.beatenBy)) || ((x.promoted ? 1 : 0) - (y.promoted ? 1 : 0)) || (x.seq - y.seq));
+      for (const l of block) order.push(l.id);
+    }
+    const promoted = losers.filter((l) => l.promoted).map((l) => l.id);
+    // Challenges, in key order.
+    const challenged = [];
+    for (const [k, w] of Object.entries(picks)) {
+      if (!k.startsWith("chal:")) continue;
+      const [a, b] = k.slice(5).split(":");
+      const l = w === a ? b : w === b ? a : null;
+      if (!l) continue;
+      const iw = order.indexOf(w), il = order.indexOf(l);
+      if (iw < 0 || il < 0 || il > iw) continue;
+      order.splice(iw, 1); order.splice(il, 0, w);
+      if (!challenged.includes(w)) challenged.push(w);
+    }
+    return { order, promoted, challenged };
   }
+  function ranking(struct, ids, picks) { const info = rankingInfo(struct, ids, picks); return info ? info.order : null; }
+
+  // The pair key for a challenge: one row per pair, whichever way it was asked.
+  const pairKey = (a, b) => `chal:${[a, b].sort()[0]}:${[a, b].sort()[1]}`;
+  const compared = (games, picks, a, b) => games.some((g) => (g.a === a && g.b === b) || (g.a === b && g.b === a)) || !!(picks || {})[pairKey(a, b)];
+
+  // Boundary questions: extra comparisons spent only where the order changes the trip. For each
+  // cut (a count of things inside), look at the two just inside and the two just outside; a pair
+  // straddling the cut that this traveler never compared directly is a candidate. Candidates rank,
+  // in this order: one of them was close-promoted (that order is inference, not evidence); the
+  // family's means are within 1.0 (the group is undecided); this traveler's ranks differ most from
+  // the family's means (their answer moves the aggregate most); adjacent to the cut (it decides
+  // the boundary outright). One per cut, two at most.
+  //   opts: { games: resolved games for this traveler, promoted: [id], means: {id: mean}, mine: {id: rank} }
+  function questions(order, cuts, picks, opts) {
+    opts = opts || {};
+    const games = opts.games || [], promoted = new Set(opts.promoted || []), means = opts.means || {}, mine = opts.mine || {};
+    const out = [];
+    for (const [name, k] of Object.entries(cuts || {})) {
+      if (!(k >= 1) || k >= order.length) continue;
+      const inside = order.slice(Math.max(0, k - 2), k), outside = order.slice(k, k + 2);
+      const cands = [];
+      for (const x of inside) for (const y of outside) {
+        if (compared(games, picks, x, y)) continue;
+        const lifted = promoted.has(x) || promoted.has(y) ? 1 : 0;
+        const undecided = means[x] != null && means[y] != null && Math.abs(means[x] - means[y]) <= 1 ? 1 : 0;
+        const diverge = (means[x] != null && mine[x] != null ? Math.abs(mine[x] - means[x]) : 0) + (means[y] != null && mine[y] != null ? Math.abs(mine[y] - means[y]) : 0);
+        const adjacent = order.indexOf(x) === k - 1 && order.indexOf(y) === k ? 1 : 0;
+        cands.push({ x, y, lifted, undecided, diverge, adjacent });
+      }
+      if (!cands.length) continue;
+      cands.sort((p, q) => (q.lifted - p.lifted) || (q.undecided - p.undecided) || (q.diverge - p.diverge) || (q.adjacent - p.adjacent) || (order.indexOf(p.x) - order.indexOf(q.x)) || (order.indexOf(p.y) - order.indexOf(q.y)));
+      const c = cands[0];
+      out.push({ a: c.x, b: c.y, cut: name, reason: name === "protect" ? "These two are fighting for the last protected spot: what a short trip keeps." : "These two are fighting for the last must-see spot: what a normal week schedules." });
+      if (out.length === 2) break;
+    }
+    return out;
+  }
+
+  // A ladder: the rungs above a contender, nearest first. It never starts above the immediate neighbor.
+  function ladder(order, id, depth) {
+    depth = depth == null ? 3 : depth;
+    const p = order.indexOf(id);
+    if (p <= 0) return [];
+    return order.slice(Math.max(0, p - depth), p).reverse();
+  }
+
+  // Ladders opened on this ballot. Boundary questions are the system's and cost nothing.
+  const challengesUsed = (picks) => Object.keys(picks || {}).filter((k) => k.startsWith("ladder:")).length;
 
   // Mean rank across completed ballots, champions locked to the top, ties to the seed.
   function familyOrder(ballots, ids) {
@@ -144,7 +245,7 @@
     return rows;
   }
 
-  const api = { contenders, structure, resolve, valid, ranking, familyOrder, draw, ROUND_NAME, DRAW };
+  const api = { contenders, structure, resolve, valid, ranking, rankingInfo, familyOrder, draw, questions, ladder, challengesUsed, pairKey, ROUND_NAME, DRAW, BLOCKS };
   if (typeof module !== "undefined" && module.exports) { module.exports = api; return; }
   root.DCBracket = api;
 })(typeof window !== "undefined" ? window : globalThis);

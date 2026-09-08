@@ -130,6 +130,12 @@
 [data-city="nyc"] .row-note { font-family: var(--text); text-transform: none; letter-spacing: 0; font-weight: 400; }
 [data-city="nyc"] .row-caret { border-color: var(--brass); }
 [data-city="nyc"] .stop.today .row-title::before { color: var(--green); }
+[data-city="nyc"] .matchup-q, [data-city="nyc"] .pair-q { font-family: var(--display); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 18px; }
+[data-city="nyc"] .pair { border-color: var(--brass); }
+[data-city="nyc"] .pair-pick { font-family: var(--text); font-weight: 500; border-color: var(--ink); }
+[data-city="nyc"] .lifted { color: var(--brass); }
+[data-city="nyc"] .lifted.quiet { color: var(--muted); }
+[data-city="nyc"] .ballot-list li.promoted b { color: var(--green); }
 [data-city="nyc"] .fold summary { font-family: var(--display); letter-spacing: 0.24em; color: var(--brass); border-bottom-color: var(--brass); }
 [data-city="nyc"] .fam-table tr.must-see-line td { border-bottom: 3px solid var(--brass); }
 [data-city="nyc"] .board-head { border-bottom-color: var(--brass); }

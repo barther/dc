@@ -913,6 +913,19 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .c-go { justify-self: start; margin-top: 4px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; color: var(--red); border: 1px solid var(--red); padding: 4px 10px 3px; }
 .contender:hover .c-go { background: var(--red); color: var(--paper); }
 .matchup-sofar { font-size: 14px; color: var(--muted); max-width: none; }
+.matchup-q { font-family: var(--display); font-size: 24px; line-height: 1.15; max-width: none; }
+.matchup-why { font-size: 15px; color: var(--muted); font-style: italic; max-width: 52ch; margin-top: -6px; }
+.close-line { font-size: 16px; color: var(--ink-2); max-width: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; border: 1px solid var(--rule); padding: 8px 12px; }
+.lifted { display: block; font-family: var(--text); font-style: italic; font-size: 13px; color: var(--red); line-height: 1.3; }
+.lifted.quiet { color: var(--muted); }
+.ballot-list li.promoted b { color: var(--gold); }
+.ballot-list li i .link { font-size: 11px; letter-spacing: 0.08em; text-transform: none; margin-left: 6px; }
+.pair { border: 1px solid var(--ink); padding: 14px 18px; display: grid; gap: 8px; }
+.pair-q { font-family: var(--display); font-size: 21px; line-height: 1.15; max-width: none; }
+.pair-sides { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.pair-pick { font-family: var(--display); font-size: 17px; letter-spacing: 0; text-transform: none; padding: 8px 14px 7px; border-color: var(--ink); }
+.pair-pick:hover { background: var(--ink); color: var(--paper); }
+.pair .vs { font-size: 17px; }
 @media (max-width: 640px) {
   .versus { grid-template-columns: 1fr; gap: 10px; }
   .vs { justify-self: center; }
@@ -925,7 +938,7 @@ figure:not(:has(.photo.ready)) figcaption { visibility: hidden; }
 .ballot-list li { display: grid; grid-template-columns: 2.4ch 1fr auto; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--rule); font-family: var(--display); font-size: 17px; }
 .ballot-list li b { font-weight: 400; color: var(--red); font-variant-numeric: tabular-nums; }
 .ballot-list li i { font-style: normal; font-family: var(--text); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.ballot-list li:first-child { font-size: 22px; }
+.ballot-list:not([start]) li:first-child { font-size: 22px; }
 .ballot-list li:first-child .star { color: var(--gold); font-size: 0.8em; margin-right: 4px; }
 .family-order { display: grid; gap: 10px; border-top: 3px double var(--ink); padding-top: 18px; margin-top: 18px; }
 .ballots-in { color: var(--ink-2); max-width: none; }

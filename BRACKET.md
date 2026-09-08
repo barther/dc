@@ -12,7 +12,8 @@ no schedule. The schedule lives behind sign-in, and the family builds it by voti
    the same fact drawn as a block.
 3. **Everyone fills a bracket.** Same bracket for everyone, seeded from the regret
    list in the venue file. Sixteen slots plus a play-in for every contender past
-   sixteen. One matchup per screen, this or that, saved as you go.
+   sixteen. One matchup per screen, which to protect more, saved as you go. No
+   "both" button: everyone wants everything, and the forced choice is the instrument.
 4. **Every completed ballot becomes a full ranking, 1 to N.** Averaged across
    ballots, the family's order is born. The planner packs it into days.
 5. **Real life amends it.** Punt, mark done, not this day, weather swaps: all of
@@ -53,14 +54,42 @@ Seventeen contenders is seventeen taps.
 
 ## From a bracket to a ranking, with no ties
 
-- Champion 1, runner-up 2, third-place winner 3, third-place loser 4.
-- Every other contender exited in some round. Within a round, each loser lost to
-  a different winner, so rank a round's losers by how far their conqueror went.
-  Losing in the quarterfinals to the eventual champion beats losing in the
-  quarterfinals to a semifinalist.
-- Later rounds rank above earlier rounds. Play-in losers are last.
+- Champion 1, runner-up 2, third-place winner 3, third-place loser 4. Those four were
+  settled by real games: the final and the third-place match.
+- Everyone else exited in some round, and a round is a block: quarterfinal losers, then
+  round-of-16 losers, then play-in losers. Within a block, each loser lost to a different
+  winner, so rank a block's losers by how far their conqueror went. Losing in the
+  quarterfinals to the eventual champion beats losing in the quarterfinals to a semifinalist.
+- **Close calls.** The bracket asks which to protect more, not which to cut, and the forced
+  winner always stands. But a round-of-16 loss that was a coin flip against the eventual
+  champion should not be a hard ceiling at ninth. So a picker can say a matchup was close,
+  during the pick or after it, and the closeness lifts the loser exactly one block: never two,
+  never into the top four, and never past a native of that block with the same conqueror,
+  who lost later on more evidence. A contender loses once, so flags cannot stack. No rating
+  model, no parameters: one comparison, one block.
+- **Challenges.** A finished ballot can be corrected where it matters, one comparison at a
+  time. A challenge moves its winner to just before its loser, if the loser was ahead, and
+  moves nothing else. Challenges apply in the order they were answered, so later evidence
+  wins; nothing is inferred across them and cycles are tolerated, not repaired. Humans are
+  intransitive. The schedule needs an order, not a utility function.
+  - *Too low?* opens a ladder on a contender: it faces the neighbor just above it, then the
+    next, up to three rungs. A loss ends the ladder. Two ladders per ballot; rerun clears them.
+  - *On the bubble* questions are the system's, and cost nothing. For each cut the planner
+    cares about (the top four a short trip keeps, the top thirteen a normal week schedules),
+    the two just inside and the two just outside are looked at, in the order that drives the
+    schedule: this traveler's own until two ballots are in, the family's after that. A pair
+    that straddles the cut and was never compared directly is asked, one per cut, two at
+    most, preferring a pair where one side was lifted by a close call, where the family's
+    means are within one place, where this traveler disagrees most with the family, and
+    where the pair sits right on the line. Arbitrary pairs are refused: that would be an
+    override wearing a comparison's clothes.
+- The log hears about a challenge only when it moves something across a cut line.
 
-This is a total order derived only from the picks already made.
+This is a total order derived only from the picks already made. **Closeness and challenges
+refine a personal order and never enter the family's.** The family's order is mean rank with
+champions locked, from rankings alone; two ballot sets with the same rankings and different
+close calls produce the same family order, byte for byte. Otherwise whoever agonizes most
+would gain voting power.
 
 ## From ballots to the family's order
 
